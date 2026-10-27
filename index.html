@@ -64,6 +64,12 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
   background: var(--ink); color: var(--paper); border-radius: 999px; padding: 7px 16px; font-weight: 800;
   white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; transition: opacity .3s;
 }
+/* how the last shot went: a small tag up in the tree line, top left, out of the way */
+.shotmsg {
+  position: absolute; left: 10px; top: 10px; max-width: min(46%, 22rem);
+  background: rgba(255,250,240,.88); border: 2px solid var(--ink); border-radius: 8px; padding: 2px 8px;
+  font-size: .78rem; font-weight: 800; line-height: 1.3; pointer-events: none;
+}
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(35,48,58,.45); padding: 14px; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 18px 22px; width: 100%; max-width: 30rem; display: grid; gap: 10px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.05; color: var(--red); }
@@ -111,7 +117,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
 @media (max-width: 820px) {
   .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fire { grid-column: 1 / -1; }
+  .fire, .ctl-psi { grid-column: 1 / -1; }
 }
 @media (max-width: 520px) {
   .sub { display: none; }
@@ -121,7 +127,6 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .chip .k { font-size: .6rem; }
   .spud { width: 8px; height: 7px; border-width: 1.5px; }
   .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; }
-  .tray .ctl:first-child { grid-column: 1 / -1; }
   .ctl { padding: 8px; gap: 6px; }
   /* narrower peg board and arrow buttons so the angle box fits on a phone */
   .row { gap: 5px; }
@@ -162,6 +167,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   <div class="stage">
     <canvas id="cv" aria-label="View from behind the potato launcher, looking down a mown field at colored target rings"></canvas>
     <div class="note" id="note" hidden></div>
+    <div class="shotmsg" id="shotMsg" role="status" hidden></div>
     <div class="overlay" id="overlay">
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
@@ -177,14 +183,6 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
   <section class="tray" aria-label="Launcher settings">
     <div class="ctl">
-      <div class="ctl-head"><label for="psi">Pressure</label><span class="val" id="psiOut">0<small>PSI</small></span></div>
-      <div class="row">
-        <button class="sq" id="bleed" type="button" aria-label="Bleed 1 PSI" title="Bleed 1 PSI">−</button>
-        <input type="range" id="psi" min="0" max="120" step="1" value="0">
-        <button class="pump" id="pump" type="button">Pump</button>
-      </div>
-    </div>
-    <div class="ctl">
       <div class="ctl-head"><span class="lbl">Angle <span id="holeOut" class="hole">hole 7/13</span></span><span class="val" id="angOut">40<small>°</small></span></div>
       <div class="row">
         <button class="sq" id="angDown" type="button" aria-label="Lower one hole">▼</button>
@@ -198,6 +196,15 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
         <button class="sq" id="rotL" type="button" aria-label="Turn left half a degree">◀</button>
         <input type="range" id="rot" min="-30" max="30" step="0.5" value="0">
         <button class="sq" id="rotR" type="button" aria-label="Turn right half a degree">▶</button>
+      </div>
+    </div>
+    <!-- pressure sits next to Load/Fire: pump, load and fire are the most used -->
+    <div class="ctl ctl-psi">
+      <div class="ctl-head"><label for="psi">Pressure</label><span class="val" id="psiOut">0<small>PSI</small></span></div>
+      <div class="row">
+        <button class="sq" id="bleed" type="button" aria-label="Bleed 1 PSI" title="Bleed 1 PSI">−</button>
+        <input type="range" id="psi" min="0" max="120" step="1" value="0">
+        <button class="pump" id="pump" type="button">Pump</button>
       </div>
     </div>
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
@@ -257,32 +264,45 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // ================= camera (behind the launcher) =================
   // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer.
   // pitch is the downward tilt; in flight the camera rises and turns to keep the spud in view
-  const CAM = { x: 0, y: 5, y0: 5, z: -15, yaw: 0, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
+  const CAM = { x: 0, y: 5, y0: 5, z: -15, yaw: 0, zoom: 1, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
   let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), cyw = 1, syw = 0;
   let F = 500, CY = 200, HZ = 100;
   const NEAR = 0.1;
   // CY (the screen point the camera looks at) stays put, worked out from the home position
+  let F0 = 500; // focal length of the resting view
+  // in flight the spud rides about 13% down from the top, and the nearest ring sits low in the view
+  const MIN_ZOOM = 0.6, SPUD_TOP = 0.13, GROUND_LOW = 0.85;
   function setupCam(dt = 0) {
-    F = Math.min(W * 2.2, H * 2.4);
+    F0 = Math.min(W * 2.2, H * 2.4);
     const th = Math.atan2(CAM.y0, -CAM.z), tb = Math.tan(CAM.base);
-    const hz = Math.max(H * 0.06, H * 0.88 - F * (tb + Math.tan(th - CAM.base)));
-    CY = hz + F * tb;
-    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, k = 2;
+    const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
+    CY = hz + F0 * tb;
+    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, k = 2;
     const p = S.potato;
     if (p) {
-      // rise with the spud, then turn to put it a bit above the middle of the view
-      wantY = CAM.y0 + Math.max(0, p.y) * 0.5;
-      const dx = p.x - CAM.x, dz = p.z - CAM.z, el = Math.atan2(p.y - CAM.y, Math.hypot(dx, dz));
+      // rise with the spud and turn toward it, then look down so the spud rides near the top of the view
+      // with the nearest ring low in it; zoom out only when looking down isn't enough
+      wantY = CAM.y0 + Math.max(0, p.y) * 0.8;
+      const dx = p.x - CAM.x, dz = p.z - CAM.z, e1 = Math.atan2(p.y - CAM.y, Math.hypot(dx, dz));
       wantYaw = Math.atan2(dx, dz);
-      wantP = Math.min(CAM.base, Math.atan((CY - H * 0.42) / F) - el);
+      const gz = Math.min(p.z, ...S.rings.map((r) => r.z)), e2 = Math.atan2(-CAM.y, Math.hypot(dx, gz - CAM.z));
+      const room = CY - H * SPUD_TOP, r = (CY - H * GROUND_LOW) / room;
+      // find the tilt where both fit: tan(e2 + p) = r * tan(e1 + p), by bisection (the left side grows faster)
+      let lo = -e1 + 0.001, hi = Math.PI / 2 - e1 - 0.01;
+      for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (Math.tan(e2 + m) - r * Math.tan(e1 + m) < 0) lo = m; else hi = m; }
+      wantP = lo; wantZ = room / Math.tan(e1 + lo) / F0;
+      if (wantZ > 1) { wantZ = 1; wantP = Math.min(CAM.base, Math.atan(room / F0) - e1); }
+      else if (wantZ < MIN_ZOOM) { wantZ = MIN_ZOOM; wantP = Math.atan(room / (F0 * MIN_ZOOM)) - e1; }
       k = 5;
     } else if (S.phase === "settle") k = 0; // hold on the landing for a moment
     const a = Math.min(1, dt * k);
     CAM.pitch += (wantP - CAM.pitch) * a; CAM.yaw += (wantYaw - CAM.yaw) * a; CAM.y += (wantY - CAM.y) * Math.min(1, dt * k * 0.7);
+    CAM.zoom += (wantZ - CAM.zoom) * a;
+    F = F0 * CAM.zoom;
     cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch); cyw = Math.cos(CAM.yaw); syw = Math.sin(CAM.yaw);
     HZ = CY - F * Math.tan(CAM.pitch);
   }
-  function camHome() { CAM.pitch = CAM.base; CAM.yaw = 0; CAM.y = CAM.y0; setupCam(0); }
+  function camHome() { CAM.pitch = CAM.base; CAM.yaw = 0; CAM.y = CAM.y0; CAM.zoom = 1; setupCam(0); }
   // world offset -> camera space [right, up, forward]
   function rot(dx, dy, dz) {
     const x1 = dx * cyw - dz * syw, z1 = dx * syw + dz * cyw;
@@ -356,6 +376,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     noteEl.textContent = msg; noteEl.hidden = false; noteEl.style.opacity = "1";
     clearTimeout(noteT); noteT = setTimeout(() => { noteEl.style.opacity = "0"; noteT = setTimeout(() => (noteEl.hidden = true), 320); }, ms);
   }
+  // the result of a shot stays up until the next one is fired
+  const shotEl = $("shotMsg");
+  function shotNote(msg) { shotEl.textContent = msg; shotEl.hidden = !msg; }
 
   // screen box a ring and its flag take up from the launcher's view
   function ringBox(x, z, r) {
@@ -417,7 +440,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   function startLevel(i) {
     S.level = i; S.rings = layoutRings(LEVELS[i]); S.spudsLeft = SPUDS; S.score = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
-    rollWind(); S.phase = "aim"; $("overlay").hidden = true; hud();
+    rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); hud();
     note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
   }
 
@@ -425,7 +448,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   function pumpStroke() {
     if (!canAdjust()) return;
     // with the valve open the air just rushes through: the needle twitches but falls back to 0
-    if (valveOpen()) { S.kick = 1; S.pumpAnim = 1; sfx.bleed(); note("Load first", 1600); return; }
+    if (valveOpen()) { S.kick = 1; S.pumpAnim = 1; S.loadMsg = 1.8; sfx.bleed(); return; }
     if (S.psi >= MAX_PSI) { note("Gauge is maxed at 120 PSI"); return; }
     S.psi = Math.min(MAX_PSI, Math.round((S.psi + 9 * (1 - S.psi / 170)) * 10) / 10);
     S.pumpAnim = 1; sfx.pump(); hud();
@@ -459,7 +482,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     if (S.psi < 3) { note("The chamber is empty. Pump it up first."); return; }
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16) };
-    S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight";
+    S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight"; shotNote("");
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
@@ -471,10 +494,10 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const fresh = inside.find((r) => !r.hit);
     if (fresh) {
       fresh.hit = true; fresh.flash = 1; S.score += fresh.pts; sfx.ring(fresh.pts);
-      note(`${cap(RINGS[fresh.type].name)} ring! +${fresh.pts}`);
+      shotNote(`${cap(RINGS[fresh.type].name)} ring! +${fresh.pts}`);
     } else {
       sfx.splat();
-      if (inside.length) note(`In the ${RINGS[inside[0].type].name} ring, but it's already scored`);
+      if (inside.length) shotNote(`In the ${RINGS[inside[0].type].name} ring, but it's already scored`);
       else {
         const open = S.rings.filter((r) => !r.hit);
         if (open.length) {
@@ -482,8 +505,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
           const dz = z - n.z, dx = x - n.x, parts = [];
           if (Math.abs(dz) >= 0.1) parts.push(`${Math.abs(dz).toFixed(1)} m ${dz < 0 ? "short" : "long"}`);
           if (Math.abs(dx) >= 0.1) parts.push(`${Math.abs(dx).toFixed(1)} m ${dx < 0 ? "left" : "right"}`);
-          note(`${parts.join(", ")} of the ${RINGS[n.type].name} ring`);
-        } else note("Splat.");
+          shotNote(`${parts.join(", ")} of the ${RINGS[n.type].name} ring`);
+        } else shotNote("Splat.");
       }
     }
     const allHit = S.rings.every((r) => r.hit);
@@ -557,6 +580,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     S.angDisp += (ang() - S.angDisp) * Math.min(1, dt * 8);
     S.puff = Math.max(0, S.puff - dt * 1.4);
     S.kick = Math.max(0, S.kick - dt * 2.5);
+    S.loadMsg = Math.max(0, (S.loadMsg || 0) - dt);
     // the shown wind direction swings round to a new one gradually, like the sock does
     if (S.wind.kmh) {
       if (S.windShow == null) S.windShow = S.wind.dir;
@@ -616,9 +640,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     for (let z = -5; z < 200; z += 20) if (pathClip([[-400, 0, z], [400, 0, z], [400, 0, z + 10], [-400, 0, z + 10]])) ctx.fill();
     // tree line, then fences, then grass and flowers, far to near
     for (const t of trees) drawTree(t);
-    drawFence([[-60, 175], [60, 175]], 5);
-    drawFence([[-60, 175], [-60, 0]], 6);
-    drawFence([[60, 175], [60, 0]], 6);
+    for (const f of fences) drawFence(f);
     for (const t of tufts) {
       const q = P(t.x, 0, t.z), h = Math.min(9, 0.32 * q.s);
       if (q.behind || h < 1.4 || q.x < -10 || q.x > W + 10 || q.y > H + 10) continue;
@@ -642,9 +664,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     for (const r of rings) drawRing(r);
     // splats
     for (const s of S.splats) drawSplat(s);
-    // last arc (dotted), and the live trail
-    if (S.arc) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
-    if (S.curArc.length > 1 || S.potato) drawArc(S.potato ? [...S.curArc, [S.potato.x, S.potato.y, S.potato.z]] : S.curArc, "rgba(255,255,255,.55)", []);
+    // the last shot's path, dotted, appears once it has landed (none while a spud is in the air)
+    if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
     // ring flags drawn after splats so the numbers stay readable
     for (const r of rings) drawFlag(r);
 
@@ -661,6 +682,20 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     drawWindsock();
     drawLauncher();
     drawMinimap();
+    if (S.loadMsg > 0) drawLoadFirst();
+  }
+  // "Load first" pops up right over the launcher, where the player is looking
+  function drawLoadFirst() {
+    const q = P(0, 1.75 * LS, 0.2), fs = Math.max(15, Math.min(22, W / 32));
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, S.loadMsg / 0.3);
+    ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText("Load first").width + fs * 1.4, h = fs * 1.8, x = q.x - w / 2, y = Math.max(6, q.y - h - 10);
+    ctx.fillStyle = "#e8452c"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, h / 2) : ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(q.x - 8, y + h); ctx.lineTo(q.x, y + h + 9); ctx.lineTo(q.x + 8, y + h); ctx.fill();
+    ctx.fillStyle = "#fffaf0"; ctx.fillText("Load first", q.x, y + h / 2 + 1);
+    ctx.restore();
   }
 
   const tufts = (() => {
@@ -671,18 +706,59 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     }
     return out.sort((a, b) => b.z - a.z);
   })();
-  function drawFence(pts, step) {
-    const [[x0, z0], [x1, z1]] = pts, len = Math.hypot(x1 - x0, z1 - z0), n = Math.round(len / step);
-    ctx.strokeStyle = "#c98d4b"; ctx.lineCap = "butt";
-    for (const h of [0.55, 1.0]) {
-      const a = P(x0, h, z0), b = P(x1, h, z1);
-      ctx.lineWidth = Math.max(1, 0.08 * Math.min(a.s, b.s)); if (pathClip([[x0, h, z0], [x1, h, z1]], false)) ctx.stroke();
+  // split-rail fence round the field: weathered posts, three rough rails per bay that sag a little,
+  // and a few broken bays with rails fallen in the grass or leaning on a post
+  // drawn larger than life (like the launcher) so it reads from the far end of the field
+  const POST_H = 2.8, BAY = 4.5;
+  const fences = [[[-60, 175], [60, 175]], [[-60, 175], [-60, -2]], [[60, 175], [60, -2]]].map(([[x0, z0], [x1, z1]]) => {
+    const n = Math.round(Math.hypot(x1 - x0, z1 - z0) / BAY), bays = [];
+    for (let i = 0; i < n; i++) bays.push({ rails: [0.75, 1.55, 2.35].map((h) => [h + rnd(-0.1, 0.1), h + rnd(-0.1, 0.1)]), down: [] });
+    return { x0, z0, x1, z1, n, bays };
+  });
+  (() => {
+    const breaks = 2 + Math.floor(Math.random() * 2);
+    for (let b = 0; b < breaks; b++) {
+      const f = fences[b % fences.length], i = 3 + Math.floor(Math.random() * (f.n - 6)), bay = f.bays[i];
+      const ux = (f.x1 - f.x0) / f.n, uz = (f.z1 - f.z0) / f.n, ax = f.x0 + ux * i, az = f.z0 + uz * i;
+      // drop one or two rails. Each keeps one end where it belonged, at one of the bay's posts;
+      // the other end swings in toward the field or out away from it and comes down to the ground
+      const drop = bay.rails.splice(0, 1 + Math.floor(Math.random() * 2));
+      const L = Math.hypot(ux, uz), dx = ux / L, dz = uz / L, nx = dz, nz = -dx;
+      drop.forEach((r, j) => {
+        const atB = Math.random() < 0.5, px = atB ? ax + ux : ax, pz = atB ? az + uz : az, h = atB ? r[1] : r[0];
+        const bx = atB ? -dx : dx, bz = atB ? -dz : dz, a = rnd(0.25, 0.9) * (Math.random() < 0.5 ? 1 : -1);
+        const ex = bx * Math.cos(a) + nx * Math.sin(a), ez = bz * Math.cos(a) + nz * Math.sin(a);
+        if (j === 0 && Math.random() < 0.6) {
+          // still hooked on its post at its old height, the free end in the grass
+          const run = Math.sqrt(Math.max(0.5, L * L - h * h));
+          bay.down.push([[px, h, pz], [px + ex * run, 0.06, pz + ez * run]]);
+        } else {
+          // slipped right down: lying flat from the foot of its post
+          bay.down.push([[px, 0.06, pz], [px + ex * L, 0.06, pz + ez * L]]);
+        }
+      });
     }
-    ctx.strokeStyle = "#8a5a2b";
-    for (let i = 0; i <= n; i++) {
-      const t = i / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, a = P(x, 0, z), b = P(x, 1.2, z);
+  })();
+  function drawFence(f) {
+    const ux = (f.x1 - f.x0) / f.n, uz = (f.z1 - f.z0) / f.n;
+    const rail = (a, b) => {
+      const s = Math.min(P(...a).s, P(...b).s);
+      if (!pathClip([a, b], false)) return;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#6e5338"; ctx.lineWidth = Math.max(1.5, 0.24 * s); ctx.stroke();
+      ctx.strokeStyle = "#a88a63"; ctx.lineWidth = Math.max(1, 0.14 * s); ctx.stroke();
+    };
+    for (let i = 0; i < f.n; i++) {
+      const ax = f.x0 + ux * i, az = f.z0 + uz * i, bay = f.bays[i];
+      for (const [h0, h1] of bay.rails) rail([ax, h0, az], [ax + ux, h1, az + uz]);
+      for (const [a, b] of bay.down) rail(a, b);
+    }
+    for (let i = 0; i <= f.n; i++) {
+      const x = f.x0 + ux * i, z = f.z0 + uz * i, a = P(x, 0, z), b = P(x, POST_H, z);
       if (a.behind || b.behind) continue;
-      ctx.lineWidth = Math.max(1, 0.12 * a.s); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.lineCap = "butt";
+      ctx.strokeStyle = "#5a422b"; ctx.lineWidth = Math.max(2, 0.34 * a.s); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = "#8a6a48"; ctx.lineWidth = Math.max(1, 0.2 * a.s); ctx.beginPath(); ctx.moveTo(a.x - 0.05 * a.s, a.y); ctx.lineTo(b.x - 0.05 * a.s, b.y); ctx.stroke();
     }
   }
 
@@ -919,7 +995,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // the windsock stands downrange on the right, out of the way of the rings
   const SOCK_Z = 16, SOCK_H = 4;
   // placed from the home view, so it stays put in the world while the camera follows a shot
-  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F; }
+  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F0; }
   const ARROW_UP = 46; // the wind arrow floats this many px above the sock
   function sockBox() {
     const x = sockX(), b = P(x, 0, SOCK_Z), t = P(x, SOCK_H, SOCK_Z), len = 2 * b.s;
@@ -1081,7 +1157,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, fences, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
