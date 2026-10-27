@@ -221,7 +221,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.2</p>
+  <p class="ver">Pneuman v1.3</p>
 </div>
 
 <script>
@@ -283,29 +283,42 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   let F0 = 500; // focal length of the resting view
   // in flight the spud rides about 13% down from the top, and the nearest ring sits low in the view
   const MIN_ZOOM = 0.6, SPUD_TOP = 0.13, GROUND_LOW = 0.85;
-  // "View arc" angles: the camera leaves the launcher and looks at the whole last arc from off to one side
+  // "View arc" angles: the camera leaves the launcher and looks down on the whole last arc from off to one side.
+  // the third press goes back to the normal view
   const ARC_VIEWS = [
     { name: "Bottom right", back: 0.55, side: 0.83 },
-    { name: "Bottom left", back: 0.55, side: -0.83 },
-    { name: "Side right", back: 0, side: 1 },
     { name: "Side left", back: 0, side: -1 },
   ];
+  const ARC_EL = 0.5; // how far above the arc the camera sits (about 29°), so the rings show from above
+  // points relative to a camera at pos turned by yaw and tilted down by pitch -> [right, up, forward]
+  function camSpace(p, pos, yaw, pitch) {
+    const dx = p[0] - pos[0], dy = p[1] - pos[1], dz = p[2] - pos[2], cy = Math.cos(yaw), sy = Math.sin(yaw), cq = Math.cos(pitch), sq = Math.sin(pitch);
+    const x1 = dx * cy - dz * sy, z1 = dx * sy + dz * cy;
+    return [x1, dy * cq + z1 * sq, z1 * cq - dy * sq];
+  }
   function arcCam(v) {
     const a = S.arc, A = a[0], B = a[a.length - 1];
+    // what must be in frame: the whole arc (apex and landing) and the launcher
+    const pts = [...a, [0, 0, 0], [0, 2.6, 0], [-1.4, 0, 0], [1.4, 0, 0]];
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, top = 0;
-    for (const [x, y, z] of a) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); top = Math.max(top, y); }
-    const C = [(x0 + x1) / 2, top * 0.5, (z0 + z1) / 2];
+    for (const [x, y, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); top = Math.max(top, y); }
+    const C = [(x0 + x1) / 2, top * 0.4, (z0 + z1) / 2], R = 0.5 * Math.hypot(x1 - x0, top, z1 - z0) + 2, D = R * 2.4;
     // along the shot (u) and to its right (n)
     const L = Math.hypot(B[0] - A[0], B[2] - A[2]) || 1, ux = (B[0] - A[0]) / L, uz = (B[2] - A[2]) / L, nx = uz, nz = -ux;
-    // a wider lens, and back far enough for the arc, launch and landing to fit with a margin
-    const Fv = Math.min(W, H) * 1.3, R = 0.5 * Math.hypot(x1 - x0, top, z1 - z0) + 3, D = R * Fv / (Math.min(W, H) * 0.62);
     const dx = -ux * v.back + nx * v.side, dz = -uz * v.back + nz * v.side, dl = Math.hypot(dx, dz);
-    const pos = [C[0] + dx / dl * D, Math.max(2, top * 0.35), C[2] + dz / dl * D];
-    return {
-      x: pos[0], y: pos[1], z: pos[2], F: Fv,
-      yaw: Math.atan2(C[0] - pos[0], C[2] - pos[2]),
-      pitch: Math.atan2(pos[1] - C[1], Math.hypot(C[0] - pos[0], C[2] - pos[2])),
-    };
+    const pos = [C[0] + dx / dl * D * Math.cos(ARC_EL), C[1] + D * Math.sin(ARC_EL), C[2] + dz / dl * D * Math.cos(ARC_EL)];
+    let yaw = Math.atan2(C[0] - pos[0], C[2] - pos[2]), pitch = ARC_EL, ex;
+    // centre the points on screen, then zoom in as far as they all still fit
+    for (let i = 0; i < 4; i++) {
+      ex = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+      for (const p of pts) {
+        const c = camSpace(p, pos, yaw, pitch), tx = c[0] / c[2], ty = c[1] / c[2];
+        ex.x0 = Math.min(ex.x0, tx); ex.x1 = Math.max(ex.x1, tx); ex.y0 = Math.min(ex.y0, ty); ex.y1 = Math.max(ex.y1, ty);
+      }
+      yaw += Math.atan((ex.x0 + ex.x1) / 2); pitch -= Math.atan((ex.y0 + ex.y1) / 2);
+    }
+    const F = Math.min(W * 0.86 / (ex.x1 - ex.x0), H * 0.8 / (ex.y1 - ex.y0));
+    return { x: pos[0], y: pos[1], z: pos[2], F, yaw, pitch };
   }
   let CYhome = 200;
   function setupCam(dt = 0) {
@@ -640,6 +653,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     if (canAdjust() && S.pumpHeld) { S.pumpT -= dt; if (S.pumpT <= 0) { pumpStroke(); S.pumpT = 0.2; } }
     for (const r of S.rings) if (r.flash) r.flash = Math.max(0, r.flash - dt * 0.8);
     for (const c of clouds) { c.az += (0.004 + S.wind.x * 0.002) * dt; if (c.az > 1) c.az = -1; if (c.az < -1) c.az = 1; }
+    for (const b of birds) { b.az += b.v * dt; if (b.az > 1.2) b.az = -1.2; if (b.az < -1.2) b.az = 1.2; }
 
     const p = S.potato;
     if (p) {
@@ -660,6 +674,22 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // sky things sit at a direction, not a place: some low enough to peek over the trees, more up high
   const clouds = Array.from({ length: 14 }, (_, i) => ({ az: rnd(-1, 1), el: i < 5 ? rnd(0.012, 0.04) : rnd(0.05, 0.42), s: rnd(0.6, 1.4) }));
   const SUN = { az: 0.3, el: 0.07 };
+  // a few birds wheeling slowly across the sky, wings flapping
+  const birds = Array.from({ length: 6 }, () => ({ az: rnd(-0.7, 0.9), el: rnd(0.04, 0.2), v: rnd(0.01, 0.025) * (Math.random() < 0.5 ? 1 : -1), ph: rnd(0, 6), s: rnd(0.8, 1.2) }));
+  function drawBirds() {
+    const t = performance.now() / 1000;
+    ctx.strokeStyle = "rgba(40,52,62,.8)"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const b of birds) {
+      const q = dirP(b.az + Math.sin(t * 0.3 + b.ph) * 0.02, b.el + Math.sin(t * 0.5 + b.ph) * 0.006), s = Math.max(3, F * 0.0045 * b.s);
+      if (q.behind || q.x < -20 || q.x > W + 20 || q.y < -20 || q.y > HZ) continue;
+      const wing = Math.sin(t * 7 + b.ph) * 0.7;
+      ctx.lineWidth = Math.max(1, s * 0.3);
+      ctx.beginPath(); ctx.moveTo(q.x - s * 2, q.y - s * wing); ctx.quadraticCurveTo(q.x - s, q.y - s * (wing + 0.5), q.x, q.y);
+      ctx.quadraticCurveTo(q.x + s, q.y - s * (wing + 0.5), q.x + s * 2, q.y - s * wing); ctx.stroke();
+    }
+  }
+  // lighter and darker patches of grass over the field and beyond
+  const patches = Array.from({ length: 90 }, () => ({ x: rnd(-170, 170), z: rnd(-70, 230), r: rnd(4, 16), sx: rnd(0.6, 1.5), light: Math.random() < 0.5 }));
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // sky, deeper blue higher up
@@ -678,18 +708,33 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       if (q.behind || q.x < -r * 3 || q.x > W + r * 3 || q.y < -r * 2 || q.y > HZ + r) continue;
       ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 1.9, r * 0.75, 0, 0, 7); ctx.ellipse(q.x + r * 0.7, q.y - r * 0.45, r, r * 0.8, 0, 0, 7); ctx.ellipse(q.x - r * 0.6, q.y - r * 0.3, r * 0.85, r * 0.6, 0, 0, 7); ctx.fill();
     }
-    // far hills, fixed to compass directions so they slide past as the camera turns
-    ctx.fillStyle = "#9ad07a";
-    ctx.beginPath(); ctx.moveTo(0, HZ);
-    for (let x = 0; x <= W + 8; x += 8) { const az = CAM.yaw + Math.atan((x - W / 2) / F); ctx.lineTo(x, dirP(az, 0.012 * (1 + Math.sin(az * 26 + 1))).y); }
-    ctx.lineTo(W + 8, HZ); ctx.fill();
-    // ground with mowing stripes every 10 m
+    drawBirds();
+    // hazy mountains, then far hills, fixed to compass directions so they slide past as the camera turns
+    const skyline = (color, el) => {
+      ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, HZ + 2);
+      for (let x = 0; x <= W + 8; x += 6) { const az = CAM.yaw + Math.atan((x - W / 2) / F); ctx.lineTo(x, dirP(az, el(az)).y); }
+      ctx.lineTo(W + 8, HZ + 2); ctx.fill();
+    };
+    const ridge = (az, a, b, c) => Math.abs(Math.sin(az * a + 1)) * 0.5 + Math.abs(Math.sin(az * b + 2)) * 0.3 + Math.abs(Math.sin(az * c)) * 0.2;
+    skyline("#a9c6d8", (az) => 0.012 + 0.05 * ridge(az, 4.1, 11, 23));
+    skyline("#8fb4c4", (az) => 0.008 + 0.032 * ridge(az + 0.7, 6.3, 15, 31));
+    skyline("#9ad07a", (az) => 0.012 * (1 + Math.sin(az * 26 + 1)));
+    // ground with mowing stripes every 10 m, and a few lighter and darker patches so it isn't flat
     ctx.fillStyle = "#73c94f"; ctx.fillRect(0, HZ, W, H - HZ);
     ctx.fillStyle = "#67bb45";
     for (let z = -5; z < 200; z += 20) if (pathClip([[-400, 0, z], [400, 0, z], [400, 0, z + 10], [-400, 0, z + 10]])) ctx.fill();
-    // tree line, then fences, then grass and flowers, far to near
-    for (const t of trees) drawTree(t);
-    for (const f of fences) drawFence(f);
+    for (const g of patches) {
+      const pts = [];
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; pts.push([g.x + Math.cos(a) * g.r * g.sx, 0, g.z + Math.sin(a) * g.r]); }
+      ctx.fillStyle = g.light ? "rgba(170,225,110,.18)" : "rgba(40,110,40,.13)";
+      if (pathClip(pts)) ctx.fill();
+    }
+    drawStream();
+    // tree shadows on the grass, then trees and fence panels together, far to near, so whichever is closer covers the other
+    for (const t of trees) groundShadow(t.x, t.z, t.h * 0.42, t.w * 0.5, 0.16);
+    const scene = [...trees.map((t) => ({ d: Math.hypot(t.x - CAM.x, t.z - CAM.z), t })), ...fencePanels.map((p) => ({ d: Math.hypot(p.c[0] - CAM.x, p.c[1] - CAM.z), p }))];
+    scene.sort((a, b) => b.d - a.d);
+    for (const o of scene) o.t ? drawTree(o.t) : drawPanel(o.p);
     for (const t of tufts) {
       const q = P(t.x, 0, t.z), h = Math.min(9, 0.32 * q.s);
       if (q.behind || h < 1.4 || q.x < -10 || q.x > W + 10 || q.y > H + 10) continue;
@@ -755,61 +800,73 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     }
     return out.sort((a, b) => b.z - a.z);
   })();
-  // split-rail fence round the field: weathered posts, three rough rails per bay that sag a little,
-  // and a few broken bays with rails fallen in the grass or leaning on a post
-  // drawn larger than life (like the launcher) so it reads from the far end of the field
-  const POST_H = 2.8, BAY = 4.5;
-  const fences = [[[-60, 175], [60, 175]], [[-60, 175], [-60, -2]], [[60, 175], [60, -2]]].map(([[x0, z0], [x1, z1]]) => {
-    const n = Math.round(Math.hypot(x1 - x0, z1 - z0) / BAY), bays = [];
-    for (let i = 0; i < n; i++) bays.push({ rails: [0.75, 1.55, 2.35].map((h) => [h + rnd(-0.1, 0.1), h + rnd(-0.1, 0.1)]), down: [] });
-    return { x0, z0, x1, z1, n, bays };
-  });
+  // zigzag ("snake") split-rail fence, like split_rail_fence2.jpg: no posts, rough grey rails stacked six high,
+  // each panel's rails crossing over the next panel's at the corners. Drawn a bit larger than life so it reads from afar.
+  // the near fence, just behind the camera, has a gateway: an inverted wooden U with the gate swung open
+  const RAILS = 6, PANEL = 3.8, ZIG = 0.75, RAIL_STEP = 0.4, OVER = 0.45;
+  const fencePanels = []; // each { c: [x, z] centre, rails: [[a, b], ...] } drawn far to near with the trees
+  function buildFence(x0, z0, x1, z1) {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / PANEL));
+    const ux = (x1 - x0) / n, uz = (z1 - z0) / n, L = len / n, dx = ux / L, dz = uz / L, nx = dz, nz = -dx;
+    const corner = (i) => [x0 + ux * i + nx * ZIG * (i % 2 ? 1 : -1), z0 + uz * i + nz * ZIG * (i % 2 ? 1 : -1)];
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const A = corner(i), B = corner(i + 1), ex = (B[0] - A[0]) / L, ez = (B[1] - A[1]) / L, rails = [];
+      // alternate panels sit half a rail higher so the ends interleave where they cross
+      for (let j = 0; j < RAILS; j++) {
+        const h = 0.2 + j * RAIL_STEP + (i % 2) * RAIL_STEP / 2;
+        rails.push([[A[0] - ex * OVER, h + rnd(-0.06, 0.06), A[1] - ez * OVER], [B[0] + ex * OVER, h + rnd(-0.06, 0.06), B[1] + ez * OVER]]);
+      }
+      out.push({ c: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], A, B, nx, nz, rails, L });
+    }
+    return out;
+  }
+  const fenceRuns = [
+    buildFence(-60, 175, 60, 175), buildFence(-60, -24, -60, 175), buildFence(60, -24, 60, 175),
+    buildFence(-60, -24, -3.4, -24), buildFence(3.4, -24, 60, -24),
+  ];
+  // a few broken panels: their top rails have come off. Each keeps one end on the stack at its corner;
+  // the other end swings in toward the field or out away from it and comes down to the ground
   (() => {
-    const breaks = 2 + Math.floor(Math.random() * 2);
-    for (let b = 0; b < breaks; b++) {
-      const f = fences[b % fences.length], i = 3 + Math.floor(Math.random() * (f.n - 6)), bay = f.bays[i];
-      const ux = (f.x1 - f.x0) / f.n, uz = (f.z1 - f.z0) / f.n, ax = f.x0 + ux * i, az = f.z0 + uz * i;
-      // drop one or two rails. Each keeps one end where it belonged, at one of the bay's posts;
-      // the other end swings in toward the field or out away from it and comes down to the ground
-      const drop = bay.rails.splice(0, 1 + Math.floor(Math.random() * 2));
-      const L = Math.hypot(ux, uz), dx = ux / L, dz = uz / L, nx = dz, nz = -dx;
+    const pick = [0, 1, 2, 0, 1, 2].slice(0, 2 + Math.floor(Math.random() * 2));
+    for (const fi of pick) {
+      const run = fenceRuns[fi], p = run[3 + Math.floor(Math.random() * (run.length - 6))];
+      const drop = p.rails.splice(RAILS - 1 - Math.floor(Math.random() * 3)); // the top one to three rails
       drop.forEach((r, j) => {
-        const atB = Math.random() < 0.5, px = atB ? ax + ux : ax, pz = atB ? az + uz : az, h = atB ? r[1] : r[0];
-        const bx = atB ? -dx : dx, bz = atB ? -dz : dz, a = rnd(0.25, 0.9) * (Math.random() < 0.5 ? 1 : -1);
-        const ex = bx * Math.cos(a) + nx * Math.sin(a), ez = bz * Math.cos(a) + nz * Math.sin(a);
-        if (j === 0 && Math.random() < 0.6) {
-          // still hooked on its post at its old height, the free end in the grass
-          const run = Math.sqrt(Math.max(0.5, L * L - h * h));
-          bay.down.push([[px, h, pz], [px + ex * run, 0.06, pz + ez * run]]);
+        const atB = Math.random() < 0.5, C = atB ? p.B : p.A, h = r[atB ? 1 : 0][1];
+        const bx = (atB ? p.A[0] - p.B[0] : p.B[0] - p.A[0]) / p.L, bz = (atB ? p.A[1] - p.B[1] : p.B[1] - p.A[1]) / p.L;
+        const a = rnd(0.25, 0.9) * (Math.random() < 0.5 ? 1 : -1);
+        const ex = bx * Math.cos(a) + p.nx * Math.sin(a), ez = bz * Math.cos(a) + p.nz * Math.sin(a), len = p.L + OVER * 2;
+        if (j % 2 === 0) {
+          // still resting on the corner stack at its old height, the free end in the grass
+          const reach = Math.sqrt(Math.max(0.5, len * len - h * h));
+          p.rails.push([[C[0], h, C[1]], [C[0] + ex * reach, 0.08, C[1] + ez * reach]]);
         } else {
-          // slipped right down: lying flat from the foot of its post
-          bay.down.push([[px, 0.06, pz], [px + ex * L, 0.06, pz + ez * L]]);
+          // slipped right down: lying flat from the foot of the corner
+          p.rails.push([[C[0], 0.08, C[1]], [C[0] + ex * len, 0.08, C[1] + ez * len]]);
         }
       });
     }
   })();
-  function drawFence(f) {
-    const ux = (f.x1 - f.x0) / f.n, uz = (f.z1 - f.z0) / f.n;
-    const rail = (a, b) => {
-      const s = Math.min(P(...a).s, P(...b).s);
-      if (!pathClip([a, b], false)) return;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "#6e5338"; ctx.lineWidth = Math.max(1.5, 0.24 * s); ctx.stroke();
-      ctx.strokeStyle = "#a88a63"; ctx.lineWidth = Math.max(1, 0.14 * s); ctx.stroke();
-    };
-    for (let i = 0; i < f.n; i++) {
-      const ax = f.x0 + ux * i, az = f.z0 + uz * i, bay = f.bays[i];
-      for (const [h0, h1] of bay.rails) rail([ax, h0, az], [ax + ux, h1, az + uz]);
-      for (const [a, b] of bay.down) rail(a, b);
-    }
-    for (let i = 0; i <= f.n; i++) {
-      const x = f.x0 + ux * i, z = f.z0 + uz * i, a = P(x, 0, z), b = P(x, POST_H, z);
-      if (a.behind || b.behind) continue;
-      ctx.lineCap = "butt";
-      ctx.strokeStyle = "#5a422b"; ctx.lineWidth = Math.max(2, 0.34 * a.s); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = "#8a6a48"; ctx.lineWidth = Math.max(1, 0.2 * a.s); ctx.beginPath(); ctx.moveTo(a.x - 0.05 * a.s, a.y); ctx.lineTo(b.x - 0.05 * a.s, b.y); ctx.stroke();
-    }
+  for (const run of fenceRuns) fencePanels.push(...run);
+  // the gateway: two posts and a cross beam, and a gate frame swung open outward on its hinge post
+  (() => {
+    const z = -24, gh = 3.3, rails = [];
+    rails.push([[-3.4, 0, z], [-3.4, gh, z]], [[3.4, 0, z], [3.4, gh, z]], [[-4, gh, z], [4, gh, z]]);
+    const open = 1.25, len = 6.4, gx = 3.4 - Math.cos(open) * len, gz = z - Math.sin(open) * len;
+    for (const h of [0.45, 1.2, 1.95]) rails.push([[3.4, h, z], [gx, h, gz]]);
+    rails.push([[gx, 0.3, gz], [gx, 2.1, gz]], [[3.4, 0.45, z], [gx, 1.95, gz]]);
+    fencePanels.push({ c: [0, z], rails, gate: true });
+  })();
+  function drawRail([a, b]) {
+    const s = Math.min(P(...a).s, P(...b).s);
+    if (!pathClip([a, b], false)) return;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = haze("#5d5045", a[0], a[2]); ctx.lineWidth = Math.max(1.5, 0.24 * s); ctx.stroke();
+    ctx.strokeStyle = haze("#9c8b78", a[0], a[2]); ctx.lineWidth = Math.max(1, 0.16 * s); ctx.stroke();
+    if (s > 6) { ctx.strokeStyle = haze("#c2b29c", a[0], a[2]); ctx.lineWidth = 0.05 * s; ctx.stroke(); }
   }
+  function drawPanel(p) { for (const r of p.rails) drawRail(r); }
 
   // a mixed tree line behind the far fence: some trees are taller than the resting view and only show in full during a shot
   const TREE_KINDS = {
@@ -820,22 +877,92 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     pine:   { h: [20, 30], w: [8, 11] },
     spruce: { h: [14, 36], w: [6, 9] },
   };
+  // a small stream comes in from the far left, outside the fence, out of sight from the launcher
+  const STREAM = (() => {
+    const ctl = [[-320, 250], [-210, 205], [-140, 160], [-102, 110], [-86, 60], [-88, 10], [-102, -40], [-135, -95]];
+    const out = [];
+    // a smooth curve through the control points (Catmull-Rom), with a width that wanders a little
+    for (let i = 0; i < ctl.length - 1; i++) {
+      const p0 = ctl[Math.max(0, i - 1)], p1 = ctl[i], p2 = ctl[i + 1], p3 = ctl[Math.min(ctl.length - 1, i + 2)];
+      for (let k = 0; k < 8; k++) {
+        const t = k / 8, t2 = t * t, t3 = t2 * t;
+        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+        out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+      }
+    }
+    out.push(ctl[ctl.length - 1]);
+    return out.map(([x, z], i) => ({ x, z, w: 3.2 + Math.sin(i * 0.7) * 0.9 }));
+  })();
+  function nearStream(x, z, pad) {
+    return STREAM.some((s) => Math.hypot(s.x - x, s.z - z) < s.w / 2 + pad);
+  }
+  function streamBand(extra) {
+    // the water's outline: down one bank and back up the other
+    const L = [], R = [];
+    STREAM.forEach((s, i) => {
+      const a = STREAM[Math.max(0, i - 1)], b = STREAM[Math.min(STREAM.length - 1, i + 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
+      const hw = s.w / 2 + extra, nx = dz / l, nz = -dx / l;
+      L.push([s.x + nx * hw, 0, s.z + nz * hw]); R.push([s.x - nx * hw, 0, s.z - nz * hw]);
+    });
+    return [...L, ...R.reverse()];
+  }
+  function drawStream() {
+    ctx.fillStyle = "#5f8f3f"; if (pathClip(streamBand(1.4))) ctx.fill(); // muddy, darker banks
+    ctx.fillStyle = "#4f9fd6"; if (pathClip(streamBand(0))) ctx.fill();
+    ctx.fillStyle = "rgba(220,240,255,.35)"; if (pathClip(streamBand(-1.1))) ctx.fill(); // shine down the middle
+  }
+
+  // trees: the tall mixed line beyond the far fence, groves outside both side fences, and a stand behind the gate.
+  // nothing grows inside the playing field
   const trees = (() => {
     const kinds = Object.keys(TREE_KINDS), out = [];
-    for (let x = -330; x <= 330; x += rnd(5, 10)) {
+    const add = (x, z, scale = 1) => {
+      if (nearStream(x, z, 4)) return;
       const kind = kinds[Math.floor(Math.random() * kinds.length)], K = TREE_KINDS[kind];
-      out.push({ kind, x, z: rnd(182, 206), h: rnd(...K.h), w: rnd(...K.w), shade: rnd(-0.08, 0.08) });
+      out.push({ kind, x, z, h: rnd(...K.h) * scale, w: rnd(...K.w) * scale, shade: rnd(-0.08, 0.08) });
+    };
+    for (let x = -330; x <= 330; x += rnd(5, 10)) add(x, rnd(182, 206));
+    for (const side of [-1, 1]) {
+      for (let g = 0; g < 11; g++) {
+        const cx = side * rnd(72, 150), cz = rnd(-40, 170), n = 4 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < n; i++) add(cx + rnd(-12, 12), cz + rnd(-12, 12), rnd(0.75, 1));
+      }
     }
-    return out.sort((a, b) => b.z - a.z);
+    for (let x = -150; x <= 150; x += rnd(6, 13)) if (Math.abs(x) > 12) add(x, rnd(-75, -34), rnd(0.75, 1));
+    return out;
   })();
   const shadeHex = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = (v) => Math.max(0, Math.min(255, Math.round(v * (1 + k)))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
+  // distance haze: far things fade toward the pale sky colour, which helps the scene read as deep
+  const HAZE = [196, 232, 248];
+  function haze(color, x, z, k0 = 0) {
+    const k = Math.min(0.42, Math.max(0, (Math.hypot(x - CAM.x, z - CAM.z) - 70) / 520) + k0);
+    let r, g, b;
+    if (color[0] === "#") { const n = parseInt(color.slice(1), 16); r = n >> 16; g = (n >> 8) & 255; b = n & 255; }
+    else [r, g, b] = color.match(/\d+/g).map(Number);
+    return `rgb(${Math.round(r + (HAZE[0] - r) * k)},${Math.round(g + (HAZE[1] - g) * k)},${Math.round(b + (HAZE[2] - b) * k)})`;
+  }
+  // shadows fall away from the sun (ahead and to the right), so toward the launcher and a little left
+  const SHADOW = { x: -Math.sin(SUN.az), z: -Math.cos(SUN.az) };
+  function groundShadow(x, z, along, across, alpha) {
+    const cx = x + SHADOW.x * along, cz = z + SHADOW.z * along, pts = [];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, u = Math.cos(a) * along, v = Math.sin(a) * across;
+      pts.push([cx + SHADOW.x * u + SHADOW.z * v, 0, cz + SHADOW.z * u - SHADOW.x * v]);
+    }
+    ctx.fillStyle = `rgba(30,70,25,${alpha})`;
+    if (pathClip(pts)) ctx.fill();
+  }
   function drawTree(t) {
     const b = P(t.x, 0, t.z);
     if (b.behind) return;
-    const u = b.s, h = t.h * u, w = t.w * u, x = b.x, y = b.y;
+    // trees right next to the camera fade out so they don't block the view
+    const near = Math.hypot(t.x - CAM.x, t.z - CAM.z);
+    if (near < 18) return;
+    const u = b.s, w = t.w * u, x = b.x, y = b.y, h = Math.max(1, y - P(t.x, t.h, t.z).y);
     if (x + w < 0 || x - w > W || y - h > H || y < -10) return;
-    const trunk = (top, tw, color = "#6b4a2b") => { ctx.fillStyle = color; ctx.fillRect(x - tw / 2, y - top, tw, top); };
-    const C = (hex) => shadeHex(hex, t.shade);
+    ctx.save(); if (near < 40) ctx.globalAlpha = (near - 18) / 22;
+    const trunk = (top, tw, color = "#6b4a2b") => { ctx.fillStyle = haze(color, t.x, t.z); ctx.fillRect(x - tw / 2, y - top, tw, top); };
+    const C = (hex) => haze(shadeHex(hex, t.shade), t.x, t.z);
     const tiers = (from, color, n, narrow) => {
       ctx.fillStyle = C(color);
       for (let i = 0; i < n; i++) {
@@ -875,6 +1002,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
         tiers(h * 0.08, "#2c6440", 5, 0.6);
         break;
     }
+    ctx.restore();
   }
   function groundCircle(x, z, r, n = 40) {
     ctx.beginPath();
@@ -886,8 +1014,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     groundCircle(r.x, r.z, r.r);
     ctx.fillStyle = r.hit ? "rgba(255,255,255,.55)" : hexA(R.color, 0.35); ctx.fill();
     // painted line: a white border with the ring's color inside it
-    ctx.lineWidth = Math.max(3.5, 0.62 * c.s); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
-    ctx.lineWidth = Math.max(2, 0.38 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
+    ctx.lineWidth = Math.max(2, 0.31 * c.s); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
+    ctx.lineWidth = Math.max(1.2, 0.19 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
     if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2)); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
   }
   function drawFlag(r) {
@@ -949,6 +1077,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       poly([[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]], front, "#8a5a2b");
     };
 
+    // its shadow on the grass
+    groundShadow(-0.1, -0.1, 1.6, 1.1, 0.2);
     // base board, with plank seams on top and a darker edge all round
     box(-0.55, 0.55, 0, 0.13, -0.62, 0.45, "#d9a061", "#a86f35", "#b77a3c");
     for (const sx of [-0.18, 0.18]) seg([sx, 0.131, -0.62], [sx, 0.131, 0.45], 0.008, "#a86f35");
@@ -968,8 +1098,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     }
 
     // barrel (black) points away from the camera, so it goes before the chamber; threaded coupler at its foot
-    seg(ax(CH + VALVE), ax(TOTAL), 0.085, "#2a2a2e");
-    for (let i = 0; i < 4; i++) seg(ax(CH + VALVE + 0.02 + i * 0.035), ax(CH + VALVE + 0.035 + i * 0.035), 0.1, i % 2 ? "#2a2a2e" : "#4a4a52");
+    seg(ax(CH + VALVE), ax(TOTAL), 0.17, "#2a2a2e");
+    seg(ax(CH + VALVE + 0.15), ax(TOTAL), 0.05, "#3c3c43"); // a soft highlight down the pipe
+    for (let i = 0; i < 4; i++) seg(ax(CH + VALVE + 0.02 + i * 0.035), ax(CH + VALVE + 0.035 + i * 0.035), 0.2, i % 2 ? "#2a2a2e" : "#4a4a52");
     if (S.puff > 0) {
       const m = L(...ax(TOTAL + 0.1));
       ctx.fillStyle = `rgba(255,255,255,${S.puff * 0.8})`;
@@ -1003,9 +1134,11 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     box(-0.22, 0.22, 0.13, 0.34, -0.6, -0.49, "#e0ae74", "#b77a3c", "#c98d4b");
     // blue lever: closed it points right; firing swings it down, clockwise
     const la = S.valve * Math.PI / 2, stem = ax(CH + VALVE / 2);
-    const lv0 = [stem[0] + 0.09, stem[1], stem[2]];
-    const lv1 = [lv0[0] + Math.cos(la) * 0.34, lv0[1] - Math.sin(la) * 0.34, lv0[2]];
-    seg(lv0, lv1, 0.045, "#2f6fd0", "round");
+    // a short, chunky handle
+    const lv0 = [stem[0] + 0.1, stem[1], stem[2]];
+    const lv1 = [lv0[0] + Math.cos(la) * 0.22, lv0[1] - Math.sin(la) * 0.22, lv0[2]];
+    seg(lv0, lv1, 0.1, "#1f4f9e", "round");
+    seg(lv0, lv1, 0.075, "#2f6fd0", "round");
     { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.5, 0.03 * q.s), 0, 7); ctx.fill(); }
     // bike pump beside the stand, on the left so the corner map doesn't cover it
     const PX = -0.85;
@@ -1284,7 +1417,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, fences, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, fencePanels, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
