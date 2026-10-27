@@ -114,7 +114,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .fire.load { background: var(--wood); }
 .fire small { font-family: var(--body); font-weight: 800; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; opacity: .9; }
-.holes { display: flex; gap: 3px; align-items: center; justify-content: space-between; background: var(--wood); border: 2px solid var(--wood-dark); border-radius: 6px; padding: 5px 6px; }
+.holes { display: flex; gap: 3px; align-items: center; justify-content: space-between; background: var(--wood); border: 2px solid var(--wood-dark); border-radius: 6px; padding: 5px 6px; cursor: pointer; touch-action: none; }
 .holes b { flex: 0 1 9px; min-width: 4px; aspect-ratio: 1; border-radius: 50%; background: var(--wood-dark); }
 .holes b.on { background: #c0c6cc; box-shadow: 0 0 0 2px var(--ink); }
 .keys { margin: 0; color: var(--paper); font-size: .85rem; opacity: .95; }
@@ -146,6 +146,10 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .fire { padding: 6px; min-width: 0; font-size: 1.5rem; }
   .keys { display: none; }
 }
+/* ?lab: the field canvas fills the window to show the launcher contact sheet */
+body.lab .wrap > :not(.stage) { display: none; }
+body.lab .stage { position: fixed; inset: 0; aspect-ratio: auto; max-height: none; min-height: 0; border: 0; border-radius: 0; }
+body.lab .stage > :not(canvas) { display: none; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -221,7 +225,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.3</p>
+  <p class="ver">Pneuman v1.4</p>
 </div>
 
 <script>
@@ -420,6 +424,12 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     splat: () => { noise(0.18, 450, 0.5, 140); tone(95, 50, 0.12, 0.35); },
     ring: (pts) => { const base = pts >= 25 ? 660 : pts >= 10 ? 587 : 523; tone(base, base, 0.12, 0.2, "triangle"); tone(base * 1.5, base * 1.5, 0.2, 0.2, "triangle", 0.1); if (pts >= 25) tone(base * 2, base * 2, 0.3, 0.2, "triangle", 0.22); },
     done: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.18, 0.18, "square", i * 0.12)),
+    // placeholders for the silly hits until real recordings go in
+    moo: () => { tone(210, 150, 0.35, 0.3, "sawtooth"); tone(150, 115, 0.7, 0.3, "sawtooth", 0.3); },
+    splosh: () => { noise(0.6, 1100, 0.55, 220); noise(0.3, 2400, 0.2, 900); },
+    oof: () => { tone(170, 90, 0.25, 0.4, "triangle"); noise(0.15, 300, 0.3, 120); },
+    bawk: () => [0, 0.12, 0.24].forEach((d, i) => tone(950 - i * 80, 620, 0.09, 0.18, "square", d)),
+    squawk: (sp) => { tone(sp.pitch, sp.pitch * 0.6, 0.14, 0.2, "square"); tone(sp.pitch * 1.1, sp.pitch * 0.55, 0.18, 0.2, "square", 0.16); },
   };
 
   // ================= helpers =================
@@ -492,8 +502,37 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   }
 
   // ================= flow =================
+  // silly things standing near the rings: hitting one scores nothing, the spud stops there, and it reacts
+  const PROPS = {
+    cow:       { r: 1.5, h: 1.8, say: "MOOO!", msg: "You hit the cow!", sound: "moo" },
+    trough:    { r: 1.3, h: 0.8, say: "SPLOSH!", msg: "Right in the water trough!", sound: "splosh" },
+    scarecrow: { r: 0.8, h: 2.5, say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
+    chicken:   { r: 0.7, h: 0.8, say: "BAWK!", msg: "You startled the chicken!", sound: "bawk" },
+  };
+  function placeProps() {
+    S.props = [];
+    for (const kind of Object.keys(PROPS)) {
+      const D = PROPS[kind];
+      for (let tries = 0; tries < 300; tries++) {
+        // a few metres off the edge of a ring, so a slightly wild shot can catch it
+        const ring = S.rings[Math.floor(Math.random() * S.rings.length)], a = rnd(0, Math.PI * 2), d = ring.r + D.r + rnd(1.5, 5);
+        const x = ring.x + Math.cos(a) * d, z = ring.z + Math.sin(a) * d;
+        if (Math.abs(x) > 48 || z < 10 || z > 165) continue;
+        // on screen from the launcher (the camera is at home after the ring layout), and clear of the corner map
+        const q = P(x, 0, z), mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
+        if (q.x < 40 || q.x > W - 40 || (q.x > W - mw - 30 && q.y > H - mh - 30)) continue;
+        if (S.rings.some((r) => Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
+        if (S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
+        // not standing right in front of a further ring, as seen from the launcher
+        if (S.rings.some((r) => r.z > z && Math.abs(Math.atan2(r.x, r.z + 15) - Math.atan2(x, z + 15)) < 0.035)) continue;
+        S.props.push({ kind, x, z, r: D.r, h: D.h, t: -1, face: Math.random() < 0.5 ? 1 : -1, ph: rnd(0, 6) });
+        break;
+      }
+    }
+  }
+
   function startLevel(i) {
-    S.level = i; S.rings = layoutRings(LEVELS[i]); S.spudsLeft = SPUDS; S.score = 0;
+    S.level = i; S.rings = layoutRings(LEVELS[i]); placeProps(); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
@@ -523,8 +562,13 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   const BASE = { y: 0.22, z: -0.42 }, CH = 0.7, VALVE = 0.16, BAR = 1.15, TOTAL = CH + VALVE + BAR;
   const SEAT = CH + VALVE + 0.14; // where the tamped spud sits, just above the valve
   const LS = 1.6; // the launcher is drawn larger than life so its parts read from behind
+  // at low angles the barrel points almost straight away from the camera and looks squashed, so it is drawn
+  // up to 7° steeper below 30°. Only the picture changes; the spud still flies at the true angle
+  const drawElev = (deg) => deg + Math.max(0, 30 - deg) * 0.35;
+  // where the drawn muzzle is, so the spud leaves from the barrel you can see
   function muzzle() {
-    const d = dirVec(), yw = S.yaw * Math.PI / 180;
+    const e = drawElev(ang()) * Math.PI / 180, yw = S.yaw * Math.PI / 180;
+    const d = { x: Math.cos(e) * Math.sin(yw), y: Math.sin(e), z: Math.cos(e) * Math.cos(yw) };
     return { x: (BASE.z * Math.sin(yw) + d.x * TOTAL) * LS, y: (BASE.y + d.y * TOTAL) * LS, z: (BASE.z * Math.cos(yw) + d.z * TOTAL) * LS };
   }
 
@@ -540,17 +584,74 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     if (S.psi < 3) { note("The chamber is empty. Pump it up first."); return; }
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16) };
+    S.flightT = 0; S.struck = false;
+    if (Math.random() < BIRD_STRIKE_CHANCE) planStrike();
     S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight"; shotNote(""); resetView();
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
-  function land(x, z) {
+  // 10% of shots: a bird flies across and meets the spud near the top of its arc
+  const BIRD_STRIKE_CHANCE = 0.1;
+  const SPECIES = [
+    { name: "crow", body: "#2b2f36", wing: "#1d2026", size: 1.1, say: "CAW!", pitch: 700 },
+    { name: "gull", body: "#eef2f5", wing: "#9aa6b0", size: 1.25, say: "SKREEE!", pitch: 1300 },
+    { name: "sparrow", body: "#8a6a4a", wing: "#5e4630", size: 0.75, say: "CHEEP!", pitch: 2200 },
+    { name: "duck", body: "#7a6a52", wing: "#3f7a4a", size: 1.05, say: "QUACK!", pitch: 520 },
+  ];
+  function planStrike() {
+    // run the shot ahead of time to find where the spud will be a little before or after its apex
+    const p = { ...S.potato }, h = 1 / 240, path = [];
+    let t = 0, apexT = 0, top = -1;
+    while (p.y > 0 && t < 30) {
+      const rx = p.vx - S.wind.x, rz = p.vz - S.wind.z, sp = Math.hypot(rx, p.vy, rz);
+      p.vx -= K * rx * sp * h; p.vy -= (G + K * p.vy * sp) * h; p.vz -= K * rz * sp * h;
+      p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; t += h;
+      path.push([t, p.x, p.y, p.z]); if (p.y > top) { top = p.y; apexT = t; }
+    }
+    if (top < 6) return; // too low a shot for a bird to be up there
+    const tHit = Math.min(t * 0.85, apexT * rnd(0.75, 1.1)), at = path.find((q) => q[0] >= tHit) || path[path.length - 1];
+    const sp = SPECIES[Math.floor(Math.random() * SPECIES.length)], side = Math.random() < 0.5 ? 1 : -1, v = 11;
+    S.bird = { state: "in", sp, side, tHit, t: 0, x: at[1] + side * v * tHit, y: at[2] + rnd(0, 2), z: at[3] + rnd(-4, 4), vx: -side * v, vy: 0, vz: 0, say: 0 };
+    S.bird.vy = (at[2] - S.bird.y) / tHit; S.bird.vz = (at[3] - S.bird.z) / tHit;
+  }
+  function birdStrike() {
+    const b = S.bird, p = S.potato;
+    b.state = "fall"; b.t = 0; b.x = p.x; b.y = p.y; b.z = p.z; b.vx = -b.side * 1.5; b.vy = 2.5; b.vz = 0; b.say = 1.4;
+    // the spud loses a good part of its speed and gets knocked a little sideways
+    p.vx = p.vx * 0.6 + rnd(-2, 2); p.vy *= 0.6; p.vz *= 0.6; S.struck = true;
+    for (let i = 0; i < 12; i++) S.feathers.push({ x: p.x, y: p.y, z: p.z, vx: rnd(-2.5, 2.5), vy: rnd(-0.5, 2.5), vz: rnd(-2.5, 2.5), t: 0, a: rnd(0, 6), c: b.sp.wing });
+    sfx.squawk(b.sp);
+  }
+  function updateBird(dt) {
+    for (const f of S.feathers) { f.t += dt; f.vx *= 0.97; f.vz *= 0.97; f.vy = Math.max(-1.2, f.vy - 3 * dt); f.x += f.vx * dt; f.y = Math.max(0.02, f.y + f.vy * dt); f.z += f.vz * dt; f.a += dt * 3; }
+    S.feathers = S.feathers.filter((f) => f.t < 6);
+    const b = S.bird; if (!b) return;
+    b.t += dt; b.say = Math.max(0, b.say - dt);
+    if (b.state === "in") {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+      if (S.potato && S.flightT >= b.tHit) birdStrike();
+      else if (b.t > b.tHit + 0.3) b.state = "pass"; // the spud came down first: it just flies on by
+    } else if (b.state === "pass") { b.x += b.vx * dt; b.y += 0.5 * dt; if (b.t > b.tHit + 6) S.bird = null; }
+    else if (b.state === "fall") {
+      b.vy -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+      if (b.y <= 0) { b.y = 0; b.state = "ground"; b.t = 0; }
+    } else if (b.state === "ground") {
+      // dazed: it staggers about a bit, then takes off
+      b.x += Math.sin(b.t * 5) * 0.6 * dt;
+      if (b.t > 2.4) { b.state = "away"; b.t = 0; b.vx = b.side * 7; b.vy = 3.5; b.vz = 3; }
+    } else if (b.state === "away") { b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; if (b.t > 6) S.bird = null; }
+  }
+
+  function land(x, z, prop) {
     S.potato = null; S.curArc.push([x, 0, z]); S.arc = S.curArc; S.curArc = [];
     S.splats.push({ x, z, a: rnd(0, 6.28), last: true });
     S.splats.forEach((s, i) => (s.last = i === S.splats.length - 1));
-    const inside = S.rings.filter((r) => Math.hypot(r.x - x, r.z - z) <= r.r).sort((a, b) => b.pts - a.pts);
+    const inside = prop ? [] : S.rings.filter((r) => Math.hypot(r.x - x, r.z - z) <= r.r).sort((a, b) => b.pts - a.pts);
     const fresh = inside.find((r) => !r.hit);
-    if (fresh) {
+    if (prop) {
+      const D = PROPS[prop.kind];
+      prop.t = 0; sfx[D.sound](); shotNote(`${D.msg} ${D.say}`);
+    } else if (fresh) {
       fresh.hit = true; fresh.flash = 1; S.score += fresh.pts; sfx.ring(fresh.pts);
       shotNote(`${cap(RINGS[fresh.type].name)} ring! +${fresh.pts}`);
     } else {
@@ -567,6 +668,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
         } else shotNote("Splat.");
       }
     }
+    if (S.struck) { shotNote(`Bird strike! ${shotEl.textContent}`); S.struck = false; }
     const allHit = S.rings.every((r) => r.hit);
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
     // the valve stays open and the chamber empty until the next spud is loaded and pumped
@@ -654,16 +756,22 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     for (const r of S.rings) if (r.flash) r.flash = Math.max(0, r.flash - dt * 0.8);
     for (const c of clouds) { c.az += (0.004 + S.wind.x * 0.002) * dt; if (c.az > 1) c.az = -1; if (c.az < -1) c.az = 1; }
     for (const b of birds) { b.az += b.v * dt; if (b.az > 1.2) b.az = -1.2; if (b.az < -1.2) b.az = 1.2; }
+    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } }
+    updateBird(dt);
 
     const p = S.potato;
     if (p) {
+      S.flightT += dt;
       const n = 8, h = dt / n;
       for (let i = 0; i < n && S.potato; i++) {
         const rx = p.vx - S.wind.x, ry = p.vy, rz = p.vz - S.wind.z, sp = Math.hypot(rx, ry, rz);
         p.vx -= K * rx * sp * h; p.vy -= (G + K * ry * sp) * h; p.vz -= K * rz * sp * h;
         const py = p.y, px = p.x, pz = p.z;
         p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; p.rot += p.spin * h;
-        if (p.y <= 0) { const t = py / (py - p.y); land(px + (p.x - px) * t, pz + (p.z - pz) * t); }
+        if (p.y <= 0) { const t = py / (py - p.y); land(px + (p.x - px) * t, pz + (p.z - pz) * t); break; }
+        // a spud coming down into the cow, trough, scarecrow or chicken stops there
+        const hit = (S.props || []).find((o) => p.y < o.h && Math.hypot(p.x - o.x, p.z - o.z) < o.r);
+        if (hit) { land(p.x, p.z, hit); break; }
       }
       if (S.potato) { const l = S.curArc[S.curArc.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1], p.z - l[2]) > 0.8) S.curArc.push([p.x, p.y, p.z]); }
     }
@@ -674,16 +782,22 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // sky things sit at a direction, not a place: some low enough to peek over the trees, more up high
   const clouds = Array.from({ length: 14 }, (_, i) => ({ az: rnd(-1, 1), el: i < 5 ? rnd(0.012, 0.04) : rnd(0.05, 0.42), s: rnd(0.6, 1.4) }));
   const SUN = { az: 0.3, el: 0.07 };
-  // a few birds wheeling slowly across the sky, wings flapping
-  const birds = Array.from({ length: 6 }, () => ({ az: rnd(-0.7, 0.9), el: rnd(0.04, 0.2), v: rnd(0.01, 0.025) * (Math.random() < 0.5 ? 1 : -1), ph: rnd(0, 6), s: rnd(0.8, 1.2) }));
+  // birds of a few kinds wheeling across the sky, wings flapping: small quick ones flap faster
+  const SKY_KINDS = [
+    { color: "rgba(35,40,48,.85)", size: 1.2, flap: 6 },   // crow
+    { color: "rgba(120,132,142,.9)", size: 1.35, flap: 4 }, // gull
+    { color: "rgba(95,70,45,.85)", size: 0.7, flap: 11 },  // sparrow
+    { color: "rgba(40,60,110,.85)", size: 0.8, flap: 9 },  // swallow
+  ];
+  const birds = Array.from({ length: 10 }, (_, i) => ({ k: SKY_KINDS[i % SKY_KINDS.length], az: rnd(-0.8, 0.9), el: rnd(0.04, 0.22), v: rnd(0.01, 0.03) * (Math.random() < 0.5 ? 1 : -1), ph: rnd(0, 6), s: rnd(0.85, 1.15) }));
   function drawBirds() {
     const t = performance.now() / 1000;
-    ctx.strokeStyle = "rgba(40,52,62,.8)"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
     for (const b of birds) {
-      const q = dirP(b.az + Math.sin(t * 0.3 + b.ph) * 0.02, b.el + Math.sin(t * 0.5 + b.ph) * 0.006), s = Math.max(3, F * 0.0045 * b.s);
+      const q = dirP(b.az + Math.sin(t * 0.3 + b.ph) * 0.02, b.el + Math.sin(t * 0.5 + b.ph) * 0.006), s = Math.max(2.5, F * 0.0045 * b.s * b.k.size);
       if (q.behind || q.x < -20 || q.x > W + 20 || q.y < -20 || q.y > HZ) continue;
-      const wing = Math.sin(t * 7 + b.ph) * 0.7;
-      ctx.lineWidth = Math.max(1, s * 0.3);
+      const wing = Math.sin(t * b.k.flap + b.ph) * 0.7;
+      ctx.strokeStyle = b.k.color; ctx.lineWidth = Math.max(1, s * 0.3);
       ctx.beginPath(); ctx.moveTo(q.x - s * 2, q.y - s * wing); ctx.quadraticCurveTo(q.x - s, q.y - s * (wing + 0.5), q.x, q.y);
       ctx.quadraticCurveTo(q.x + s, q.y - s * (wing + 0.5), q.x + s * 2, q.y - s * wing); ctx.stroke();
     }
@@ -760,8 +874,11 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     for (const s of S.splats) drawSplat(s);
     // the last shot's path, dotted, appears once it has landed (none while a spud is in the air)
     if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
-    // ring flags drawn after splats so the numbers stay readable
-    for (const r of rings) drawFlag(r);
+    // ring flags and the props standing in the field, far to near, after splats so the numbers stay readable
+    const standing = [...rings.map((r) => ({ d: Math.hypot(r.x - CAM.x, r.z - CAM.z), r })), ...(S.props || []).map((o) => ({ d: Math.hypot(o.x - CAM.x, o.z - CAM.z), o }))];
+    standing.sort((a, b) => b.d - a.d);
+    for (const s of standing) s.r ? drawFlag(s.r) : drawProp(s.o);
+    drawStrikeBird();
 
     // potato, its shadow, and an off-screen marker when it flies above the view
     if (S.potato) {
@@ -777,6 +894,123 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     drawLauncher();
     drawMinimap();
     if (S.loadMsg > 0) drawLoadFirst();
+  }
+  // a comic speech bubble over something in the field
+  function bubble(x, y, text, alpha = 1) {
+    const fs = 14;
+    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 16, h = fs + 10, bx = x - w / 2, by = Math.max(4, y - h - 8);
+    ctx.fillStyle = "#fffaf0"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, w, h, 8) : ctx.rect(bx, by, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 5, by + h - 1); ctx.lineTo(x, by + h + 7); ctx.lineTo(x + 5, by + h - 1); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#23303a"; ctx.fillText(text, x, by + h / 2 + 1);
+    ctx.restore();
+  }
+  // the props are drawn from simple shapes measured in metres (m) from their base point
+  function drawProp(o) {
+    const b = P(o.x, 0, o.z);
+    if (b.behind || b.x < -80 || b.x > W + 80 || b.y < -40 || b.y > H + 80) return;
+    const u = b.s, t = o.t, hit = t >= 0, now = performance.now() / 1000, f = o.face;
+    const X = (m) => b.x + m * u * f, Y = (m) => b.y - m * u;
+    const ell = (x, y, rx, ry, fill, stroke, rot = 0) => { ctx.beginPath(); ctx.ellipse(X(x), Y(y), Math.max(0.5, rx * u), Math.max(0.5, ry * u), rot, 0, 7); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.04 * u); ctx.stroke(); } };
+    const line = (x0, y0, x1, y1, w, color) => { ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, w * u); ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke(); };
+    groundShadow(o.x, o.z, o.r * 0.6, o.r * 0.7, 0.18);
+    ctx.save();
+    if (o.kind === "cow") {
+      // bucks up off the ground when hit
+      const jump = hit && t < 0.8 ? Math.sin((t / 0.8) * Math.PI) * 0.6 : 0;
+      ctx.translate(0, -jump * u);
+      for (const lx of [-0.75, -0.45, 0.5, 0.8]) { line(lx, 0, lx, 0.8, 0.16, "#f1ede4"); line(lx, 0, lx, 0.15, 0.17, "#3a3a3a"); }
+      const sw = Math.sin(now * 3 + o.ph) * 0.15;
+      line(-1.1, 1.3, -1.25, 0.75 + sw, 0.05, "#3a3a3a");
+      ell(0, 1.2, 1.15, 0.5, "#f4f1ea", "#3a3a3a");
+      ell(-0.4, 1.3, 0.3, 0.2, "#2f2f33"); ell(0.35, 1.05, 0.25, 0.18, "#2f2f33"); ell(0.1, 1.45, 0.18, 0.1, "#2f2f33");
+      ell(1.25, 1.5, 0.36, 0.28, "#f4f1ea", "#3a3a3a");
+      ell(1.48, 1.38, 0.18, 0.14, "#f2a6a6", "#3a3a3a");
+      line(1.12, 1.74, 1.05, 1.88, 0.06, "#d9cfa8"); line(1.36, 1.74, 1.45, 1.88, 0.06, "#d9cfa8");
+      ell(1.3, 1.55, 0.04, 0.04, "#23303a");
+    } else if (o.kind === "trough") {
+      ell(0, 0.08, 1.15, 0.2, "#7f8a93");
+      ctx.fillStyle = "#aeb7bf"; ctx.strokeStyle = "#6e7880"; ctx.lineWidth = Math.max(1, 0.04 * u);
+      ctx.beginPath(); ctx.moveTo(X(-1.15), Y(0.7)); ctx.lineTo(X(1.15), Y(0.7)); ctx.lineTo(X(1.0), Y(0.05)); ctx.lineTo(X(-1.0), Y(0.05)); ctx.closePath(); ctx.fill(); ctx.stroke();
+      for (const yb of [0.25, 0.48]) line(-1.1, yb, 1.1, yb, 0.03, "#8f99a1");
+      ell(0, 0.7, 1.15, 0.16, "#4f9fd6", "#6e7880");
+      if (hit && t < 1.2) {
+        // a splash of water thrown up and falling back
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI - Math.PI, vx = Math.cos(a) * 1.6, vy = 3 + (i % 3);
+          const yy = 0.7 + vy * t - 4.9 * t * t;
+          if (yy > 0.6) ell(vx * t * 1.2 * f, yy, 0.07, 0.1, "rgba(120,190,240,.9)");
+        }
+      }
+    } else if (o.kind === "scarecrow") {
+      // spins round on its post when hit, and its hat goes flying
+      const spin = hit && t < 1.4 ? Math.cos(t * 14) : 1;
+      line(0, 0, 0, 2.3, 0.1, "#8a6a48");
+      ctx.save(); ctx.translate(b.x, 0); ctx.scale(spin || 0.05, 1); ctx.translate(-b.x, 0);
+      line(-0.75, 1.75, 0.75, 1.75, 0.09, "#8a6a48");
+      ctx.fillStyle = "#c8453a"; ctx.beginPath(); ctx.moveTo(X(-0.55), Y(1.8)); ctx.lineTo(X(0.55), Y(1.8)); ctx.lineTo(X(0.4), Y(1.05)); ctx.lineTo(X(-0.4), Y(1.05)); ctx.closePath(); ctx.fill();
+      line(-0.2, 1.8, -0.2, 1.05, 0.05, "#8e2f27"); line(0.2, 1.8, 0.2, 1.05, 0.05, "#8e2f27"); line(-0.5, 1.45, 0.5, 1.45, 0.05, "#8e2f27");
+      for (const s of [-1, 1]) line(s * 0.75, 1.75, s * 0.9, 1.6, 0.05, "#e2c25a");
+      ell(0, 2.05, 0.22, 0.24, "#d9b98a", "#8a6a48");
+      ell(-0.07, 2.1, 0.03, 0.03, "#23303a"); ell(0.07, 2.1, 0.03, 0.03, "#23303a");
+      ctx.restore();
+      let hy = 2.3, hx = 0, hr = 0;
+      if (hit) { const tt = Math.min(t, 1.2); hy = Math.max(0.1, 2.3 + 5 * tt - 4.9 * tt * tt); hx = 1.4 * tt; hr = tt * 6; }
+      ell(hx, hy, 0.42, 0.07, "#d8b04a", "#9a7a2a", hr * 0.2); ell(hx, hy + 0.12, 0.22, 0.14, "#e2c25a", "#9a7a2a", hr * 0.2);
+    } else if (o.kind === "chicken") {
+      // pecks at the grass; when hit it hops about flapping
+      const hop = hit && t < 1.6 ? Math.abs(Math.sin(t * 9)) * 0.45 * (1 - t / 1.6) : 0, peck = hit ? 0 : Math.max(0, Math.sin(now * 2.5 + o.ph)) * 0.2;
+      ctx.translate(0, -hop * u);
+      line(-0.08, 0, -0.08, 0.3, 0.04, "#e0a020"); line(0.1, 0, 0.1, 0.3, 0.04, "#e0a020");
+      ell(0, 0.48, 0.32, 0.24, "#ffffff", "#9aa0a6");
+      const flap = hit && t < 1.6 ? Math.sin(t * 30) * 0.3 : 0;
+      ell(-0.05, 0.52 + flap * 0.4, 0.2, 0.1, "#eceff1", "#9aa0a6", flap);
+      ell(-0.32, 0.6, 0.1, 0.16, "#ffffff", "#9aa0a6");
+      ell(0.3, 0.75 - peck, 0.13, 0.13, "#ffffff", "#9aa0a6");
+      ell(0.3, 0.9 - peck, 0.06, 0.05, "#e2382c");
+      ell(0.44, 0.73 - peck, 0.06, 0.035, "#f0a020");
+      ell(0.34, 0.77 - peck, 0.025, 0.025, "#23303a");
+    }
+    ctx.restore();
+    if (hit && t < 2.2) bubble(b.x, Y(o.h + 0.4), PROPS[o.kind].say, (2.2 - t) / 0.4);
+  }
+  // the bird in a bird strike, its feathers, and what it says
+  function drawStrikeBird() {
+    for (const f of S.feathers) {
+      const q = P(f.x, f.y, f.z); if (q.behind) continue;
+      const s = Math.max(2, 0.12 * q.s);
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(Math.sin(f.a) * 0.8); ctx.globalAlpha = Math.min(1, (6 - f.t) / 1.5);
+      ctx.fillStyle = f.c; ctx.beginPath(); ctx.ellipse(0, 0, s, s * 0.3, 0, 0, 7); ctx.fill(); ctx.restore();
+    }
+    const b = S.bird; if (!b) return;
+    const q = P(b.x, b.y, b.z); if (q.behind) return;
+    const s = Math.max(4, 0.5 * q.s * b.sp.size), now = performance.now() / 1000; // drawn larger than life so it reads
+    ctx.save(); ctx.translate(q.x, q.y);
+    if (b.state === "fall") ctx.rotate(b.t * 9);
+    if (b.state === "ground") ctx.rotate(Math.sin(b.t * 7) * 0.35);
+    const flying = b.state === "in" || b.state === "pass" || b.state === "away";
+    if (flying || b.state === "fall") {
+      // wings: flapping in flight, flopping about as it falls
+      const wing = flying ? Math.sin(now * 14) * 0.9 : Math.sin(now * 25) * 0.4 + 0.6;
+      ctx.strokeStyle = b.sp.wing; ctx.lineWidth = Math.max(1.5, s * 0.35); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(-s * 2.2, -s * wing); ctx.quadraticCurveTo(-s, -s * (wing + 0.4), 0, 0); ctx.quadraticCurveTo(s, -s * (wing + 0.4), s * 2.2, -s * wing); ctx.stroke();
+    }
+    const dir = flying ? Math.sign(b.vx) || 1 : 1;
+    ctx.fillStyle = b.sp.body; ctx.strokeStyle = "rgba(35,48,58,.6)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.9, s * 0.5, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(dir * s * 0.85, -s * 0.35, s * 0.35, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#f0a020"; ctx.beginPath(); ctx.moveTo(dir * s * 1.15, -s * 0.4); ctx.lineTo(dir * s * 1.55, -s * 0.3); ctx.lineTo(dir * s * 1.15, -s * 0.22); ctx.fill();
+    ctx.restore();
+    if (b.state === "ground") {
+      // dizzy stars circling its head
+      for (let i = 0; i < 3; i++) {
+        const a = now * 4 + i * 2.1;
+        ctx.fillStyle = "#ffcf33"; ctx.beginPath(); ctx.arc(q.x + Math.cos(a) * s * 1.6, q.y - s * 1.4 + Math.sin(a) * s * 0.4, Math.max(1.5, s * 0.22), 0, 7); ctx.fill();
+      }
+    }
+    if (b.say > 0) bubble(q.x, q.y - s, b.sp.say, b.say / 0.4);
   }
   // "Load first" pops up right over the launcher, where the player is looking
   function drawLoadFirst() {
@@ -929,6 +1163,11 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       }
     }
     for (let x = -150; x <= 150; x += rnd(6, 13)) if (Math.abs(x) > 12) add(x, rnd(-75, -34), rnd(0.75, 1));
+    // a few just inside the side fences and in the far corners, well clear of where rings and props go
+    for (const side of [-1, 1]) {
+      for (let z = rnd(25, 45); z < 168; z += rnd(16, 30)) add(side * rnd(53, 56.5), z, rnd(0.7, 0.95));
+      add(side * rnd(45, 54), rnd(168, 171), rnd(0.7, 0.9));
+    }
     return out;
   })();
   const shadeHex = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = (v) => Math.max(0, Math.min(255, Math.round(v * (1 + k)))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
@@ -1014,8 +1253,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     groundCircle(r.x, r.z, r.r);
     ctx.fillStyle = r.hit ? "rgba(255,255,255,.55)" : hexA(R.color, 0.35); ctx.fill();
     // painted line: a white border with the ring's color inside it
-    ctx.lineWidth = Math.max(2, 0.31 * c.s); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
-    ctx.lineWidth = Math.max(1.2, 0.19 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
+    ctx.lineWidth = Math.max(1.4, 0.155 * c.s); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
+    ctx.lineWidth = Math.max(0.8, 0.095 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
     if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2)); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
   }
   function drawFlag(r) {
@@ -1059,7 +1298,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   function drawLauncher() {
     const y0 = S.yaw * Math.PI / 180, cy = Math.cos(y0), sy = Math.sin(y0);
     const L = (x, y, z) => P((x * cy + z * sy) * LS, y * LS, (-x * sy + z * cy) * LS); // local -> world -> screen
-    const e = S.angDisp * Math.PI / 180, d = [0, Math.sin(e), Math.cos(e)];
+    const e = drawElev(S.angDisp) * Math.PI / 180, d = [0, Math.sin(e), Math.cos(e)];
     const B = [0, BASE.y, BASE.z];
     const at = (o, t) => [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
     const ax = (t) => at(B, t); // a point along the pipe's center line
@@ -1092,12 +1331,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     seg([-0.47, rodY, 0], [0.47, rodY, 0], 0.058, "#2e3840", "round");
     seg([-0.47, rodY, 0], [0.47, rodY, 0], 0.04, "#6f7c87", "round");
     seg([-0.47, rodY + 0.008, 0], [0.47, rodY + 0.008, 0], 0.012, "#c9d2d9", "round");
-    for (const px of [-0.37, 0.37]) {
-      seg([px, 0.13, 0], [px, 1.45, 0], 0.17, "#8a5a2b");
-      seg([px, 0.13, 0], [px, 1.45, 0], 0.15, "#c98d4b");
-    }
 
-    // barrel (black) points away from the camera, so it goes before the chamber; threaded coupler at its foot
+    // barrel (black) rests on the rod and points away from the camera; threaded coupler at its foot.
+    // it goes before the posts so the wooden posts always stay in front of it, whichever way the launcher turns
     seg(ax(CH + VALVE), ax(TOTAL), 0.17, "#2a2a2e");
     seg(ax(CH + VALVE + 0.15), ax(TOTAL), 0.05, "#3c3c43"); // a soft highlight down the pipe
     for (let i = 0; i < 4; i++) seg(ax(CH + VALVE + 0.02 + i * 0.035), ax(CH + VALVE + 0.035 + i * 0.035), 0.2, i % 2 ? "#2a2a2e" : "#4a4a52");
@@ -1105,6 +1341,10 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       const m = L(...ax(TOTAL + 0.1));
       ctx.fillStyle = `rgba(255,255,255,${S.puff * 0.8})`;
       for (const [ox, oy, k] of [[0, 0, 1], [-0.6, 0.3, 0.7], [0.7, 0.2, 0.6]]) { const r = (0.12 + (1 - S.puff) * 0.45) * m.s * k; ctx.beginPath(); ctx.arc(m.x + ox * r, m.y - oy * r - (1 - S.puff) * 0.3 * m.s, r, 0, 7); ctx.fill(); }
+    }
+    for (const px of [-0.37, 0.37]) {
+      seg([px, 0.13, 0], [px, 1.45, 0], 0.17, "#8a5a2b");
+      seg([px, 0.13, 0], [px, 1.45, 0], 0.15, "#c98d4b");
     }
     // brass ball valve
     seg(ax(CH), ax(CH + VALVE), 0.15, "#d9a632");
@@ -1132,12 +1372,13 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     for (const px of [-0.44, 0.44]) seg([px * 0.9, BASE.y, BASE.z], [px, BASE.y, BASE.z], 0.13, "#8f99a1", "round");
     // solid stop block in front of the tee, hiding its middle
     box(-0.22, 0.22, 0.13, 0.34, -0.6, -0.49, "#e0ae74", "#b77a3c", "#c98d4b");
-    // blue lever: closed it points right; firing swings it down, clockwise
+    // blue lever, like a real ball valve: closed it sticks out sideways at 90° to the pipe; open it lies
+    // along the top of the grey chamber, parallel to it. It pivots on the stem on top of the valve and swings
+    // flat across the top of the pipe, so it looks right at every angle and rotation
     const la = S.valve * Math.PI / 2, stem = ax(CH + VALVE / 2);
-    // a short, chunky handle
-    // it pivots on the valve stem, right over the middle of the brass valve
-    const lv0 = [stem[0], stem[1], stem[2]];
-    const lv1 = [lv0[0] + Math.cos(la) * 0.3, lv0[1] - Math.sin(la) * 0.3, lv0[2]];
+    const lv0 = [0, 1, 2].map((i) => stem[i] + nrm[i] * 0.09);
+    const hd = [Math.cos(la), -d[1] * Math.sin(la), -d[2] * Math.sin(la)]; // from "right" round to "back down the pipe"
+    const lv1 = [0, 1, 2].map((i) => lv0[i] + hd[i] * 0.3);
     seg(lv0, lv1, 0.1, "#1f4f9e", "round");
     seg(lv0, lv1, 0.075, "#2f6fd0", "round");
     { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(2, 0.04 * q.s), 0, 7); ctx.fill(); }
@@ -1164,12 +1405,31 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const rodLen = 1.1, end = tip + rodLen;
     // only the part of the tamper sticking out of the barrel shows
     if (end > TOTAL) seg(ax(Math.max(tip, TOTAL)), ax(end), 0.035, "#c98d4b", "round");
-    // sleeve and hand gripping the top of the tamper
-    seg(ax(end + 0.05), ax(end + 0.4), 0.13, "#2f7fd6", "round");
-    const h = L(...ax(end + 0.02)), hr = Math.max(4, 0.075 * h.s);
-    ctx.fillStyle = "#f2c094"; ctx.strokeStyle = "#b9855a"; ctx.lineWidth = Math.max(1, hr * 0.12);
-    ctx.beginPath(); ctx.ellipse(h.x, h.y, hr * 1.1, hr * 0.85, 0, 0, 7); ctx.fill(); ctx.stroke();
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(h.x - hr * 0.5 + i * hr * 0.5, h.y + hr * 0.7, hr * 0.26, hr * 0.32, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+    // an arm reaching in from the right: shoulder, a bend at the elbow, forearm, and a fist round the tamper's top
+    const G = ax(end + 0.03), top = ax(TOTAL + 0.06 + rodLen);
+    // the shoulder follows the hand only part of the way, so the elbow bends more as the hand pushes down
+    // the loader stands to the right of the barrel, shoulder below the muzzle, reaching up to push the tamper down
+    const Sh = [0.7, 1.55, 0.95];
+    const UPPER = 0.75, FORE = 0.72;
+    const v = [G[0] - Sh[0], G[1] - Sh[1], G[2] - Sh[2]], dl = Math.min(UPPER + FORE - 0.02, Math.hypot(...v)), vu = v.map((c) => c / Math.hypot(...v));
+    const along = (UPPER * UPPER - FORE * FORE + dl * dl) / (2 * dl), reach = Math.sqrt(Math.max(0, UPPER * UPPER - along * along));
+    // the elbow bends out to the right and down, away from the barrel
+    let bend = [1, -0.8, -0.3]; const dot = bend[0] * vu[0] + bend[1] * vu[1] + bend[2] * vu[2];
+    bend = bend.map((c, i) => c - dot * vu[i]); const bl = Math.hypot(...bend); bend = bend.map((c) => c / bl);
+    const El = [0, 1, 2].map((i) => Sh[i] + vu[i] * along + bend[i] * reach);
+    const wrist = [0, 1, 2].map((i) => G[i] + (El[i] - G[i]) * 0.2);
+    // the shoulder leads off down and to the right toward the loader's body, so the arm doesn't end in mid-air
+    const body = [Sh[0] + 0.45, Sh[1] - 0.5, Sh[2] - 0.35];
+    seg(body, Sh, 0.3, "#1f5fae", "round"); seg(body, Sh, 0.25, "#2f7fd6", "round");
+    seg(Sh, El, 0.28, "#1f5fae", "round"); seg(Sh, El, 0.23, "#2f7fd6", "round");      // upper arm in a blue sleeve
+    seg(El, wrist, 0.24, "#1f5fae", "round"); seg(El, wrist, 0.19, "#2f7fd6", "round"); // sleeve down the forearm
+    seg(wrist, G, 0.16, "#b9855a", "round"); seg(wrist, G, 0.13, "#f2c094", "round");   // bare wrist
+    const h = L(...G), hr = Math.max(8, 0.18 * h.s);
+    ctx.fillStyle = "#f2c094"; ctx.strokeStyle = "#b9855a"; ctx.lineWidth = Math.max(1, hr * 0.1);
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, hr * 1.05, hr * 0.85, -0.2, 0, 7); ctx.fill(); ctx.stroke();
+    // fingers curled round the tamper, thumb over the top
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.ellipse(h.x - hr * 0.62 + i * hr * 0.4, h.y + hr * 0.62, hr * 0.22, hr * 0.3, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(h.x - hr * 0.55, h.y - hr * 0.45, hr * 0.42, hr * 0.2, -0.5, 0, 7); ctx.fill(); ctx.stroke();
     ctx.restore();
     // the spud rides on the tamper's tip until it disappears into the barrel
     if (t < 1.0 && tip > TOTAL - 0.04) { const q = L(...ax(tip - 0.02)); drawPotato(q.x, q.y, Math.max(3, 0.055 * q.s), -1.2); }
@@ -1260,6 +1520,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       ctx.fillStyle = r.hit ? "rgba(255,255,255,.9)" : RINGS[r.type].color; ctx.fill();
       ctx.strokeStyle = r.hit ? "#9aa" : RINGS[r.type].edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
+    for (const o of S.props || []) { ctx.fillStyle = "#8a6a48"; ctx.fillRect(MX(o.x) - 2, MY(o.z) - 2, 4, 4); }
     for (const s of S.splats) { ctx.fillStyle = s.last ? "#23303a" : "rgba(35,48,58,.4)"; ctx.beginPath(); ctx.arc(MX(s.x), MY(s.z), s.last ? 2.6 : 1.8, 0, 7); ctx.fill(); }
     // aim line
     const yw = S.yaw * Math.PI / 180;
@@ -1277,6 +1538,22 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => pumpBtn.addEventListener(ev, pumpUp));
   $("bleed").addEventListener("click", () => { audio(); bleed(); });
   psiIn.addEventListener("input", () => { if (S.phase === "aim") { leaveArc(); S.psi = Number(psiIn.value); hud(); } });
+  // the peg board works like a slider: tap a hole or drag along it, and the grey pin snaps from hole to hole
+  const holesEl = $("holes");
+  const holeAt = (clientX) => {
+    let best = 0, bd = Infinity;
+    [...holesEl.children].forEach((h, i) => { const r = h.getBoundingClientRect(), d = Math.abs(r.left + r.width / 2 - clientX); if (d < bd) { bd = d; best = i; } });
+    return best;
+  };
+  let pegDrag = false;
+  holesEl.addEventListener("pointerdown", (e) => {
+    if (!canAdjust()) return;
+    e.preventDefault(); audio(); pegDrag = true;
+    try { holesEl.setPointerCapture(e.pointerId); } catch (err) {}
+    setHole(holeAt(e.clientX));
+  });
+  holesEl.addEventListener("pointermove", (e) => { if (pegDrag && canAdjust()) setHole(holeAt(e.clientX)); });
+  ["pointerup", "pointercancel"].forEach((ev) => holesEl.addEventListener(ev, () => (pegDrag = false)));
   $("angUp").addEventListener("click", () => { audio(); setHole(S.hole + 1); });
   $("angDown").addEventListener("click", () => { audio(); setHole(S.hole - 1); });
   rotIn.addEventListener("input", () => setYaw(Number(rotIn.value)));
@@ -1418,13 +1695,65 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, fencePanels, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, fencePanels, planStrike, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
 
+  // ================= launcher lab =================
+  // open the page with ?lab to get a contact sheet of the launcher at every angle and rotation,
+  // valve closed and open side by side, for checking how it looks from the player's seat
+  // click a cell to see that one full size, with the valve swinging open and shut; click again for the grid
+  const LAB_ANGLES = [10, 20, 30, 40, 55, 70], LAB_YAWS = [-30, -15, 0, 15, 30];
+  let labPick = null;
+  const yawName = (yw) => (yw === 0 ? "0°" : `${Math.abs(yw)}° ${yw < 0 ? "left" : "right"}`);
+  function drawLab() {
+    const FW = W, FH = H, keep = { yaw: S.yaw, angDisp: S.angDisp, valve: S.valve, psi: S.psi, phase: S.phase };
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#23303a"; ctx.fillRect(0, 0, FW, FH);
+    const top = 46, cols = labPick ? 1 : LAB_YAWS.length * 2, rows = labPick ? 1 : LAB_ANGLES.length, cw = FW / cols, ch = (FH - top) / rows;
+    ctx.fillStyle = "#fffaf0"; ctx.font = "800 15px Nunito, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(labPick ? `Launcher lab · ${labPick.a}° barrel · ${yawName(labPick.yw)} · click to go back to the grid`
+      : "Launcher lab · rows: barrel angle · columns: rotation, valve closed (left) and open (right) · click a cell to enlarge", 10, 14);
+    ctx.font = "800 11px Nunito, sans-serif"; ctx.textAlign = "center";
+    if (!labPick) LAB_YAWS.forEach((yw, i) => ["closed", "open"].forEach((v, j) => ctx.fillText(`${yawName(yw)} · ${v}`, (i * 2 + j + 0.5) * cw, 34)));
+    const cells = labPick ? [[labPick.a, 0, labPick.yw, 0, null, 0]] : LAB_ANGLES.flatMap((a, r) => LAB_YAWS.flatMap((yw, i) => [0, 1].map((v, j) => [a, r, yw, i, v, j])));
+    const swing = (Math.sin(performance.now() / 700) + 1) / 2;
+    cells.forEach(([a, r, yw, i, v, j]) => {
+      const x0 = (i * 2 + j) * cw, y0 = top + r * ch;
+      W = cw; H = ch; S.yaw = yw; S.angDisp = a; S.valve = v == null ? swing : v; S.psi = S.valve > 0.5 ? 0 : 60; S.phase = "aim";
+      camHome();
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, x0 * dpr, y0 * dpr);
+      ctx.beginPath(); ctx.rect(1, 1, cw - 2, ch - 2); ctx.clip();
+      ctx.fillStyle = j ? "#7fcf5a" : "#73c94f"; ctx.fillRect(0, 0, cw, ch);
+      // zoom in on the launcher so it fills the cell
+      const l = P(-1.6, 0, 0), rt = P(1.4, 0, 0), hi = P(0, 3.4, 1.5), lo = P(0, 0, -1.1);
+      const k = Math.min(cw * 0.9 / (rt.x - l.x), ch * 0.9 / Math.max(1, lo.y - hi.y));
+      ctx.translate(cw / 2, ch / 2); ctx.scale(k, k); ctx.translate(-(l.x + rt.x) / 2, -(hi.y + lo.y) / 2);
+      drawLauncher();
+      ctx.restore();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (i === 0 && j === 0 && !labPick) { ctx.fillStyle = "#23303a"; ctx.font = "800 13px Nunito, sans-serif"; ctx.textAlign = "left"; ctx.fillText(`${a}°`, x0 + 6, y0 + 12); }
+    });
+    W = FW; H = FH; Object.assign(S, keep); camHome();
+  }
+  function labClick(e) {
+    if (labPick) { labPick = null; return; }
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top - 46;
+    if (y < 0) return;
+    const col = Math.floor(x / (W / (LAB_YAWS.length * 2))), row = Math.floor(y / ((H - 46) / LAB_ANGLES.length));
+    labPick = { a: LAB_ANGLES[Math.min(row, LAB_ANGLES.length - 1)], yw: LAB_YAWS[Math.min(Math.floor(col / 2), LAB_YAWS.length - 1)] };
+  }
+
   // ================= go =================
-  S.rings = layoutRings(LEVELS[0]); hud();
+  S.rings = layoutRings(LEVELS[0]); placeProps(); S.feathers = []; hud();
+  if (new URLSearchParams(location.search).has("lab")) {
+    document.body.classList.add("lab"); $("overlay").hidden = true;
+    cv.addEventListener("click", labClick);
+    (function labFrame() { drawLab(); requestAnimationFrame(labFrame); })();
+    return;
+  }
   let last = performance.now();
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
