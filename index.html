@@ -70,6 +70,9 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
   background: rgba(255,250,240,.88); border: 2px solid var(--ink); border-radius: 8px; padding: 2px 8px;
   font-size: .78rem; font-weight: 800; line-height: 1.3; pointer-events: none;
 }
+.resetview {
+  position: absolute; left: 10px; bottom: 10px; font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink);
+}
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(35,48,58,.45); padding: 14px; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 18px 22px; width: 100%; max-width: 30rem; display: grid; gap: 10px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.05; color: var(--red); }
@@ -168,6 +171,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     <canvas id="cv" aria-label="View from behind the potato launcher, looking down a mown field at colored target rings"></canvas>
     <div class="note" id="note" hidden></div>
     <div class="shotmsg" id="shotMsg" role="status" hidden></div>
+    <button class="resetview" id="resetView" type="button" hidden>Reset view</button>
     <div class="overlay" id="overlay">
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
@@ -210,7 +214,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound</p>
+  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · right-drag or <kbd>Shift</kbd>-drag the field to look around, wheel to zoom</p>
 </div>
 
 <script>
@@ -294,7 +298,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       if (wantZ > 1) { wantZ = 1; wantP = Math.min(CAM.base, Math.atan(room / F0) - e1); }
       else if (wantZ < MIN_ZOOM) { wantZ = MIN_ZOOM; wantP = Math.atan(room / (F0 * MIN_ZOOM)) - e1; }
       k = 5;
-    } else if (S.phase === "settle") k = 0; // hold on the landing for a moment
+    } else if (S.view) { wantP = S.view.pitch; wantYaw = S.view.yaw; wantZ = S.view.zoom; wantY = S.view.y; k = 25; } // the player is looking around
+    else if (S.phase === "settle") k = 0; // hold on the landing for a moment
     const a = Math.min(1, dt * k);
     CAM.pitch += (wantP - CAM.pitch) * a; CAM.yaw += (wantYaw - CAM.yaw) * a; CAM.y += (wantY - CAM.y) * Math.min(1, dt * k * 0.7);
     CAM.zoom += (wantZ - CAM.zoom) * a;
@@ -440,7 +445,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   function startLevel(i) {
     S.level = i; S.rings = layoutRings(LEVELS[i]); S.spudsLeft = SPUDS; S.score = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
-    rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); hud();
+    rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
   }
 
@@ -482,7 +487,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     if (S.psi < 3) { note("The chamber is empty. Pump it up first."); return; }
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16) };
-    S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight"; shotNote("");
+    S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight"; shotNote(""); resetView();
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
@@ -1114,16 +1119,68 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   gear.addEventListener("click", (e) => { e.stopPropagation(); showSettings(settings.hidden); });
   document.addEventListener("click", (e) => { if (!settings.hidden && !settings.contains(e.target)) showSettings(false); });
 
-  // drag on the scene: sideways turns the launcher, up/down moves the pin between peg holes
-  let drag = null;
-  cv.addEventListener("pointerdown", (e) => { if (!canAdjust()) return; drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole }; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); });
-  cv.addEventListener("pointermove", (e) => {
-    if (!drag || !canAdjust()) return;
-    setYaw(drag.yaw + (e.clientX - drag.x) * 0.08);
-    setHole(drag.hole + Math.round((drag.y - e.clientY) / 26));
+  // one finger dragged on the scene aims: sideways turns the launcher, up/down moves the pin between peg holes.
+  // two fingers look around instead (mostly moving the view, with a little pinch zoom), e.g. to follow the last arc.
+  // with a mouse: right-drag or Shift-drag moves the view, the wheel zooms a little
+  const ZOOM_MIN = 0.75, ZOOM_MAX = 1.4;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const pts = new Map();
+  let drag = null, look = null;
+  const canLook = () => !S.potato && $("overlay").hidden;
+  const local = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const touchSnap = () => {
+    const a = [...pts.values()], m = { x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length };
+    return { m, d: a.length > 1 ? Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) : 0 };
+  };
+  function startLook() {
+    if (!S.view) S.view = { yaw: CAM.yaw, pitch: CAM.pitch, zoom: CAM.zoom, y: CAM.y };
+    $("resetView").hidden = false;
+  }
+  function resetView() { S.view = null; $("resetView").hidden = true; }
+  // keep the bit of the world under screen point (x0, y0) under (x1, y1), at zoom z
+  function moveView(x0, y0, x1, y1, z) {
+    const v = S.view, F1 = F0 * v.zoom, F2 = F0 * z;
+    v.yaw = clamp(v.yaw + Math.atan((x0 - W / 2) / F1) - Math.atan((x1 - W / 2) / F2), -0.9, 0.9);
+    v.pitch = clamp(v.pitch + Math.atan((CY - y1) / F2) - Math.atan((CY - y0) / F1), -0.7, 0.9);
+    v.zoom = z;
+  }
+  cv.addEventListener("contextmenu", (e) => e.preventDefault());
+  cv.addEventListener("pointerdown", (e) => {
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    pts.set(e.pointerId, local(e));
+    const mouseLook = e.pointerType === "mouse" && (e.button === 2 || e.shiftKey);
+    if ((pts.size === 2 || mouseLook) && canLook()) {
+      // a second finger turns an aim into a look: put the launcher back where the first finger found it
+      if (drag) { setYaw(drag.yaw); setHole(drag.hole); drag = null; }
+      startLook(); look = touchSnap(); cv.classList.add("dragging");
+    } else if (pts.size === 1 && canAdjust()) {
+      drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole }; cv.classList.add("dragging");
+    }
   });
-  const endDrag = () => { drag = null; cv.classList.remove("dragging"); };
-  cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+  cv.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, local(e));
+    if (look && S.view) {
+      const now = touchSnap(), z = look.d && now.d ? clamp(S.view.zoom * now.d / look.d, ZOOM_MIN, ZOOM_MAX) : S.view.zoom;
+      moveView(look.m.x, look.m.y, now.m.x, now.m.y, z); look = now;
+    } else if (drag && canAdjust()) {
+      setYaw(drag.yaw + (e.clientX - drag.x) * 0.08);
+      setHole(drag.hole + Math.round((drag.y - e.clientY) / 26));
+    }
+  });
+  const endPointer = (e) => {
+    pts.delete(e.pointerId);
+    if (look && pts.size < 2) look = pts.size && e.pointerType === "mouse" ? touchSnap() : null;
+    if (!pts.size) { drag = null; look = null; cv.classList.remove("dragging"); }
+  };
+  cv.addEventListener("pointerup", endPointer); cv.addEventListener("pointercancel", endPointer);
+  cv.addEventListener("wheel", (e) => {
+    if (!canLook()) return;
+    e.preventDefault(); startLook();
+    const p = local(e);
+    moveView(p.x, p.y, p.x, p.y, clamp(S.view.zoom * Math.exp(-e.deltaY * 0.0012), ZOOM_MIN, ZOOM_MAX));
+  }, { passive: false });
+  $("resetView").addEventListener("click", resetView);
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !settings.hidden) { showSettings(false); gear.focus(); return; }
