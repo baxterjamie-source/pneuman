@@ -224,7 +224,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher to aim, drag the field to look around, wheel to zoom</p>
+  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim, drag the field to look around, wheel to zoom</p>
   <p class="ver">Pneuman v1.4</p>
 </div>
 
@@ -509,23 +509,68 @@ body.lab .stage > :not(canvas) { display: none; }
     scarecrow: { r: 0.8, h: 2.5, say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
     chicken:   { r: 0.7, h: 0.8, say: "BAWK!", msg: "You startled the chicken!", sound: "bawk" },
   };
+  // the cow and the chicken wander among the rings, like the ravens in Howlertown: each picks an action at random,
+  // does it for a random while, then picks the next. Walking is slow, a few metres at a time toward some ring
+  const WANDER = {
+    cow:     { speed: 0.55, stride: 4, hop: [3, 9], acts: { walk: 0.35, graze: 0.4, chew: 0.17, look: 0.08 }, dur: { graze: [4, 9], chew: [3, 6], look: [1.8, 2.8] } },
+    chicken: { speed: 0.5, stride: 14, hop: [1, 4], acts: { walk: 0.45, peck: 0.4, look: 0.15 }, dur: { peck: [2, 5], look: [1, 2.5] } },
+  };
+  function pickAct(o) {
+    const Wd = WANDER[o.kind], acts = Object.entries(Wd.acts);
+    let r = Math.random() * acts.reduce((a, [, w]) => a + w, 0), act = acts[0][0];
+    for (const [name, w] of acts) { if ((r -= w) <= 0) { act = name; break; } }
+    o.act = act;
+    if (act !== "walk") { o.timer = rnd(...Wd.dur[act]); return; }
+    // head off a few metres, roughly toward one of the rings, staying in the field and clear of the other props
+    const zMax = Math.min(150, lvl().z[1] + 8);
+    for (let i = 0; i < 12; i++) {
+      const ring = S.rings[Math.floor(Math.random() * S.rings.length)], a = Math.atan2(ring.x - o.x, ring.z - o.z) + rnd(-0.9, 0.9), d = rnd(...Wd.hop);
+      const tx = Math.max(-44, Math.min(44, o.x + Math.sin(a) * d)), tz = Math.max(12, Math.min(zMax, o.z + Math.cos(a) * d));
+      if (S.props.some((p) => p !== o && Math.hypot(p.x - tx, p.z - tz) < p.r + o.r + 1)) continue;
+      o.tx = tx; o.tz = tz; o.timer = d / Wd.speed + 3; return;
+    }
+    o.act = Object.keys(Wd.dur)[0]; o.timer = 2;
+  }
+  function updateWander(o, dt) {
+    const Wd = WANDER[o.kind]; if (!Wd) return;
+    o.dip += ((o.act === "graze" ? 1.05 : o.act === "walk" ? 0.18 : 0.08) - o.dip) * Math.min(1, dt * 2.5);
+    if (o.t >= 0) return; // just been hit: it stands and reacts
+    o.timer -= dt;
+    if (o.act === "walk") {
+      const dx = o.tx - o.x, dz = o.tz - o.z, d = Math.hypot(dx, dz);
+      if (d < 0.15) { pickAct(o); return; }
+      const s = Math.min(d, Wd.speed * dt);
+      o.x += dx / d * s; o.z += dz / d * s; o.step += s * Wd.stride;
+      if (Math.abs(dx) > 0.05 * d) o.face = dx > 0 ? 1 : -1;
+    }
+    if (o.timer <= 0) pickAct(o);
+  }
   function placeProps() {
     S.props = [];
     for (const kind of Object.keys(PROPS)) {
       const D = PROPS[kind];
       for (let tries = 0; tries < 300; tries++) {
-        // a few metres off the edge of a ring, so a slightly wild shot can catch it
-        const ring = S.rings[Math.floor(Math.random() * S.rings.length)], a = rnd(0, Math.PI * 2), d = ring.r + D.r + rnd(1.5, 5);
-        const x = ring.x + Math.cos(a) * d, z = ring.z + Math.sin(a) * d;
+        // in harm's way: usually just short of a ring or just past it along the line of fire (where a shot that's
+        // a bit short or long lands), sometimes off to one side
+        const ring = S.rings[Math.floor(Math.random() * S.rings.length)];
+        const lx = ring.x, lz = ring.z - CAM.z0, ll = Math.hypot(lx, lz), ux = lx / ll, uz = lz / ll;
+        const inLine = Math.random() < 0.75, d = ring.r + D.r + rnd(0.8, 3.5);
+        const along = inLine ? d * (Math.random() < 0.5 ? -1 : 1) : rnd(-1.5, 1.5), across = inLine ? rnd(-1.2, 1.2) : d * (Math.random() < 0.5 ? -1 : 1);
+        const x = ring.x + ux * along + uz * across, z = ring.z + uz * along - ux * across;
         if (Math.abs(x) > 48 || z < 10 || z > 165) continue;
         // on screen from the launcher (the camera is at home after the ring layout), and clear of the corner map
         const q = P(x, 0, z), mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
         if (q.x < 40 || q.x > W - 40 || (q.x > W - mw - 30 && q.y > H - mh - 30)) continue;
         if (S.rings.some((r) => Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
         if (S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
-        // not standing right in front of a further ring, as seen from the launcher
-        if (S.rings.some((r) => r.z > z && Math.abs(Math.atan2(r.x, r.z + 15) - Math.atan2(x, z + 15)) < 0.035)) continue;
-        S.props.push({ kind, x, z, r: D.r, h: D.h, t: -1, face: Math.random() < 0.5 ? 1 : -1, ph: rnd(0, 6) });
+        const o = { kind, x, z, r: D.r, h: D.h, t: -1, face: Math.random() < 0.5 ? 1 : -1, ph: rnd(0, 6) };
+        if (kind === "cow") {
+          // Holstein black or red-and-white, with its own irregular patches (on the body, in metres)
+          o.patch = Math.random() < 0.6 ? "#25262b" : "#9a4a22";
+          o.spots = Array.from({ length: 5 }, () => ({ x: rnd(-1.1, 0.9), y: rnd(0.8, 1.5), rx: rnd(0.18, 0.42), ry: rnd(0.14, 0.3), a: rnd(-0.6, 0.6) }));
+        }
+        if (WANDER[kind]) { o.dip = 0; o.step = 0; pickAct(o); }
+        S.props.push(o);
         break;
       }
     }
@@ -756,7 +801,7 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const r of S.rings) if (r.flash) r.flash = Math.max(0, r.flash - dt * 0.8);
     for (const c of clouds) { c.az += (0.004 + S.wind.x * 0.002) * dt; if (c.az > 1) c.az = -1; if (c.az < -1) c.az = 1; }
     for (const b of birds) { b.az += b.v * dt; if (b.az > 1.2) b.az = -1.2; if (b.az < -1.2) b.az = 1.2; }
-    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } }
+    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); }
     updateBird(dt);
 
     const p = S.potato;
@@ -921,15 +966,80 @@ body.lab .stage > :not(canvas) { display: none; }
       // bucks up off the ground when hit
       const jump = hit && t < 0.8 ? Math.sin((t / 0.8) * Math.PI) * 0.6 : 0;
       ctx.translate(0, -jump * u);
-      for (const lx of [-0.75, -0.45, 0.5, 0.8]) { line(lx, 0, lx, 0.8, 0.16, "#f1ede4"); line(lx, 0, lx, 0.15, 0.17, "#3a3a3a"); }
-      const sw = Math.sin(now * 3 + o.ph) * 0.15;
-      line(-1.1, 1.3, -1.25, 0.75 + sw, 0.05, "#3a3a3a");
-      ell(0, 1.2, 1.15, 0.5, "#f4f1ea", "#3a3a3a");
-      ell(-0.4, 1.3, 0.3, 0.2, "#2f2f33"); ell(0.35, 1.05, 0.25, 0.18, "#2f2f33"); ell(0.1, 1.45, 0.18, 0.1, "#2f2f33");
-      ell(1.25, 1.5, 0.36, 0.28, "#f4f1ea", "#3a3a3a");
-      ell(1.48, 1.38, 0.18, 0.14, "#f2a6a6", "#3a3a3a");
-      line(1.12, 1.74, 1.05, 1.88, 0.06, "#d9cfa8"); line(1.36, 1.74, 1.45, 1.88, 0.06, "#d9cfa8");
-      ell(1.3, 1.55, 0.04, 0.04, "#23303a");
+      // modelled on a dairy cow side-on: boxy body with a straight back and hip bones, long legs, a long face
+      // angled down, ears out sideways, udder, and a tail with a tuft
+      const path = (pts, fill, stroke) => {
+        ctx.beginPath(); ctx.moveTo(X(pts[0][0]), Y(pts[0][1]));
+        for (let i = 1; i < pts.length; i++) { const p = pts[i]; p.length === 4 ? ctx.quadraticCurveTo(X(p[0]), Y(p[1]), X(p[2]), Y(p[3])) : ctx.lineTo(X(p[0]), Y(p[1])); }
+        ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.03 * u); ctx.stroke(); }
+      };
+      const hide = "#f6f3ec", edge = "#5a5650", hoof = "#3a3633";
+      // legs: the far pair a shade darker, the near pair in front; hind legs with a bend at the hock
+      const leg = (x, back, shade) => {
+        const c = shade ? "#ddd8cd" : hide;
+        if (back) path([[x - 0.16, 0.95], [x + 0.14, 0.95], [x + 0.08, 0.45], [x + 0.03, 0.08], [x - 0.07, 0.08], [x - 0.08, 0.45], [x - 0.18, 0.7]], c, edge);
+        else path([[x - 0.09, 0.9], [x + 0.09, 0.9], [x + 0.07, 0.08], [x - 0.07, 0.08]], c, edge);
+        path([[x - 0.08 + (back ? -0.02 : 0), 0.1], [x + 0.08 + (back ? -0.02 : 0), 0.1], [x + 0.09, 0], [x - 0.09, 0]], hoof);
+      };
+      // walking: diagonal pairs of legs swing together and the body bobs a little
+      const walking = o.act === "walk" && !hit, swA = walking ? Math.sin(o.step) * 0.1 : 0;
+      if (walking) ctx.translate(0, -Math.abs(Math.cos(o.step)) * 0.025 * u);
+      leg(-0.78 + swA, true, true); leg(0.62 - swA, false, true);
+      // tail swishing, with a tuft
+      const sw = Math.sin(now * 2.6 + o.ph) * 0.12;
+      line(-1.18, 1.42, -1.24 + sw * 0.4, 0.55, 0.045, "#e8e3d8");
+      ell(-1.24 + sw * 0.4, 0.5, 0.06, 0.12, o.patch);
+      // body outline: rump, hip bone, straight back, withers, neck down to the brisket, belly, flank
+      const body = [[-1.2, 1.3], [-1.18, 1.46, -1.0, 1.5], [-0.85, 1.55, -0.7, 1.48], [0.7, 1.5], [0.85, 1.58, 1.05, 1.5],
+        [1.2, 1.42], [1.1, 1.0], [0.95, 0.85, 0.75, 0.8], [0.2, 0.68, -0.45, 0.76], [-0.95, 0.82, -1.15, 1.0]];
+      path(body, hide, edge);
+      // irregular patches, clipped to the body
+      ctx.save(); path(body, "rgba(0,0,0,0)"); ctx.clip();
+      for (const s of o.spots) {
+        ctx.fillStyle = o.patch; ctx.beginPath();
+        for (let i = 0; i <= 10; i++) {
+          const a = (i / 10) * Math.PI * 2, wob = 1 + Math.sin(a * 3 + s.a * 5) * 0.22, px = s.x + Math.cos(a + s.a) * s.rx * wob, py = s.y + Math.sin(a + s.a) * s.ry * wob;
+          i ? ctx.lineTo(X(px), Y(py)) : ctx.moveTo(X(px), Y(py));
+        }
+        ctx.fill();
+      }
+      ctx.restore();
+      // pink udder under the belly, between the hind legs
+      ell(-0.52, 0.66, 0.2, 0.12, "#f0b9b0", "#c98a80");
+      for (const tx of [-0.62, -0.42]) line(tx, 0.58, tx, 0.5, 0.04, "#e7a79d");
+      leg(-0.6 - swA, true, false); leg(0.8 + swA, false, false);
+      // what it's up to, on its own slow cycle: grazing head-down, head up chewing its cud, then a turn to look at you
+      // what it's doing comes from its wander state: grazing head-down, chewing its cud, looking at you, or walking
+      const mode = hit ? "alarm" : o.act, dip = o.dip, nib = mode === "graze" ? Math.sin(now * 9) * 0.05 * Math.min(1, dip) : 0;
+      const jaw = mode === "chew" ? Math.abs(Math.sin(now * 5)) * 0.035 : mode === "graze" ? Math.abs(Math.sin(now * 9)) * 0.03 : 0;
+      if (mode === "look") {
+        // turned to face the camera: broad face with both ears, two eyes and the muzzle at the bottom
+        const hx = 1.22, hy = 1.28;
+        ell(hx - 0.27, hy + 0.2, 0.15, 0.06, o.patch, edge, 0.2); ell(hx + 0.27, hy + 0.2, 0.15, 0.06, o.patch, edge, -0.2);
+        path([[hx - 0.2, hy + 0.3], [hx + 0.2, hy + 0.3], [hx + 0.16, hy - 0.2], [hx + 0.1, hy - 0.36], [hx - 0.1, hy - 0.36], [hx - 0.16, hy - 0.2]], o.patch, edge);
+        path([[hx - 0.05, hy + 0.3], [hx + 0.05, hy + 0.3], [hx + 0.06, hy - 0.22], [hx - 0.06, hy - 0.22]], hide);
+        ell(hx, hy - 0.32, 0.13, 0.08, "#e9c8c0", edge);
+        ell(hx - 0.04, hy - 0.32, 0.018, 0.018, "#5a3a36"); ell(hx + 0.04, hy - 0.32, 0.018, 0.018, "#5a3a36");
+        ell(hx - 0.1, hy + 0.08, 0.03, 0.03, "#1c1c1f"); ell(hx + 0.1, hy + 0.08, 0.03, 0.03, "#1c1c1f");
+      } else {
+        // side-on head: long face angled down, dark with a white blaze, pale muzzle, ears out to the side.
+        // it swings down from the neck to graze; the jaw works while it eats or chews
+        // to graze the whole neck lowers and reaches forward, so the muzzle gets down to the grass
+        const k = Math.max(0, (dip - 0.1) / 0.95), nx = 0.3 * k, ny = -0.75 * k;
+        path([[0.85, 1.5], [1.12 + nx, 1.5 + ny], [1.18 + nx, 1.18 + ny], [0.95, 0.95]], hide, edge);
+        // move the head down with the neck, then tip it round its top so the face points at the ground
+        const pivot = [X(1.1), Y(1.38)], ang = (mode === "alarm" ? -0.25 : dip * 0.7) + nib;
+        ctx.save(); ctx.translate(X(nx) - X(0), Y(ny) - Y(0));
+        ctx.translate(...pivot); ctx.rotate(ang * f); ctx.translate(-pivot[0], -pivot[1]);
+        path([[1.06, 1.52], [1.3, 1.6], [1.4, 1.52], [1.62, 1.02], [1.58, 0.92], [1.44, 0.9], [1.12, 1.25]], o.patch, edge);
+        path([[1.32, 1.56], [1.38, 1.5], [1.52, 1.08], [1.44, 1.05]], hide);
+        ell(1.5, 0.94 - jaw, 0.09, 0.05, "#e2bdb4", edge); // lower jaw
+        ell(1.53, 0.98, 0.1, 0.08, "#e9c8c0", edge);
+        ell(1.58, 0.99, 0.02, 0.015, "#5a3a36");
+        ell(1.16, 1.5, 0.15, 0.06, o.patch, edge, -0.25 + (mode === "alarm" ? -0.4 : Math.sin(now * 1.7 + o.ph) * 0.15));
+        ell(1.27, 1.36, mode === "alarm" ? 0.05 : 0.035, mode === "alarm" ? 0.05 : 0.035, "#1c1c1f");
+        ctx.restore();
+      }
     } else if (o.kind === "trough") {
       ell(0, 0.08, 1.15, 0.2, "#7f8a93");
       ctx.fillStyle = "#aeb7bf"; ctx.strokeStyle = "#6e7880"; ctx.lineWidth = Math.max(1, 0.04 * u);
@@ -960,10 +1070,12 @@ body.lab .stage > :not(canvas) { display: none; }
       if (hit) { const tt = Math.min(t, 1.2); hy = Math.max(0.1, 2.3 + 5 * tt - 4.9 * tt * tt); hx = 1.4 * tt; hr = tt * 6; }
       ell(hx, hy, 0.42, 0.07, "#d8b04a", "#9a7a2a", hr * 0.2); ell(hx, hy + 0.12, 0.22, 0.14, "#e2c25a", "#9a7a2a", hr * 0.2);
     } else if (o.kind === "chicken") {
-      // pecks at the grass; when hit it hops about flapping
-      const hop = hit && t < 1.6 ? Math.abs(Math.sin(t * 9)) * 0.45 * (1 - t / 1.6) : 0, peck = hit ? 0 : Math.max(0, Math.sin(now * 2.5 + o.ph)) * 0.2;
+      // trots about with its head bobbing, stops to peck at the grass or stand and look; when hit it hops about flapping
+      const walking = o.act === "walk" && !hit, sw = walking ? Math.sin(o.step) * 0.09 : 0;
+      const hop = hit && t < 1.6 ? Math.abs(Math.sin(t * 9)) * 0.45 * (1 - t / 1.6) : 0;
+      const peck = hit ? 0 : o.act === "peck" ? Math.max(0, Math.sin(now * 6 + o.ph)) * 0.28 : walking ? Math.abs(Math.sin(o.step)) * 0.05 : 0;
       ctx.translate(0, -hop * u);
-      line(-0.08, 0, -0.08, 0.3, 0.04, "#e0a020"); line(0.1, 0, 0.1, 0.3, 0.04, "#e0a020");
+      line(-0.08 + sw, 0, -0.08, 0.3, 0.04, "#e0a020"); line(0.1 - sw, 0, 0.1, 0.3, 0.04, "#e0a020");
       ell(0, 0.48, 0.32, 0.24, "#ffffff", "#9aa0a6");
       const flap = hit && t < 1.6 ? Math.sin(t * 30) * 0.3 : 0;
       ell(-0.05, 0.52 + flap * 0.4, 0.2, 0.1, "#eceff1", "#9aa0a6", flap);
@@ -1418,9 +1530,6 @@ body.lab .stage > :not(canvas) { display: none; }
     bend = bend.map((c, i) => c - dot * vu[i]); const bl = Math.hypot(...bend); bend = bend.map((c) => c / bl);
     const El = [0, 1, 2].map((i) => Sh[i] + vu[i] * along + bend[i] * reach);
     const wrist = [0, 1, 2].map((i) => G[i] + (El[i] - G[i]) * 0.2);
-    // the shoulder leads off down and to the right toward the loader's body, so the arm doesn't end in mid-air
-    const body = [Sh[0] + 0.45, Sh[1] - 0.5, Sh[2] - 0.35];
-    seg(body, Sh, 0.3, "#1f5fae", "round"); seg(body, Sh, 0.25, "#2f7fd6", "round");
     seg(Sh, El, 0.28, "#1f5fae", "round"); seg(Sh, El, 0.23, "#2f7fd6", "round");      // upper arm in a blue sleeve
     seg(El, wrist, 0.24, "#1f5fae", "round"); seg(El, wrist, 0.19, "#2f7fd6", "round"); // sleeve down the forearm
     seg(wrist, G, 0.16, "#b9855a", "round"); seg(wrist, G, 0.13, "#f2c094", "round");   // bare wrist
@@ -1502,11 +1611,15 @@ body.lab .stage > :not(canvas) { display: none; }
   }
 
   // top-down map in the corner: the main aiming aid for left/right and distance
-  function drawMinimap() {
+  // where the map sits and its scale; shared by drawing and by touching it to aim
+  function mapGeom() {
     const mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3), x0 = W - mw - 10, y0 = H - mh - 10;
-    if (mh < 60) return;
     const zmax = lvl().z[1] + 15, sc = (mh - 26) / zmax;
-    const MX = (x) => x0 + mw / 2 + x * sc, MY = (z) => y0 + mh - 14 - z * sc;
+    return { mw, mh, x0, y0, zmax, sc, MX: (x) => x0 + mw / 2 + x * sc, MY: (z) => y0 + mh - 14 - z * sc };
+  }
+  function drawMinimap() {
+    const { mw, mh, x0, y0, zmax, sc, MX, MY } = mapGeom();
+    if (mh < 60) return;
     ctx.save();
     ctx.fillStyle = "rgba(255,250,240,.92)"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, y0, mw, mh, 10) : ctx.rect(x0, y0, mw, mh); ctx.fill(); ctx.stroke();
@@ -1609,6 +1722,16 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     return x >= x0 - 14 && x <= x1 + 14 && y >= y0 - 14 && y <= y1 + 14;
   }
+  // the corner map is its own control, like the launcher: touch or drag on it to aim the launcher at that spot
+  let mapAim = false;
+  function onMap({ x, y }) {
+    const g = mapGeom();
+    return g.mh >= 60 && x >= g.x0 && x <= g.x0 + g.mw && y >= g.y0 && y <= g.y0 + g.mh;
+  }
+  function aimAtMap({ x, y }) {
+    const g = mapGeom(), wx = (x - g.x0 - g.mw / 2) / g.sc, wz = (g.y0 + g.mh - 14 - y) / g.sc;
+    if (wz > 1) setYaw(Math.atan2(wx, wz) * 180 / Math.PI);
+  }
   cv.addEventListener("contextmenu", (e) => e.preventDefault());
   cv.addEventListener("pointerdown", (e) => {
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1618,15 +1741,18 @@ body.lab .stage > :not(canvas) { display: none; }
       // a second finger turns an aim into a look: put the launcher back where the first finger found it
       if (drag) { setYaw(drag.yaw); setHole(drag.hole); drag = null; }
       if (canLook()) look = touchSnap();
+    } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p)) {
+      // touching the map swings the launcher to point at that spot
+      mapAim = true; aimAtMap(p);
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onLauncher(p)) {
       drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole };
     } else if (pts.size === 1 && canLook()) look = touchSnap();
-    if (drag || look) cv.classList.add("dragging");
+    if (drag || look || mapAim) cv.classList.add("dragging");
   });
   cv.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) {
       // hovering with a mouse: show which part of the scene does what
-      if (e.pointerType === "mouse") cv.style.cursor = canAdjust() && onLauncher(local(e)) ? "move" : "";
+      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : onMap(p) ? "crosshair" : onLauncher(p) ? "move" : ""; }
       return;
     }
     pts.set(e.pointerId, local(e));
@@ -1635,7 +1761,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!S.view) { if (Math.hypot(now.m.x - look.m.x, now.m.y - look.m.y) < 4 && Math.abs(now.d - look.d) < 4) return; startLook(); }
       const z = look.d && now.d ? clamp(S.view.zoom * now.d / look.d, ZOOM_MIN, ZOOM_MAX) : S.view.zoom;
       moveView(look.m.x, look.m.y, now.m.x, now.m.y, z); look = now;
-    } else if (drag && canAdjust()) {
+    } else if (mapAim && canAdjust()) aimAtMap(local(e));
+    else if (drag && canAdjust()) {
       setYaw(drag.yaw + (e.clientX - drag.x) * 0.08);
       setHole(drag.hole + Math.round((drag.y - e.clientY) / 26));
     }
@@ -1644,7 +1771,7 @@ body.lab .stage > :not(canvas) { display: none; }
     pts.delete(e.pointerId);
     // lifting one of two fingers carries on moving the view with the other
     if (look && pts.size) look = touchSnap();
-    if (!pts.size) { drag = null; look = null; cv.classList.remove("dragging"); }
+    if (!pts.size) { drag = null; look = null; mapAim = false; cv.classList.remove("dragging"); }
   };
   cv.addEventListener("pointerup", endPointer); cv.addEventListener("pointercancel", endPointer);
   cv.addEventListener("wheel", (e) => {
