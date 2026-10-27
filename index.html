@@ -35,7 +35,18 @@ body { background: var(--grass-dark); color: var(--ink); font-family: var(--body
   padding-left: max(14px, env(safe-area-inset-left, 0px));
   padding-right: max(14px, env(safe-area-inset-right, 0px));
 }
-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 4px 16px; position: relative; }
+.hdr-r { display: flex; align-items: center; gap: 12px; }
+.gear { width: 40px; height: 38px; padding: 0; display: grid; place-items: center; flex: none; }
+.gear svg { width: 22px; height: 22px; }
+.settings {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
+  padding: 10px 14px; min-width: 190px; display: grid; gap: 8px; box-shadow: 0 6px 0 rgba(0,0,0,.2);
+}
+.settings h3 { margin: 0; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
+.set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
+.prev { font-family: var(--body); font-size: .75rem; opacity: .65; margin-left: 6px; white-space: nowrap; }
 h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 4vw, 2.5rem); color: var(--paper); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(0,0,0,.18); }
 .sub { color: var(--paper); opacity: .9; font-size: .95rem; }
 
@@ -48,7 +59,6 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .spuds { display: flex; gap: 3px; }
 .spud { width: 13px; height: 10px; border-radius: 50%; background: #c48a4a; border: 2px solid #7a4f22; }
 .spud.used { background: transparent; border-style: dashed; opacity: .4; }
-#windArrow { width: 22px; height: 22px; transition: transform .3s; transform-origin: 50% 50%; transform-box: view-box; }
 .note {
   position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
   background: var(--ink); color: var(--paper); border-radius: 999px; padding: 7px 16px; font-weight: 800;
@@ -113,7 +123,12 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; }
   .tray .ctl:first-child { grid-column: 1 / -1; }
   .ctl { padding: 8px; gap: 6px; }
-  .holes { gap: 2px; padding: 4px; }
+  /* narrower peg board and arrow buttons so the angle box fits on a phone */
+  .row { gap: 5px; }
+  .sq { width: 30px; }
+  .holes { gap: 1px; padding: 4px 3px; }
+  .holes b { flex-basis: 5px; min-width: 3px; }
+  .hole { display: none; }
   .ctl-head label, .ctl-head .lbl { font-size: .65rem; letter-spacing: .06em; }
   .row { justify-content: space-between; }
   .val { font-size: 1.3rem; }
@@ -127,16 +142,21 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 <div class="wrap">
   <header>
     <h1>Pneuman</h1>
-    <span class="sub">Ten spuds. Pick your rings. Mind the wind.</span>
+    <div class="hdr-r">
+      <span class="sub">Ten spuds. Pick your rings. Mind the wind.</span>
+      <button class="gear" id="gear" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.4 5-.1-3 2-1.6-2-3.5-2.4.9a8 8 0 0 0-2.6-1.5L14.9 2h-4l-.4 2.6a8 8 0 0 0-2.6 1.5l-2.4-.9-2 3.5 2 1.6a8 8 0 0 0 0 3l-2 1.6 2 3.5 2.4-.9a8 8 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a8 8 0 0 0 2.6-1.5l2.4.9 2-3.5Z" fill="none" stroke="#23303a" stroke-width="2.2" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="settings" id="settings" hidden>
+      <h3>Settings</h3>
+      <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
+    </div>
   </header>
 
   <div class="hud">
       <div class="chip"><span class="k">Level</span><span id="lvlOut">1</span><span class="k">Score</span><span id="scoreOut">0 / 0</span></div>
       <div class="chip"><span class="k">Spuds</span><span class="spuds" id="spudsOut"></span></div>
-      <div class="chip"><span class="k">Wind</span>
-        <svg id="windArrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 V5 M6 10 L12 4 L18 10" fill="none" stroke="#23303a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span id="windOut">calm</span>
-      </div>
   </div>
 
   <div class="stage">
@@ -146,7 +166,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
         <h2 id="ovTitle">Pneuman</h2>
-        <p id="ovBody">Pump up the chamber, pick a peg hole for the barrel angle, swing the launcher left or right, then open the valve. You get ten spuds per level, and each ring scores once. Small rings are worth far more than big ones.</p>
+        <p id="ovBody">Load a spud (that closes the valve), pump up the chamber, pick a peg hole for the barrel angle, swing the launcher left or right, then open the valve. You get ten spuds per level, and each ring scores once. Small rings are worth far more than big ones.</p>
         <div class="legend" id="legend">
           <span style="color:#e0a800"><i></i>2</span><span style="color:#2e9b3a"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#e8452c"><i></i>25</span>
         </div>
@@ -195,12 +215,12 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     blue:   { pts: 10, r: 1.7, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
     red:    { pts: 25, r: 1.05, color: "#ff6b52", edge: "#e8452c", name: "red" },
   };
-  // where in the level's distance band each ring type tends to sit (0 = near, 1 = far)
-  const BAND = { yellow: [0, 0.65], green: [0.2, 0.8], blue: [0.4, 1], red: [0.6, 1] };
+  // one ring of each kind, anywhere in the level's distance band
+  const MIX = { yellow: 1, green: 1, blue: 1, red: 1 };
   const LEVELS = [
-    { mix: { yellow: 3, green: 2, blue: 1, red: 1 }, z: [12, 58], wind: [0, 0] },
-    { mix: { yellow: 3, green: 2, blue: 1, red: 1 }, z: [18, 82], wind: [6, 12] },
-    { mix: { yellow: 2, green: 2, blue: 2, red: 1 }, z: [25, 108], wind: [11, 20] },
+    { mix: MIX, z: [12, 58], wind: [0, 0] },
+    { mix: MIX, z: [18, 82], wind: [6, 12] },
+    { mix: MIX, z: [25, 108], wind: [11, 20] },
   ];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
@@ -211,11 +231,14 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     phase: "title", level: 0, rings: [], spudsLeft: SPUDS, score: 0, levelScores: [],
     psi: 0, hole: 6, yaw: 0, wind: { x: 0, z: 0, kmh: 0 },
     potato: null, arc: null, curArc: [], splats: [], pumpAnim: 0, pumpHeld: false, pumpT: 0, timer: 0, after: null, muted: false,
-    loaded: false, loadT: 0, lastPsi: 0, valve: 0, valveTarget: 0, angDisp: 40, puff: 0,
+    loaded: false, loadT: 0, lastPsi: 0, valve: 1, valveTarget: 1, angDisp: 40, puff: 0, kick: 0, windShow: null,
   };
   const LOAD_TIME = 1.5;
   let best = null;
   try { const b = localStorage.getItem("pneuman-best"); if (b) best = Number(b); } catch (e) {}
+  try { S.muted = localStorage.getItem("pneuman-muted") === "1"; } catch (e) {}
+  // the blue lever is down (valve open) until a spud is loaded, so pumping just leaks out
+  const valveOpen = () => !S.loaded && S.phase !== "loading";
 
   // ================= dom =================
   const $ = (id) => document.getElementById(id);
@@ -232,31 +255,60 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   $("holes").innerHTML = HOLES.map(() => "<b></b>").join("");
 
   // ================= camera (behind the launcher) =================
-  // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer
-  const CAM = { x: 0, y: 5, z: -15, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
-  let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch);
+  // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer.
+  // pitch is the downward tilt; in flight the camera rises and turns to keep the spud in view
+  const CAM = { x: 0, y: 5, y0: 5, z: -15, yaw: 0, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
+  let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), cyw = 1, syw = 0;
   let F = 500, CY = 200, HZ = 100;
-  // CY (the screen point the camera looks at) stays put; the camera tilts up to keep a high spud in view
+  const NEAR = 0.1;
+  // CY (the screen point the camera looks at) stays put, worked out from the home position
   function setupCam(dt = 0) {
     F = Math.min(W * 2.2, H * 2.4);
-    const th = Math.atan2(CAM.y, -CAM.z), tb = Math.tan(CAM.base);
+    const th = Math.atan2(CAM.y0, -CAM.z), tb = Math.tan(CAM.base);
     const hz = Math.max(H * 0.06, H * 0.88 - F * (tb + Math.tan(th - CAM.base)));
     CY = hz + F * tb;
-    let want = CAM.base;
+    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, k = 2;
     const p = S.potato;
     if (p) {
-      const el = Math.atan2(p.y - CAM.y, p.z - CAM.z), top = Math.atan(CY / F);
-      want = Math.max(CAM.base - 0.07, Math.min(CAM.base, top * 0.75 - el));
-    }
-    const k = want < CAM.pitch ? 6 : 1.5;
-    CAM.pitch += (want - CAM.pitch) * Math.min(1, dt * k);
-    cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch);
+      // rise with the spud, then turn to put it a bit above the middle of the view
+      wantY = CAM.y0 + Math.max(0, p.y) * 0.5;
+      const dx = p.x - CAM.x, dz = p.z - CAM.z, el = Math.atan2(p.y - CAM.y, Math.hypot(dx, dz));
+      wantYaw = Math.atan2(dx, dz);
+      wantP = Math.min(CAM.base, Math.atan((CY - H * 0.42) / F) - el);
+      k = 5;
+    } else if (S.phase === "settle") k = 0; // hold on the landing for a moment
+    const a = Math.min(1, dt * k);
+    CAM.pitch += (wantP - CAM.pitch) * a; CAM.yaw += (wantYaw - CAM.yaw) * a; CAM.y += (wantY - CAM.y) * Math.min(1, dt * k * 0.7);
+    cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch); cyw = Math.cos(CAM.yaw); syw = Math.sin(CAM.yaw);
     HZ = CY - F * Math.tan(CAM.pitch);
   }
-  function P(x, y, z) {
-    const dx = x - CAM.x, dy = y - CAM.y, dz = z - CAM.z;
-    const yc = dy * cp + dz * sp, zc = Math.max(0.05, dz * cp - dy * sp), s = F / zc;
-    return { x: W / 2 + dx * s, y: CY - yc * s, s };
+  function camHome() { CAM.pitch = CAM.base; CAM.yaw = 0; CAM.y = CAM.y0; setupCam(0); }
+  // world offset -> camera space [right, up, forward]
+  function rot(dx, dy, dz) {
+    const x1 = dx * cyw - dz * syw, z1 = dx * syw + dz * cyw;
+    return [x1, dy * cp + z1 * sp, z1 * cp - dy * sp];
+  }
+  const cam = (x, y, z) => rot(x - CAM.x, y - CAM.y, z - CAM.z);
+  function proj(c) {
+    const s = F / Math.max(NEAR, c[2]);
+    return { x: W / 2 + c[0] * s, y: CY - c[1] * s, s, behind: c[2] < NEAR };
+  }
+  const P = (x, y, z) => proj(cam(x, y, z));
+  // a direction in the sky (azimuth right of straight ahead, elevation above the horizon)
+  const dirP = (az, el) => proj(rot(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)));
+  // trace a world polygon, cut off where it passes behind the camera
+  function pathClip(pts, close = true) {
+    const cs = pts.map((p) => cam(...p)), out = [], n = cs.length;
+    for (let i = 0; i < (close ? n : n - 1); i++) {
+      const a = cs[i], b = cs[(i + 1) % n];
+      if (a[2] >= NEAR) out.push(a);
+      if ((a[2] >= NEAR) !== (b[2] >= NEAR)) { const t = (NEAR - a[2]) / (b[2] - a[2]); out.push(a.map((v, j) => v + (b[j] - v) * t)); }
+    }
+    if (!close && cs[n - 1][2] >= NEAR) out.push(cs[n - 1]);
+    if (out.length < 2) return false;
+    ctx.beginPath(); out.map(proj).forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+    if (close) ctx.closePath();
+    return true;
   }
 
   // ================= audio =================
@@ -324,18 +376,20 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     return best;
   }
   function layoutOnce(L) {
-    CAM.pitch = CAM.base; setupCam(0);
+    camHome();
     // keep rings on screen and out from under the info chips and the corner map
     const mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
-    const blocked = [{ x0: W - mw - 20, x1: 1e4, y0: H - mh - 20, y1: 1e4 }, sockBox()];
+    // ... and out from behind the launcher and its pump
+    const lb = P(-1.7, 0, -1), lt = P(1.6, 2.6, 0.6);
+    const blocked = [{ x0: W - mw - 20, x1: 1e4, y0: H - mh - 20, y1: 1e4 }, sockBox(), { x0: lb.x, x1: lt.x, y0: lt.y - 10, y1: 1e4 }];
     const onScreen = (b) => b.x0 > 6 && b.x1 < W - 6;
     const rings = [];
     for (const [type, count] of Object.entries(L.mix)) {
       for (let i = 0; i < count; i++) {
-        const R = RINGS[type], [b0, b1] = BAND[type];
+        const R = RINGS[type];
         let placed = null;
         for (let tries = 0; tries < 600 && !placed; tries++) {
-          const z = L.z[0] + (L.z[1] - L.z[0]) * rnd(b0, b1);
+          const z = rnd(L.z[0], L.z[1]);
           const halfW = (W / 2) / P(0, 0, z).s - R.r - 1;
           const x = rnd(-1, 1) * Math.max(2, Math.min(z * 0.5, halfW * 0.85));
           if (!rings.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + R.r + 2)) continue;
@@ -362,14 +416,16 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // ================= flow =================
   function startLevel(i) {
     S.level = i; S.rings = layoutRings(LEVELS[i]); S.spudsLeft = SPUDS; S.score = 0;
-    S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.psi = S.lastPsi; S.loaded = false; S.valveTarget = 0;
+    S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; hud();
-    note(i === 0 ? "Level 1 · no wind · pump up and pick your rings" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
+    note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
   }
 
   const canAdjust = () => S.phase === "aim" || S.phase === "loading";
   function pumpStroke() {
     if (!canAdjust()) return;
+    // with the valve open the air just rushes through: the needle twitches but falls back to 0
+    if (valveOpen()) { S.kick = 1; S.pumpAnim = 1; sfx.bleed(); note("Load first", 1600); return; }
     if (S.psi >= MAX_PSI) { note("Gauge is maxed at 120 PSI"); return; }
     S.psi = Math.min(MAX_PSI, Math.round((S.psi + 9 * (1 - S.psi / 170)) * 10) / 10);
     S.pumpAnim = 1; sfx.pump(); hud();
@@ -404,7 +460,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16) };
     S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight";
-    S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = S.psi; S.psi = 0; sfx.fire(); hud();
+    S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
   function land(x, z) {
@@ -432,8 +488,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     }
     const allHit = S.rings.every((r) => r.hit);
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
-    // the chamber is pumped back up to the pressure of the last shot
-    S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; S.psi = S.lastPsi; rollWind(); hud(); };
+    // the valve stays open and the chamber empty until the next spud is loaded and pumped
+    S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
     hud();
   }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
@@ -471,31 +527,25 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   }
 
   // ================= hud =================
-  function windText() {
-    const w = S.wind; if (!w.kmh) return "calm";
-    const side = Math.abs(w.x) > 0.35 * Math.hypot(w.x, w.z) ? (w.x > 0 ? "right" : "left") : "";
-    const along = Math.abs(w.z) > 0.35 * Math.hypot(w.x, w.z) ? (w.z > 0 ? "tailwind" : "headwind") : "";
-    const desc = along && side ? `${along}, pushing ${side}` : along || `pushing ${side}`;
-    return `${w.kmh} km/h · ${desc}`;
-  }
   function hud() {
     $("lvlOut").textContent = `${S.level + 1} / ${LEVELS.length}`;
     $("scoreOut").textContent = `${S.score} / ${maxScore()}`;
     $("spudsOut").innerHTML = Array.from({ length: SPUDS }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("");
-    $("windOut").textContent = windText();
-    const wa = $("windArrow"); wa.style.transform = `rotate(${Math.atan2(S.wind.x, S.wind.z)}rad)`; wa.style.opacity = S.wind.kmh ? 1 : 0.25;
-    $("psiOut").innerHTML = `${Math.round(S.psi)}<small>PSI</small>`; psiIn.value = Math.round(S.psi);
+    // after a shot, the last pressure stays on show as a guide until the next one is fired
+    const prev = S.lastPsi ? `<span class="prev">(prev. = ${S.lastPsi} psi)</span>` : "";
+    $("psiOut").innerHTML = `${Math.round(S.psi)}<small>PSI</small>${prev}`; psiIn.value = Math.round(S.psi);
     $("angOut").innerHTML = `${ang()}<small>°</small>`; $("holeOut").textContent = `hole ${S.hole + 1}/${HOLES.length}`;
     [...$("holes").children].forEach((b, i) => b.classList.toggle("on", i === S.hole));
     $("rotOut").innerHTML = `${Math.abs(S.yaw).toFixed(1).replace(/\.0$/, "")}<small>° ${S.yaw < 0 ? "left" : S.yaw > 0 ? "right" : ""}</small>`; rotIn.value = S.yaw;
     const adj = canAdjust();
     ["pump", "bleed", "angUp", "angDown", "rotL", "rotR"].forEach((id) => ($(id).disabled = !adj));
-    psiIn.disabled = rotIn.disabled = !adj;
+    rotIn.disabled = !adj;
+    psiIn.disabled = $("bleed").disabled = !adj || valveOpen();
     const fb = $("fire"), mode = S.loaded ? "fire" : "load";
     fb.disabled = S.phase !== "aim";
     if (fb.dataset.mode !== mode) {
       fb.dataset.mode = mode; fb.classList.toggle("load", mode === "load");
-      fb.innerHTML = mode === "fire" ? "FIRE<small>open the valve</small>" : "LOAD<small>tamp a spud down</small>";
+      fb.innerHTML = mode === "fire" ? "FIRE<small>open the valve</small>" : "LOAD<small>close valve and tamp spud</small>";
     }
   }
 
@@ -506,10 +556,17 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     S.valve += (S.valveTarget - S.valve) * Math.min(1, dt * 14);
     S.angDisp += (ang() - S.angDisp) * Math.min(1, dt * 8);
     S.puff = Math.max(0, S.puff - dt * 1.4);
+    S.kick = Math.max(0, S.kick - dt * 2.5);
+    // the shown wind direction swings round to a new one gradually, like the sock does
+    if (S.wind.kmh) {
+      if (S.windShow == null) S.windShow = S.wind.dir;
+      const d = ((S.wind.dir - S.windShow + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      S.windShow += d * Math.min(1, dt * 1.2);
+    }
     if (S.phase === "loading") { S.loadT += dt; if (S.loadT >= LOAD_TIME) { S.phase = "aim"; S.loaded = true; hud(); } }
     if (canAdjust() && S.pumpHeld) { S.pumpT -= dt; if (S.pumpT <= 0) { pumpStroke(); S.pumpT = 0.2; } }
     for (const r of S.rings) if (r.flash) r.flash = Math.max(0, r.flash - dt * 0.8);
-    for (const c of clouds) { c.x += (0.003 + S.wind.x * 0.0015) * dt; if (c.x > 1.25) c.x = -0.25; if (c.x < -0.25) c.x = 1.25; }
+    for (const c of clouds) { c.az += (0.004 + S.wind.x * 0.002) * dt; if (c.az > 1) c.az = -1; if (c.az < -1) c.az = 1; }
 
     const p = S.potato;
     if (p) {
@@ -527,40 +584,44 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   }
 
   // ================= draw =================
-  const clouds = Array.from({ length: 6 }, () => ({ x: Math.random() * 1.4 - 0.2, y: rnd(0.03, 0.17), s: rnd(0.6, 1.3) }));
+  // sky things sit at a direction, not a place: some low enough to peek over the trees, more up high
+  const clouds = Array.from({ length: 14 }, (_, i) => ({ az: rnd(-1, 1), el: i < 5 ? rnd(0.012, 0.04) : rnd(0.05, 0.42), s: rnd(0.6, 1.4) }));
+  const SUN = { az: 0.3, el: 0.07 };
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // sky
-    const g = ctx.createLinearGradient(0, 0, 0, HZ);
-    g.addColorStop(0, "#5fb6ea"); g.addColorStop(1, "#bfe6f7");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, HZ + 1);
-    ctx.fillStyle = "#fff3b0"; ctx.beginPath(); ctx.arc(W * 0.86, HZ * 0.35, Math.max(14, HZ * 0.22), 0, 7); ctx.fill();
-    for (const c of clouds) {
-      const x = c.x * W, y = c.y * H, r = 16 * c.s * Math.max(0.7, W / 1000);
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath(); ctx.ellipse(x, y, r * 1.9, r * 0.75, 0, 0, 7); ctx.ellipse(x + r * 0.7, y - r * 0.45, r, r * 0.8, 0, 0, 7); ctx.ellipse(x - r * 0.6, y - r * 0.3, r * 0.85, r * 0.6, 0, 0, 7); ctx.fill();
+    // sky, deeper blue higher up
+    const g = ctx.createLinearGradient(0, HZ - F * 0.6, 0, HZ);
+    g.addColorStop(0, "#3d97da"); g.addColorStop(0.9, "#6cbdeb"); g.addColorStop(1, "#c4e8f8");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, HZ) + 1);
+    const sun = dirP(SUN.az, SUN.el);
+    if (!sun.behind) {
+      const r = Math.max(14, F * 0.022);
+      ctx.fillStyle = "rgba(255,243,176,.35)"; ctx.beginPath(); ctx.arc(sun.x, sun.y, r * 1.6, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff3b0"; ctx.beginPath(); ctx.arc(sun.x, sun.y, r, 0, 7); ctx.fill();
     }
-    // far hills
+    ctx.fillStyle = "#ffffff";
+    for (const c of clouds) {
+      const q = dirP(c.az, c.el), r = F * 0.014 * c.s;
+      if (q.behind || q.x < -r * 3 || q.x > W + r * 3 || q.y < -r * 2 || q.y > HZ + r) continue;
+      ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 1.9, r * 0.75, 0, 0, 7); ctx.ellipse(q.x + r * 0.7, q.y - r * 0.45, r, r * 0.8, 0, 0, 7); ctx.ellipse(q.x - r * 0.6, q.y - r * 0.3, r * 0.85, r * 0.6, 0, 0, 7); ctx.fill();
+    }
+    // far hills, fixed to compass directions so they slide past as the camera turns
     ctx.fillStyle = "#9ad07a";
     ctx.beginPath(); ctx.moveTo(0, HZ);
-    for (let x = 0; x <= W; x += 8) ctx.lineTo(x, HZ - H * 0.035 * (1 + Math.sin(x / W * 7 + 1)) );
-    ctx.lineTo(W, HZ); ctx.fill();
+    for (let x = 0; x <= W + 8; x += 8) { const az = CAM.yaw + Math.atan((x - W / 2) / F); ctx.lineTo(x, dirP(az, 0.012 * (1 + Math.sin(az * 26 + 1))).y); }
+    ctx.lineTo(W + 8, HZ); ctx.fill();
     // ground with mowing stripes every 10 m
     ctx.fillStyle = "#73c94f"; ctx.fillRect(0, HZ, W, H - HZ);
     ctx.fillStyle = "#67bb45";
-    for (let z = -5; z < 200; z += 20) quad([-400, 0, z], [400, 0, z], [400, 0, z + 10], [-400, 0, z + 10]);
+    for (let z = -5; z < 200; z += 20) if (pathClip([[-400, 0, z], [400, 0, z], [400, 0, z + 10], [-400, 0, z + 10]])) ctx.fill();
     // tree line, then fences, then grass and flowers, far to near
-    for (let x = -260; x <= 260; x += 11) {
-      const b = P(x, 0, 185 + (Math.abs(x) % 7)), r = 5.5 * b.s;
-      ctx.fillStyle = "#3f8f3a"; ctx.beginPath(); ctx.arc(b.x, b.y - r * 1.2, r * 1.15, 0, 7); ctx.fill();
-      ctx.fillStyle = "#4fa246"; ctx.beginPath(); ctx.arc(b.x - r * 0.35, b.y - r * 1.55, r * 0.55, 0, 7); ctx.fill();
-    }
+    for (const t of trees) drawTree(t);
     drawFence([[-60, 175], [60, 175]], 5);
     drawFence([[-60, 175], [-60, 0]], 6);
     drawFence([[60, 175], [60, 0]], 6);
     for (const t of tufts) {
       const q = P(t.x, 0, t.z), h = Math.min(9, 0.32 * q.s);
-      if (h < 1.4 || q.x < -10 || q.x > W + 10 || q.y > H + 10) continue;
+      if (q.behind || h < 1.4 || q.x < -10 || q.x > W + 10 || q.y > H + 10) continue;
       if (t.flower) { ctx.fillStyle = t.flower; ctx.beginPath(); ctx.arc(q.x, q.y - h * 0.5, Math.max(1.2, 0.07 * q.s), 0, 7); ctx.fill(); continue; }
       ctx.strokeStyle = t.dark ? "#4e9a35" : "#8fd96a"; ctx.lineWidth = Math.max(1, 0.04 * q.s); ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(q.x - h * 0.35, q.y - h * 0.8); ctx.lineTo(q.x, q.y); ctx.lineTo(q.x, q.y - h); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + h * 0.4, q.y - h * 0.75); ctx.stroke();
@@ -570,7 +631,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     let lastY = Infinity;
     for (let z = 10; z <= 120; z += 10) {
       const q = P(-z * 0.42 - 4, 0, z);
-      if (q.x < 24 || lastY - q.y < 26) continue;
+      if (q.behind || q.x < 24 || lastY - q.y < 26) continue;
       lastY = q.y;
       ctx.font = `800 ${Math.max(10, Math.min(18, q.s * 2.2))}px Nunito, sans-serif`;
       ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText(`${z} m`, q.x, q.y);
@@ -615,17 +676,80 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     ctx.strokeStyle = "#c98d4b"; ctx.lineCap = "butt";
     for (const h of [0.55, 1.0]) {
       const a = P(x0, h, z0), b = P(x1, h, z1);
-      ctx.lineWidth = Math.max(1, 0.08 * Math.min(a.s, b.s)); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.lineWidth = Math.max(1, 0.08 * Math.min(a.s, b.s)); if (pathClip([[x0, h, z0], [x1, h, z1]], false)) ctx.stroke();
     }
     ctx.strokeStyle = "#8a5a2b";
     for (let i = 0; i <= n; i++) {
       const t = i / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, a = P(x, 0, z), b = P(x, 1.2, z);
+      if (a.behind || b.behind) continue;
       ctx.lineWidth = Math.max(1, 0.12 * a.s); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
   }
-  function quad(a, b, c, d) {
-    const pts = [a, b, c, d].map((v) => P(v[0], v[1], v[2]));
-    ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.fill();
+
+  // a mixed tree line behind the far fence: some trees are taller than the resting view and only show in full during a shot
+  const TREE_KINDS = {
+    oak:    { h: [12, 18], w: [11, 15] },
+    maple:  { h: [14, 20], w: [9, 12] },
+    birch:  { h: [10, 15], w: [5, 7] },
+    poplar: { h: [20, 30], w: [4, 5.5] },
+    pine:   { h: [20, 30], w: [8, 11] },
+    spruce: { h: [14, 36], w: [6, 9] },
+  };
+  const trees = (() => {
+    const kinds = Object.keys(TREE_KINDS), out = [];
+    for (let x = -330; x <= 330; x += rnd(5, 10)) {
+      const kind = kinds[Math.floor(Math.random() * kinds.length)], K = TREE_KINDS[kind];
+      out.push({ kind, x, z: rnd(182, 206), h: rnd(...K.h), w: rnd(...K.w), shade: rnd(-0.08, 0.08) });
+    }
+    return out.sort((a, b) => b.z - a.z);
+  })();
+  const shadeHex = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = (v) => Math.max(0, Math.min(255, Math.round(v * (1 + k)))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
+  function drawTree(t) {
+    const b = P(t.x, 0, t.z);
+    if (b.behind) return;
+    const u = b.s, h = t.h * u, w = t.w * u, x = b.x, y = b.y;
+    if (x + w < 0 || x - w > W || y - h > H || y < -10) return;
+    const trunk = (top, tw, color = "#6b4a2b") => { ctx.fillStyle = color; ctx.fillRect(x - tw / 2, y - top, tw, top); };
+    const C = (hex) => shadeHex(hex, t.shade);
+    const tiers = (from, color, n, narrow) => {
+      ctx.fillStyle = C(color);
+      for (let i = 0; i < n; i++) {
+        const b0 = from + (h - from) * (i / n) * 0.82, top = b0 + (h - from) * (1.6 / n), half = (w / 2) * (1 - i / (n + narrow));
+        ctx.beginPath(); ctx.moveTo(x - half, y - b0); ctx.lineTo(x + half, y - b0); ctx.lineTo(x, y - Math.min(h, top)); ctx.closePath(); ctx.fill();
+      }
+    };
+    switch (t.kind) {
+      case "oak":
+        trunk(h * 0.45, w * 0.1);
+        ctx.fillStyle = C("#3f8f3a");
+        ctx.beginPath(); ctx.arc(x, y - h * 0.62, w * 0.36, 0, 7); ctx.arc(x - w * 0.24, y - h * 0.52, w * 0.28, 0, 7); ctx.arc(x + w * 0.25, y - h * 0.54, w * 0.29, 0, 7); ctx.fill();
+        ctx.fillStyle = C("#4fa246"); ctx.beginPath(); ctx.arc(x - w * 0.12, y - h * 0.72, w * 0.18, 0, 7); ctx.fill();
+        break;
+      case "maple":
+        trunk(h * 0.4, w * 0.1);
+        ctx.fillStyle = C("#4a9b3c"); ctx.beginPath(); ctx.ellipse(x, y - h * 0.62, w * 0.5, h * 0.36, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = C("#5bb049"); ctx.beginPath(); ctx.ellipse(x - w * 0.15, y - h * 0.7, w * 0.25, h * 0.18, 0, 0, 7); ctx.fill();
+        break;
+      case "birch":
+        trunk(h * 0.75, Math.max(1, w * 0.12), "#eef0ea");
+        ctx.fillStyle = "#3a3f3a";
+        for (let i = 1; i < 5; i++) ctx.fillRect(x - w * 0.06, y - h * 0.14 * i, w * 0.08, Math.max(0.6, h * 0.012));
+        ctx.fillStyle = C("#7cc25a"); ctx.beginPath(); ctx.ellipse(x, y - h * 0.68, w * 0.5, h * 0.3, 0, 0, 7); ctx.fill();
+        break;
+      case "poplar":
+        trunk(h * 0.15, w * 0.14);
+        ctx.fillStyle = C("#4a9a3c"); ctx.beginPath(); ctx.ellipse(x, y - h * 0.56, w * 0.5, h * 0.45, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = C("#5aab49"); ctx.beginPath(); ctx.ellipse(x - w * 0.15, y - h * 0.62, w * 0.2, h * 0.3, 0, 0, 7); ctx.fill();
+        break;
+      case "pine":
+        trunk(h * 0.75, w * 0.08);
+        tiers(h * 0.45, "#2f6e3a", 3, 1.5);
+        break;
+      case "spruce":
+        trunk(h * 0.12, w * 0.1);
+        tiers(h * 0.08, "#2c6440", 5, 0.6);
+        break;
+    }
   }
   function groundCircle(x, z, r, n = 40) {
     ctx.beginPath();
@@ -741,7 +865,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const gq = L(...up(0.15)), gr = Math.max(4, 0.07 * gq.s);
     ctx.fillStyle = "#d9a632"; ctx.beginPath(); ctx.arc(gq.x, gq.y, gr * 1.18, 0, 7); ctx.fill();
     ctx.fillStyle = "#fffaf0"; ctx.beginPath(); ctx.arc(gq.x, gq.y, gr, 0, 7); ctx.fill();
-    const na = (-135 + (S.psi / MAX_PSI) * 270 - 90) * Math.PI / 180;
+    // a pump stroke with the valve open makes the needle twitch, then it drops back to 0
+    const shown = S.psi + S.kick * 9 * Math.abs(Math.sin(S.kick * 9));
+    const na = (-135 + (shown / MAX_PSI) * 270 - 90) * Math.PI / 180;
     ctx.strokeStyle = "#e8452c"; ctx.lineWidth = Math.max(1, gr * 0.18); ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(gq.x, gq.y); ctx.lineTo(gq.x + Math.cos(na) * gr * 0.8, gq.y + Math.sin(na) * gr * 0.8); ctx.stroke();
     // inverted T along the bottom, with end caps
@@ -756,14 +882,15 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const lv1 = [lv0[0] + Math.cos(la) * 0.34, lv0[1] - Math.sin(la) * 0.34, lv0[2]];
     seg(lv0, lv1, 0.045, "#2f6fd0", "round");
     { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.5, 0.03 * q.s), 0, 7); ctx.fill(); }
-    // bike pump beside the stand
-    const pb = L(0.85, 0, -0.3), pt = L(0.85, 0.55, -0.3), lift = (1 - S.pumpAnim) * 0.18;
-    const ph = L(0.85, 0.6 + lift, -0.3);
+    // bike pump beside the stand, on the left so the corner map doesn't cover it
+    const PX = -0.85;
+    const pb = L(PX, 0, -0.3), pt = L(PX, 0.55, -0.3), lift = (1 - S.pumpAnim) * 0.18;
+    const ph = L(PX, 0.6 + lift, -0.3);
     ctx.strokeStyle = "#2f7fd6"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(3, 0.07 * pb.s); ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
     ctx.strokeStyle = "#a7b0b8"; ctx.lineWidth = Math.max(1.5, 0.02 * pb.s); ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(ph.x, ph.y); ctx.stroke();
-    const hl = L(0.75, 0.6 + lift, -0.3), hr = L(0.95, 0.6 + lift, -0.3);
+    const hl = L(PX - 0.1, 0.6 + lift, -0.3), hr = L(PX + 0.1, 0.6 + lift, -0.3);
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = Math.max(3, 0.04 * pb.s); ctx.beginPath(); ctx.moveTo(hl.x, hl.y); ctx.lineTo(hr.x, hr.y); ctx.stroke();
-    const hose = L(0.44, BASE.y, BASE.z);
+    const hose = L(-0.44, BASE.y, BASE.z);
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pb.x, pb.y - 4); ctx.quadraticCurveTo((pb.x + hose.x) / 2, pb.y + 10, hose.x, hose.y); ctx.stroke();
   }
 
@@ -791,20 +918,29 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 
   // the windsock stands downrange on the right, out of the way of the rings
   const SOCK_Z = 16, SOCK_H = 4;
-  function sockX() { return (W / 2) / P(0, 0, SOCK_Z).s * 0.82; }
+  // placed from the home view, so it stays put in the world while the camera follows a shot
+  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F; }
+  const ARROW_UP = 46; // the wind arrow floats this many px above the sock
   function sockBox() {
     const x = sockX(), b = P(x, 0, SOCK_Z), t = P(x, SOCK_H, SOCK_Z), len = 2 * b.s;
-    return { x0: b.x - len - 8, x1: b.x + len + 8, y0: t.y - 12, y1: b.y + 6 };
+    return { x0: b.x - len - 8, x1: b.x + len + 8, y0: t.y - ARROW_UP - 30, y1: b.y + 6 };
   }
+  // the direction the sock and arrow show: eases to each new wind and wobbles a few degrees in gusts
+  function windShown(t) { return (S.windShow ?? 0) + Math.sin(t * 0.9) * 0.05 + Math.sin(t * 2.3 + 1) * 0.025; }
   function drawWindsock() {
     const sx = sockX(), base = P(sx, 0, SOCK_Z), top = P(sx, SOCK_H, SOCK_Z);
+    if (base.behind || top.behind) return;
     ctx.strokeStyle = "#7d868e"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2, 0.08 * base.s);
     ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.stroke();
     ctx.fillStyle = "#4a535b"; ctx.beginPath(); ctx.arc(top.x, top.y, Math.max(2, 0.08 * top.s), 0, 7); ctx.fill();
 
     const w = S.wind, ms = Math.hypot(w.x, w.z), k = Math.min(1, ms / 5.5), t = performance.now() / 1000;
+    const dir = windShown(t);
+    // above the sock when there's room, otherwise beside the top of the pole
+    if (top.y - ARROW_UP >= 24) drawWindArrow(top.x, top.y - ARROW_UP, dir, w.kmh);
+    else drawWindArrow(top.x - 40, Math.max(24, top.y - 6), dir, w.kmh);
     // with no wind the sock hangs down beside the pole, limp and crumpled
-    const ux = ms ? w.x / ms : 1, uz = ms ? w.z / ms : 0;
+    const ux = ms ? Math.sin(dir) : 1, uz = ms ? Math.cos(dir) : 0;
     const droop = (1 - k) * 1.42 + 0.06, len = 1.7 * (0.68 + 0.32 * k), N = 10;
     const pt = (a) => {
       const limp = 1 - k;
@@ -827,6 +963,23 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     const m = pts[0], m2 = pts[1], ang = Math.atan2(m2.y - m.y, m2.x - m.x);
     ctx.strokeStyle = "#4a535b"; ctx.lineWidth = Math.max(1.5, 0.03 * m.s); ctx.fillStyle = "#b8441a";
     ctx.beginPath(); ctx.ellipse(m.x, m.y, Math.max(1.5, m.r * 0.35), m.r, ang, 0, 7); ctx.fill(); ctx.stroke();
+  }
+
+  // a faint top-down arrow floating over the sock: pointing up means blowing away from you; km/h under it
+  function drawWindArrow(x, y, dir, kmh) {
+    const r = 15;
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 7); ctx.fill(); ctx.stroke();
+    if (kmh) {
+      ctx.translate(x, y); ctx.rotate(dir);
+      ctx.strokeStyle = "rgba(35,48,58,.55)"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(0, r * 0.85); ctx.lineTo(0, -r * 0.8); ctx.moveTo(-r * 0.45, -r * 0.3); ctx.lineTo(0, -r * 0.85); ctx.lineTo(r * 0.45, -r * 0.3); ctx.stroke();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    ctx.font = "800 11px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(35,48,58,.6)"; ctx.fillText(kmh ? `${kmh} km/h` : "calm", x, y + r + 8);
+    ctx.restore();
   }
 
   // top-down map in the corner: the main aiming aid for left/right and distance
@@ -873,6 +1026,18 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   $("fire").addEventListener("click", () => { audio(); action(); });
   $("ovGo").addEventListener("click", () => { audio(); startLevel(0); });
 
+  // settings: a gear in the header opens a small panel
+  const gear = $("gear"), settings = $("settings"), soundTgl = $("soundTgl");
+  function setMuted(m) {
+    S.muted = m; soundTgl.checked = !m;
+    try { localStorage.setItem("pneuman-muted", m ? "1" : "0"); } catch (e) {}
+  }
+  soundTgl.checked = !S.muted;
+  soundTgl.addEventListener("change", () => { setMuted(!soundTgl.checked); if (!S.muted) sfx.click(); });
+  const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
+  gear.addEventListener("click", (e) => { e.stopPropagation(); showSettings(settings.hidden); });
+  document.addEventListener("click", (e) => { if (!settings.hidden && !settings.contains(e.target)) showSettings(false); });
+
   // drag on the scene: sideways turns the launcher, up/down moves the pin between peg holes
   let drag = null;
   cv.addEventListener("pointerdown", (e) => { if (!canAdjust()) return; drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole }; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); });
@@ -885,6 +1050,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
 
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !settings.hidden) { showSettings(false); gear.focus(); return; }
+    if (settings.contains(e.target)) return;
     if (!$("overlay").hidden) {
       if (e.key === "Enter" && document.activeElement?.tagName !== "BUTTON") { e.preventDefault(); $("ovGo").click(); }
       return;
@@ -898,7 +1065,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     else if (k === " ") { e.preventDefault(); if (!e.repeat) pumpDown(); }
     else if (k === "b" || k === "B") bleed();
     else if (k === "Enter") { if (e.target.tagName === "BUTTON") return; e.preventDefault(); audio(); action(); }
-    else if (k === "m" || k === "M") { S.muted = !S.muted; note(S.muted ? "Sound off" : "Sound on", 1200); }
+    else if (k === "m" || k === "M") { setMuted(!S.muted); note(S.muted ? "Sound off" : "Sound on", 1200); }
   });
   window.addEventListener("keyup", (e) => { if (e.key === " ") pumpUp(); });
   window.addEventListener("blur", pumpUp);
