@@ -70,9 +70,11 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
   background: rgba(255,250,240,.88); border: 2px solid var(--ink); border-radius: 8px; padding: 2px 8px;
   font-size: .78rem; font-weight: 800; line-height: 1.3; pointer-events: none;
 }
-.resetview {
-  position: absolute; left: 10px; bottom: 10px; font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink);
-}
+/* camera buttons, bottom left of the field */
+.viewbtns { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; }
+.viewbtns button { font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); }
+.viewbtns button:active { box-shadow: 0 1px 0 var(--ink); }
+#arcBtn { background: var(--yellow); }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(35,48,58,.45); padding: 14px; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 18px 22px; width: 100%; max-width: 30rem; display: grid; gap: 10px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.05; color: var(--red); }
@@ -172,7 +174,10 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     <canvas id="cv" aria-label="View from behind the potato launcher, looking down a mown field at colored target rings"></canvas>
     <div class="note" id="note" hidden></div>
     <div class="shotmsg" id="shotMsg" role="status" hidden></div>
-    <button class="resetview" id="resetView" type="button" hidden>Reset view</button>
+    <div class="viewbtns">
+      <button id="arcBtn" type="button" hidden>View arc</button>
+      <button id="resetView" type="button" hidden>Reset view</button>
+    </div>
     <div class="overlay" id="overlay">
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
@@ -216,7 +221,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.1</p>
+  <p class="ver">Pneuman v1.2</p>
 </div>
 
 <script>
@@ -270,7 +275,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // ================= camera (behind the launcher) =================
   // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer.
   // pitch is the downward tilt; in flight the camera rises and turns to keep the spud in view
-  const CAM = { x: 0, y: 5, y0: 5, z: -15, yaw: 0, zoom: 1, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
+  const CAM = { x: 0, y: 5, y0: 5, z: -15, z0: -15, yaw: 0, zoom: 1, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
   let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), cyw = 1, syw = 0;
   let F = 500, CY = 200, HZ = 100;
   const NEAR = 0.1;
@@ -278,12 +283,37 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   let F0 = 500; // focal length of the resting view
   // in flight the spud rides about 13% down from the top, and the nearest ring sits low in the view
   const MIN_ZOOM = 0.6, SPUD_TOP = 0.13, GROUND_LOW = 0.85;
+  // "View arc" angles: the camera leaves the launcher and looks at the whole last arc from off to one side
+  const ARC_VIEWS = [
+    { name: "Bottom right", back: 0.55, side: 0.83 },
+    { name: "Bottom left", back: 0.55, side: -0.83 },
+    { name: "Side right", back: 0, side: 1 },
+    { name: "Side left", back: 0, side: -1 },
+  ];
+  function arcCam(v) {
+    const a = S.arc, A = a[0], B = a[a.length - 1];
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, top = 0;
+    for (const [x, y, z] of a) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); top = Math.max(top, y); }
+    const C = [(x0 + x1) / 2, top * 0.5, (z0 + z1) / 2];
+    // along the shot (u) and to its right (n)
+    const L = Math.hypot(B[0] - A[0], B[2] - A[2]) || 1, ux = (B[0] - A[0]) / L, uz = (B[2] - A[2]) / L, nx = uz, nz = -ux;
+    // a wider lens, and back far enough for the arc, launch and landing to fit with a margin
+    const Fv = Math.min(W, H) * 1.3, R = 0.5 * Math.hypot(x1 - x0, top, z1 - z0) + 3, D = R * Fv / (Math.min(W, H) * 0.62);
+    const dx = -ux * v.back + nx * v.side, dz = -uz * v.back + nz * v.side, dl = Math.hypot(dx, dz);
+    const pos = [C[0] + dx / dl * D, Math.max(2, top * 0.35), C[2] + dz / dl * D];
+    return {
+      x: pos[0], y: pos[1], z: pos[2], F: Fv,
+      yaw: Math.atan2(C[0] - pos[0], C[2] - pos[2]),
+      pitch: Math.atan2(pos[1] - C[1], Math.hypot(C[0] - pos[0], C[2] - pos[2])),
+    };
+  }
+  let CYhome = 200;
   function setupCam(dt = 0) {
     F0 = Math.min(W * 2.2, H * 2.4);
-    const th = Math.atan2(CAM.y0, -CAM.z), tb = Math.tan(CAM.base);
+    const th = Math.atan2(CAM.y0, -CAM.z0), tb = Math.tan(CAM.base);
     const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
-    CY = hz + F0 * tb;
-    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, k = 2;
+    CYhome = hz + F0 * tb;
+    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = 0, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
     const p = S.potato;
     if (p) {
       // rise with the spud and turn toward it, then look down so the spud rides near the top of the view
@@ -292,7 +322,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       const dx = p.x - CAM.x, dz = p.z - CAM.z, e1 = Math.atan2(p.y - CAM.y, Math.hypot(dx, dz));
       wantYaw = Math.atan2(dx, dz);
       const gz = Math.min(p.z, ...S.rings.map((r) => r.z)), e2 = Math.atan2(-CAM.y, Math.hypot(dx, gz - CAM.z));
-      const room = CY - H * SPUD_TOP, r = (CY - H * GROUND_LOW) / room;
+      const room = CYhome - H * SPUD_TOP, r = (CYhome - H * GROUND_LOW) / room;
       // find the tilt where both fit: tan(e2 + p) = r * tan(e1 + p), by bisection (the left side grows faster)
       let lo = -e1 + 0.001, hi = Math.PI / 2 - e1 - 0.01;
       for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (Math.tan(e2 + m) - r * Math.tan(e1 + m) < 0) lo = m; else hi = m; }
@@ -300,16 +330,21 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
       if (wantZ > 1) { wantZ = 1; wantP = Math.min(CAM.base, Math.atan(room / F0) - e1); }
       else if (wantZ < MIN_ZOOM) { wantZ = MIN_ZOOM; wantP = Math.atan(room / (F0 * MIN_ZOOM)) - e1; }
       k = 5;
+    } else if (S.arcView != null && S.arc) {
+      // looking at the last arc from one of the side angles, aimed at the middle of the screen
+      const v = arcCam(ARC_VIEWS[S.arcView]);
+      wantP = v.pitch; wantYaw = v.yaw; wantY = v.y; wantX = v.x; wantZpos = v.z; wantZ = v.F / F0; wantCY = H / 2; k = 3;
     } else if (S.view) { wantP = S.view.pitch; wantYaw = S.view.yaw; wantZ = S.view.zoom; wantY = S.view.y; k = 25; } // the player is looking around
     else if (S.phase === "settle") k = 0; // hold on the landing for a moment
     const a = Math.min(1, dt * k);
     CAM.pitch += (wantP - CAM.pitch) * a; CAM.yaw += (wantYaw - CAM.yaw) * a; CAM.y += (wantY - CAM.y) * Math.min(1, dt * k * 0.7);
+    CAM.x += (wantX - CAM.x) * a; CAM.z += (wantZpos - CAM.z) * a; CY += (wantCY - CY) * a;
     CAM.zoom += (wantZ - CAM.zoom) * a;
     F = F0 * CAM.zoom;
     cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch); cyw = Math.cos(CAM.yaw); syw = Math.sin(CAM.yaw);
     HZ = CY - F * Math.tan(CAM.pitch);
   }
-  function camHome() { CAM.pitch = CAM.base; CAM.yaw = 0; CAM.y = CAM.y0; CAM.zoom = 1; setupCam(0); }
+  function camHome() { CAM.pitch = CAM.base; CAM.yaw = 0; CAM.y = CAM.y0; CAM.x = 0; CAM.z = CAM.z0; CAM.zoom = 1; setupCam(0); CY = CYhome; setupCam(0); }
   // world offset -> camera space [right, up, forward]
   function rot(dx, dy, dz) {
     const x1 = dx * cyw - dz * syw, z1 = dx * syw + dz * cyw;
@@ -452,17 +487,20 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   }
 
   const canAdjust = () => S.phase === "aim" || S.phase === "loading";
+  // touching any launcher control brings the camera back from an arc view so you can see what you're doing
+  const leaveArc = () => { S.arcView = null; };
   function pumpStroke() {
     if (!canAdjust()) return;
+    leaveArc();
     // with the valve open the air just rushes through: the needle twitches but falls back to 0
     if (valveOpen()) { S.kick = 1; S.pumpAnim = 1; S.loadMsg = 1.8; sfx.bleed(); return; }
     if (S.psi >= MAX_PSI) { note("Gauge is maxed at 120 PSI"); return; }
     S.psi = Math.min(MAX_PSI, Math.round((S.psi + 9 * (1 - S.psi / 170)) * 10) / 10);
     S.pumpAnim = 1; sfx.pump(); hud();
   }
-  function bleed() { if (!canAdjust() || S.psi <= 0) return; S.psi = Math.max(0, Math.round(S.psi) - 1); sfx.bleed(); hud(); }
-  function setHole(h) { const n = Math.max(0, Math.min(HOLES.length - 1, h)); if (n !== S.hole) { S.hole = n; sfx.click(); } hud(); }
-  function setYaw(v) { S.yaw = Math.max(-30, Math.min(30, Math.round(v * 2) / 2)); hud(); }
+  function bleed() { if (!canAdjust() || S.psi <= 0) return; leaveArc(); S.psi = Math.max(0, Math.round(S.psi) - 1); sfx.bleed(); hud(); }
+  function setHole(h) { leaveArc(); const n = Math.max(0, Math.min(HOLES.length - 1, h)); if (n !== S.hole) { S.hole = n; sfx.click(); } hud(); }
+  function setYaw(v) { leaveArc(); S.yaw = Math.max(-30, Math.min(30, Math.round(v * 2) / 2)); hud(); }
 
   function dirVec() {
     const e = ang() * Math.PI / 180, y = S.yaw * Math.PI / 180;
@@ -482,7 +520,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     S.phase = "loading"; S.loadT = 0; S.valveTarget = 0; sfx.load(); hud();
   }
   // the Fire button loads first, then fires
-  function action() { if (S.phase !== "aim") return; S.loaded ? fire() : loadSpud(); }
+  function action() { if (S.phase !== "aim") return; leaveArc(); S.loaded ? fire() : loadSpud(); }
 
   function fire() {
     if (S.phase !== "aim" || !S.loaded) return;
@@ -567,6 +605,10 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     $("angOut").innerHTML = `${ang()}<small>°</small>`; $("holeOut").textContent = `hole ${S.hole + 1}/${HOLES.length}`;
     [...$("holes").children].forEach((b, i) => b.classList.toggle("on", i === S.hole));
     $("rotOut").innerHTML = `${Math.abs(S.yaw).toFixed(1).replace(/\.0$/, "")}<small>° ${S.yaw < 0 ? "left" : S.yaw > 0 ? "right" : ""}</small>`; rotIn.value = S.yaw;
+    // "View arc" shows once the last spud has landed and the camera is back at rest; while viewing it names the angle
+    const ab = $("arcBtn");
+    ab.hidden = !(S.arc && !S.potato && canAdjust());
+    ab.textContent = S.arcView == null ? "View arc" : `${ARC_VIEWS[S.arcView].name} ▸`;
     const adj = canAdjust();
     ["pump", "bleed", "angUp", "angDown", "rotL", "rotR"].forEach((id) => ($(id).disabled = !adj));
     rotIn.disabled = !adj;
@@ -1002,7 +1044,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   // the windsock stands downrange on the right, out of the way of the rings
   const SOCK_Z = 16, SOCK_H = 4;
   // placed from the home view, so it stays put in the world while the camera follows a shot
-  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F0; }
+  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z0) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F0; }
   const ARROW_UP = 46; // the wind arrow floats this many px above the sock
   function sockBox() {
     const x = sockX(), b = P(x, 0, SOCK_Z), t = P(x, SOCK_H, SOCK_Z), len = 2 * b.s;
@@ -1100,7 +1142,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   pumpBtn.addEventListener("pointerdown", pumpDown);
   ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => pumpBtn.addEventListener(ev, pumpUp));
   $("bleed").addEventListener("click", () => { audio(); bleed(); });
-  psiIn.addEventListener("input", () => { if (S.phase === "aim") { S.psi = Number(psiIn.value); hud(); } });
+  psiIn.addEventListener("input", () => { if (S.phase === "aim") { leaveArc(); S.psi = Number(psiIn.value); hud(); } });
   $("angUp").addEventListener("click", () => { audio(); setHole(S.hole + 1); });
   $("angDown").addEventListener("click", () => { audio(); setHole(S.hole - 1); });
   rotIn.addEventListener("input", () => setYaw(Number(rotIn.value)));
@@ -1128,7 +1170,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const pts = new Map();
   let drag = null, look = null;
-  const canLook = () => !S.potato && $("overlay").hidden;
+  const canLook = () => !S.potato && $("overlay").hidden && S.arcView == null;
   const local = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const touchSnap = () => {
     const a = [...pts.values()], m = { x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length };
@@ -1138,7 +1180,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     if (!S.view) S.view = { yaw: CAM.yaw, pitch: CAM.pitch, zoom: CAM.zoom, y: CAM.y };
     $("resetView").hidden = false;
   }
-  function resetView() { S.view = null; $("resetView").hidden = true; }
+  function resetView() { S.view = null; S.arcView = null; $("resetView").hidden = true; hud(); }
   // keep the bit of the world under screen point (x0, y0) under (x1, y1), at zoom z
   function moveView(x0, y0, x1, y1, z) {
     const v = S.view, F1 = F0 * v.zoom, F2 = F0 * z;
@@ -1201,6 +1243,14 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     moveView(p.x, p.y, p.x, p.y, clamp(S.view.zoom * Math.exp(-e.deltaY * 0.0012), ZOOM_MIN, ZOOM_MAX));
   }, { passive: false });
   $("resetView").addEventListener("click", resetView);
+  // each press shows the last arc from the next angle; after the last one it goes back to the normal view
+  $("arcBtn").addEventListener("click", () => {
+    if (!S.arc || S.potato) return;
+    S.view = null; $("resetView").hidden = true;
+    S.arcView = S.arcView == null ? 0 : S.arcView + 1;
+    if (S.arcView >= ARC_VIEWS.length) S.arcView = null;
+    hud();
+  });
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !settings.hidden) { showSettings(false); gear.focus(); return; }
