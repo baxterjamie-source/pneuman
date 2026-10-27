@@ -46,7 +46,6 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .settings h3 { margin: 0; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
 .set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
-.set-row select { font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; padding: 2px 6px; background: var(--paper); color: var(--ink); cursor: pointer; }
 .prev { font-family: var(--body); font-size: .75rem; opacity: .65; margin-left: 6px; white-space: nowrap; }
 h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 4vw, 2.5rem); color: var(--paper); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(0,0,0,.18); }
 .sub { color: var(--paper); opacity: .9; font-size: .95rem; }
@@ -128,7 +127,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 }
 @media (max-width: 520px) {
   .sub { display: none; }
-  .stage { aspect-ratio: 4 / 3.6; max-height: 52vh; }
+  /* the field grows to fill the screen height left over by the header, scores and controls */
+  .wrap { min-height: 100dvh; grid-template-rows: auto auto minmax(300px, 1fr) auto auto; padding-block: 10px 6px; }
+  .stage { aspect-ratio: auto; max-height: none; min-height: 300px; height: 100%; }
   .hud { gap: 4px; }
   .chip { font-size: .72rem; padding: 2px 7px; border-width: 2px; border-radius: 9px; gap: 5px; }
   .chip .k { font-size: .6rem; }
@@ -167,9 +168,6 @@ body.lab .stage > :not(canvas) { display: none; }
     <div class="settings" id="settings" hidden>
       <h3>Settings</h3>
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
-      <label class="set-row">Camera
-        <select id="camSel"></select>
-      </label>
     </div>
   </header>
 
@@ -229,17 +227,18 @@ body.lab .stage > :not(canvas) { display: none; }
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.4</p>
+  <p class="ver">Pneuman v1.5</p>
 </div>
 
 <script>
 (() => {
   // ================= rules =================
   const RINGS = {
-    yellow: { pts: 2, r: 3.4, color: "#ffcf33", edge: "#e0a800", name: "yellow" },
-    green:  { pts: 5, r: 2.5, color: "#5fd36b", edge: "#2e9b3a", name: "green" },
-    blue:   { pts: 10, r: 1.7, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
-    red:    { pts: 25, r: 1.05, color: "#ff6b52", edge: "#e8452c", name: "red" },
+    // generous sizes (75% up on the first version) so early rounds feel winnable
+    yellow: { pts: 2, r: 5.95, color: "#ffcf33", edge: "#e0a800", name: "yellow" },
+    green:  { pts: 5, r: 4.4, color: "#5fd36b", edge: "#2e9b3a", name: "green" },
+    blue:   { pts: 10, r: 3.0, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
+    red:    { pts: 25, r: 1.85, color: "#ff6b52", edge: "#e8452c", name: "red" },
   };
   // one ring of each kind, anywhere in the level's distance band
   const MIX = { yellow: 1, green: 1, blue: 1, red: 1 };
@@ -284,23 +283,6 @@ body.lab .stage > :not(canvas) { display: none; }
   // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer.
   // pitch is the downward tilt; in flight the camera rises and turns to keep the spud in view
   const CAM = { x: 0, y: 5, y0: 5, z: -15, z0: -15, yaw: 0, zoom: 1, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
-  // temporary: camera heights to try out (settings gear); higher ones look down on the rings more
-  // all at the same zoom, so targets keep their size. Only a higher camera makes the rings look rounder, and the
-  // tilt keeps the far field in view: the horizon goes off the top first, then the base of the launcher dips
-  // below the bottom edge
-  const CAM_PRESETS = {
-    standard: { name: "Standard", y: 5, tilt: 9 },
-    a: { name: "A · horizon at the top", y: 6, tilt: 11 },
-    b: { name: "B · horizon just gone", y: 6.5, tilt: 12 },
-    c: { name: "C · launcher at the bottom edge", y: 7, tilt: 13 },
-    d: { name: "D · launcher base cut a little", y: 7.5, tilt: 13.5 },
-    e: { name: "E · launcher base cut more", y: 8, tilt: 14 },
-  };
-  function setCamPreset(key) {
-    const p = CAM_PRESETS[key] || CAM_PRESETS.standard;
-    CAM.y0 = p.y; CAM.z0 = -15; CAM.base = p.tilt * Math.PI / 180;
-  }
-  try { setCamPreset(localStorage.getItem("pneuman-cam")); } catch (e) {}
   let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), cyw = 1, syw = 0;
   let F = 500, CY = 200, HZ = 100;
   const NEAR = 0.1;
@@ -348,9 +330,11 @@ body.lab .stage > :not(canvas) { display: none; }
   let CYhome = 200;
   function setupCam(dt = 0) {
     const th = Math.atan2(CAM.y0, -CAM.z0), tb = Math.tan(CAM.base);
-    // the same zoom and the same aim point on screen for every camera setting, taken from the standard view
-    F0 = Math.min(W * 2.2, H * 2.4);
-    CYhome = H * 0.88 - F0 * Math.tan(Math.atan2(5, 15) - 9 * Math.PI / 180);
+    // zoomed so the launcher sits near the bottom and the horizon near the top. On a tall phone field the width
+    // allows more zoom than before, so the extra height goes to the field rather than to sky
+    F0 = Math.min(W * 3, H * 2.4);
+    const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
+    CYhome = hz + F0 * tb;
     let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = 0, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
     const p = S.potato;
     if (p) {
@@ -543,15 +527,20 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const [name, w] of acts) { if ((r -= w) <= 0) { act = name; break; } }
     o.act = act;
     if (act !== "walk") { o.timer = rnd(...Wd.dur[act]); return; }
-    // head off a few metres, roughly toward one of the rings, staying in the field and clear of the other props
+    // head off a few metres in any direction (toward you, away, or across), staying close to the rings,
+    // in the field, and clear of the other props
     const zMax = Math.min(150, lvl().z[1] + 8);
-    for (let i = 0; i < 12; i++) {
-      const ring = S.rings[Math.floor(Math.random() * S.rings.length)], a = Math.atan2(ring.x - o.x, ring.z - o.z) + rnd(-0.9, 0.9), d = rnd(...Wd.hop);
+    for (let i = 0; i < 20; i++) {
+      const a = rnd(0, Math.PI * 2), d = rnd(...Wd.hop);
       const tx = Math.max(-44, Math.min(44, o.x + Math.sin(a) * d)), tz = Math.max(12, Math.min(zMax, o.z + Math.cos(a) * d));
+      if (!S.rings.some((r) => Math.hypot(r.x - tx, r.z - tz) < r.r + 6)) continue;
       if (S.props.some((p) => p !== o && Math.hypot(p.x - tx, p.z - tz) < p.r + o.r + 1)) continue;
       o.tx = tx; o.tz = tz; o.timer = d / Wd.speed + 3; return;
     }
-    o.act = Object.keys(Wd.dur)[0]; o.timer = 2;
+    // nowhere suitable nearby: drift back toward the nearest ring
+    const near = S.rings.reduce((a, r) => (Math.hypot(r.x - o.x, r.z - o.z) < Math.hypot(a.x - o.x, a.z - o.z) ? r : a));
+    o.tx = near.x + rnd(-near.r, near.r); o.tz = near.z + rnd(-near.r, near.r);
+    o.timer = Math.hypot(o.tx - o.x, o.tz - o.z) / Wd.speed + 3;
   }
   function updateWander(o, dt) {
     const Wd = WANDER[o.kind]; if (!Wd) return;
@@ -563,7 +552,10 @@ body.lab .stage > :not(canvas) { display: none; }
       if (d < 0.15) { pickAct(o); return; }
       const s = Math.min(d, Wd.speed * dt);
       o.x += dx / d * s; o.z += dz / d * s; o.step += s * Wd.stride;
+      // which side we see: walking mostly toward the launcher shows its face, mostly away shows its rear,
+      // otherwise side-on; it keeps that view when it stops
       if (Math.abs(dx) > 0.05 * d) o.face = dx > 0 ? 1 : -1;
+      o.view = Math.abs(dz) > Math.abs(dx) * 1.3 ? (dz < 0 ? "front" : "back") : "side";
     }
     if (o.timer <= 0) pickAct(o);
   }
@@ -591,7 +583,7 @@ body.lab .stage > :not(canvas) { display: none; }
           o.patch = Math.random() < 0.6 ? "#25262b" : "#9a4a22";
           o.spots = Array.from({ length: 5 }, () => ({ x: rnd(-1.1, 0.9), y: rnd(0.8, 1.5), rx: rnd(0.18, 0.42), ry: rnd(0.14, 0.3), a: rnd(-0.6, 0.6) }));
         }
-        if (WANDER[kind]) { o.dip = 0; o.step = 0; pickAct(o); }
+        if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
         S.props.push(o);
         break;
       }
@@ -959,7 +951,8 @@ body.lab .stage > :not(canvas) { display: none; }
 
     drawWindsock();
     drawLauncher();
-    drawMinimap();
+    // the corner map would cover part of the arc, so it steps aside while viewing the arc
+    if (S.arcView == null) drawMinimap();
     if (S.loadMsg > 0) drawLoadFirst();
   }
   // a comic speech bubble over something in the field
@@ -996,6 +989,45 @@ body.lab .stage > :not(canvas) { display: none; }
         ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.03 * u); ctx.stroke(); }
       };
       const hide = "#f6f3ec", edge = "#5a5650", hoof = "#3a3633";
+      if (o.view === "front" || o.view === "back") {
+        // end-on: walking toward you we see its face, walking away its rump; legs step in turn as it walks
+        const walking = o.act === "walk" && !hit, mode = hit ? "alarm" : o.act, dip = o.dip;
+        const lift = (i) => (walking ? Math.max(0, Math.sin(o.step + i * Math.PI)) * 0.12 : 0);
+        if (walking) ctx.translate(0, -Math.abs(Math.cos(o.step)) * 0.025 * u);
+        const legFB = (x, h0, shade) => {
+          path([[x - 0.09, 0.95], [x + 0.09, 0.95], [x + 0.07, h0 + 0.08], [x - 0.07, h0 + 0.08]], shade ? "#ddd8cd" : hide, edge);
+          path([[x - 0.08, h0 + 0.1], [x + 0.08, h0 + 0.1], [x + 0.09, h0], [x - 0.09, h0]], hoof);
+        };
+        legFB(-0.17, lift(1), true); legFB(0.17, lift(0), true); // the far pair, between the near ones
+        // the barrel of the body seen end-on, with its patches
+        ctx.beginPath(); ctx.ellipse(X(0), Y(1.12), 0.55 * u, 0.42 * u, 0, 0, 7); ctx.fillStyle = hide; ctx.fill();
+        ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1, 0.03 * u); ctx.stroke();
+        ctx.save(); ctx.clip();
+        for (const s of o.spots) ell(s.x * 0.45, s.y - 0.05, s.rx * 0.8, s.ry, o.patch, null, s.a);
+        ctx.restore();
+        if (o.view === "back") {
+          // hip bones, the tail down the middle, the udder between the hind legs, ears showing when the head is up
+          ell(-0.3, 1.5, 0.12, 0.07, hide, edge); ell(0.3, 1.5, 0.12, 0.07, hide, edge);
+          const sw = Math.sin(now * 2.6 + o.ph) * 0.12;
+          line(0, 1.45, sw, 0.6, 0.05, "#e8e3d8"); ell(sw, 0.55, 0.06, 0.12, o.patch);
+          ell(0, 0.72, 0.18, 0.11, "#f0b9b0", "#c98a80");
+          legFB(-0.28, lift(0), false); legFB(0.28, lift(1), false);
+          if (dip < 0.5) { ell(-0.47, 1.5, 0.14, 0.05, o.patch, edge, 0.2); ell(0.47, 1.5, 0.14, 0.05, o.patch, edge, -0.2); }
+        } else {
+          legFB(-0.26, lift(0), false); legFB(0.26, lift(1), false);
+          // its face, which drops toward the grass to graze; the jaw works while it eats or chews
+          const hy = 1.32 - Math.max(0, dip - 0.1) * 1.0;
+          const jaw = mode === "chew" ? Math.abs(Math.sin(now * 5)) * 0.03 : mode === "graze" ? Math.abs(Math.sin(now * 9)) * 0.03 : 0;
+          ell(-0.3, hy + 0.2, 0.15, 0.06, o.patch, edge, 0.25); ell(0.3, hy + 0.2, 0.15, 0.06, o.patch, edge, -0.25);
+          path([[-0.2, hy + 0.3], [0.2, hy + 0.3], [0.16, hy - 0.2], [0.1, hy - 0.36], [-0.1, hy - 0.36], [-0.16, hy - 0.2]], o.patch, edge);
+          path([[-0.05, hy + 0.3], [0.05, hy + 0.3], [0.06, hy - 0.22], [-0.06, hy - 0.22]], hide);
+          ell(0, hy - 0.38 - jaw, 0.1, 0.05, "#e2bdb4", edge);
+          ell(0, hy - 0.32, 0.13, 0.08, "#e9c8c0", edge);
+          ell(-0.04, hy - 0.32, 0.018, 0.018, "#5a3a36"); ell(0.04, hy - 0.32, 0.018, 0.018, "#5a3a36");
+          const er = mode === "alarm" ? 0.045 : 0.03;
+          ell(-0.1, hy + 0.08, er, er, "#1c1c1f"); ell(0.1, hy + 0.08, er, er, "#1c1c1f");
+        }
+      } else {
       // legs: the far pair a shade darker, the near pair in front; hind legs with a bend at the hock
       const leg = (x, back, shade) => {
         const c = shade ? "#ddd8cd" : hide;
@@ -1062,6 +1094,7 @@ body.lab .stage > :not(canvas) { display: none; }
         ell(1.27, 1.36, mode === "alarm" ? 0.05 : 0.035, mode === "alarm" ? 0.05 : 0.035, "#1c1c1f");
         ctx.restore();
       }
+      }
     } else if (o.kind === "trough") {
       ell(0, 0.08, 1.15, 0.2, "#7f8a93");
       ctx.fillStyle = "#aeb7bf"; ctx.strokeStyle = "#6e7880"; ctx.lineWidth = Math.max(1, 0.04 * u);
@@ -1097,15 +1130,31 @@ body.lab .stage > :not(canvas) { display: none; }
       const hop = hit && t < 1.6 ? Math.abs(Math.sin(t * 9)) * 0.45 * (1 - t / 1.6) : 0;
       const peck = hit ? 0 : o.act === "peck" ? Math.max(0, Math.sin(now * 6 + o.ph)) * 0.28 : walking ? Math.abs(Math.sin(o.step)) * 0.05 : 0;
       ctx.translate(0, -hop * u);
+      const flap = hit && t < 1.6 ? Math.sin(t * 30) * 0.3 : 0;
+      if (o.view === "front" || o.view === "back") {
+        // end-on: a round white body, wings at the sides, and either its face (beak, wattle, eyes) or its tail
+        const step = (i) => (walking ? Math.max(0, Math.sin(o.step + i * Math.PI)) * 0.06 : 0);
+        line(-0.08, step(0), -0.08, 0.3, 0.04, "#e0a020"); line(0.08, step(1), 0.08, 0.3, 0.04, "#e0a020");
+        ell(0, 0.48, 0.26, 0.27, "#ffffff", "#9aa0a6");
+        ell(-0.25, 0.5 + flap * 0.4, 0.08, 0.16, "#eceff1", "#9aa0a6", -flap); ell(0.25, 0.5 + flap * 0.4, 0.08, 0.16, "#eceff1", "#9aa0a6", flap);
+        if (o.view === "back") {
+          ell(0, 0.74, 0.17, 0.2, "#ffffff", "#9aa0a6");
+          ell(0, 0.86 - peck, 0.1, 0.1, "#ffffff", "#9aa0a6"); ell(0, 0.97 - peck, 0.05, 0.05, "#e2382c");
+        } else {
+          ell(0, 0.8 - peck, 0.13, 0.13, "#ffffff", "#9aa0a6"); ell(0, 0.95 - peck, 0.06, 0.05, "#e2382c");
+          ell(0, 0.68 - peck, 0.03, 0.045, "#e2382c"); ell(0, 0.76 - peck, 0.035, 0.05, "#f0a020");
+          ell(-0.05, 0.83 - peck, 0.022, 0.022, "#23303a"); ell(0.05, 0.83 - peck, 0.022, 0.022, "#23303a");
+        }
+      } else {
       line(-0.08 + sw, 0, -0.08, 0.3, 0.04, "#e0a020"); line(0.1 - sw, 0, 0.1, 0.3, 0.04, "#e0a020");
       ell(0, 0.48, 0.32, 0.24, "#ffffff", "#9aa0a6");
-      const flap = hit && t < 1.6 ? Math.sin(t * 30) * 0.3 : 0;
       ell(-0.05, 0.52 + flap * 0.4, 0.2, 0.1, "#eceff1", "#9aa0a6", flap);
       ell(-0.32, 0.6, 0.1, 0.16, "#ffffff", "#9aa0a6");
       ell(0.3, 0.75 - peck, 0.13, 0.13, "#ffffff", "#9aa0a6");
       ell(0.3, 0.9 - peck, 0.06, 0.05, "#e2382c");
       ell(0.44, 0.73 - peck, 0.06, 0.035, "#f0a020");
       ell(0.34, 0.77 - peck, 0.025, 0.025, "#23303a");
+      }
     }
     ctx.restore();
     if (hit && t < 2.2) bubble(b.x, Y(o.h + 0.4), PROPS[o.kind].say, (2.2 - t) / 0.4);
@@ -1526,7 +1575,13 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = Math.max(4.5, 0.06 * pb.s); ctx.beginPath(); ctx.moveTo(hl.x, hl.y); ctx.lineTo(hr.x, hr.y); ctx.stroke();
     const hose = L(-0.44, BASE.y, BASE.z);
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pb.x, pb.y - 4); ctx.quadraticCurveTo((pb.x + hose.x) / 2, pb.y + 10, hose.x, hose.y); ctx.stroke();
+    // remember where the pump and the valve handle are on screen, so tapping them works
+    const around = (qs, pad) => ({ x0: Math.min(...qs.map((q) => q.x)) - pad, x1: Math.max(...qs.map((q) => q.x)) + pad, y0: Math.min(...qs.map((q) => q.y)) - pad, y1: Math.max(...qs.map((q) => q.y)) + pad });
+    hitParts.pump = around([pb, pt, ph, hl, hr], 12);
+    hitParts.valve = around([L(...lv0), L(...lv1), L(...stem)], 14);
   }
+  const hitParts = { pump: null, valve: null };
+  const inBox = (b, { x, y }) => b && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
 
   const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   function drawTamper(ax, seg, L) {
@@ -1704,15 +1759,6 @@ body.lab .stage > :not(canvas) { display: none; }
     try { localStorage.setItem("pneuman-muted", m ? "1" : "0"); } catch (e) {}
   }
   soundTgl.checked = !S.muted;
-  const camSel = $("camSel");
-  camSel.innerHTML = Object.entries(CAM_PRESETS).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join("");
-  try { camSel.value = CAM_PRESETS[localStorage.getItem("pneuman-cam")] ? localStorage.getItem("pneuman-cam") : "standard"; } catch (e) {}
-  camSel.addEventListener("change", () => {
-    setCamPreset(camSel.value);
-    try { localStorage.setItem("pneuman-cam", camSel.value); } catch (e) {}
-    // a fresh ring and prop layout that suits the new view
-    if (S.phase === "title") { S.rings = layoutRings(LEVELS[S.level]); placeProps(); } else camHome();
-  });
   soundTgl.addEventListener("change", () => { setMuted(!soundTgl.checked); if (!S.muted) sfx.click(); });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
   gear.addEventListener("click", (e) => { e.stopPropagation(); showSettings(settings.hidden); });
@@ -1754,10 +1800,10 @@ body.lab .stage > :not(canvas) { display: none; }
     return x >= x0 - 14 && x <= x1 + 14 && y >= y0 - 14 && y <= y1 + 14;
   }
   // the corner map is its own control, like the launcher: touch or drag on it to aim the launcher at that spot
-  let mapAim = false;
+  let mapAim = false, pumpHeldByScene = false;
   function onMap({ x, y }) {
     const g = mapGeom();
-    return g.mh >= 60 && x >= g.x0 && x <= g.x0 + g.mw && y >= g.y0 && y <= g.y0 + g.mh;
+    return S.arcView == null && g.mh >= 60 && x >= g.x0 && x <= g.x0 + g.mw && y >= g.y0 && y <= g.y0 + g.mh;
   }
   function aimAtMap({ x, y }) {
     const g = mapGeom(), wx = (x - g.x0 - g.mw / 2) / g.sc, wz = (g.y0 + g.mh - 14 - y) / g.sc;
@@ -1772,6 +1818,12 @@ body.lab .stage > :not(canvas) { display: none; }
       // a second finger turns an aim into a look: put the launcher back where the first finger found it
       if (drag) { setYaw(drag.yaw); setHole(drag.hole); drag = null; }
       if (canLook()) look = touchSnap();
+    } else if (pts.size === 1 && e.button === 0 && S.phase === "aim" && S.loaded && inBox(hitParts.valve, p)) {
+      // tapping the blue valve handle fires, once a spud is loaded
+      audio(); action();
+    } else if (pts.size === 1 && e.button === 0 && S.phase === "aim" && inBox(hitParts.pump, p)) {
+      // tapping the hand pump pumps (hold it to keep pumping); before loading it says "Load first"
+      pumpDown(e); pumpHeldByScene = true;
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p)) {
       // touching the map swings the launcher to point at that spot
       mapAim = true; aimAtMap(p);
@@ -1783,7 +1835,7 @@ body.lab .stage > :not(canvas) { display: none; }
   cv.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) {
       // hovering with a mouse: show which part of the scene does what
-      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : onMap(p) ? "crosshair" : onLauncher(p) ? "move" : ""; }
+      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? "crosshair" : onLauncher(p) ? "move" : ""; }
       return;
     }
     pts.set(e.pointerId, local(e));
@@ -1800,6 +1852,7 @@ body.lab .stage > :not(canvas) { display: none; }
   });
   const endPointer = (e) => {
     pts.delete(e.pointerId);
+    if (pumpHeldByScene) { pumpHeldByScene = false; pumpUp(); }
     // lifting one of two fingers carries on moving the view with the other
     if (look && pts.size) look = touchSnap();
     if (!pts.size) { drag = null; look = null; mapAim = false; cv.classList.remove("dragging"); }
@@ -1853,7 +1906,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, fencePanels, planStrike, startLevel, P, view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, fencePanels, planStrike, startLevel, P, hitParts, view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
