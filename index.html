@@ -1135,21 +1135,22 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
     // blue lever: closed it points right; firing swings it down, clockwise
     const la = S.valve * Math.PI / 2, stem = ax(CH + VALVE / 2);
     // a short, chunky handle
-    const lv0 = [stem[0] + 0.1, stem[1], stem[2]];
-    const lv1 = [lv0[0] + Math.cos(la) * 0.22, lv0[1] - Math.sin(la) * 0.22, lv0[2]];
+    // it pivots on the valve stem, right over the middle of the brass valve
+    const lv0 = [stem[0], stem[1], stem[2]];
+    const lv1 = [lv0[0] + Math.cos(la) * 0.3, lv0[1] - Math.sin(la) * 0.3, lv0[2]];
     seg(lv0, lv1, 0.1, "#1f4f9e", "round");
     seg(lv0, lv1, 0.075, "#2f6fd0", "round");
-    { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.5, 0.03 * q.s), 0, 7); ctx.fill(); }
+    { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(2, 0.04 * q.s), 0, 7); ctx.fill(); }
     // bike pump beside the stand, on the left so the corner map doesn't cover it
     const PX = -0.85;
     const pb = L(PX, 0, -0.3), pt = L(PX, 0.55, -0.3), lift = (1 - S.pumpAnim) * 0.18;
     const ph = L(PX, 0.6 + lift, -0.3);
-    ctx.strokeStyle = "#2f7fd6"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(3, 0.07 * pb.s); ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
-    ctx.strokeStyle = "#a7b0b8"; ctx.lineWidth = Math.max(1.5, 0.02 * pb.s); ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(ph.x, ph.y); ctx.stroke();
+    ctx.strokeStyle = "#2f7fd6"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(4.5, 0.105 * pb.s); ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+    ctx.strokeStyle = "#a7b0b8"; ctx.lineWidth = Math.max(2.2, 0.03 * pb.s); ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(ph.x, ph.y); ctx.stroke();
     const hl = L(PX - 0.1, 0.6 + lift, -0.3), hr = L(PX + 0.1, 0.6 + lift, -0.3);
-    ctx.strokeStyle = "#23303a"; ctx.lineWidth = Math.max(3, 0.04 * pb.s); ctx.beginPath(); ctx.moveTo(hl.x, hl.y); ctx.lineTo(hr.x, hr.y); ctx.stroke();
+    ctx.strokeStyle = "#23303a"; ctx.lineWidth = Math.max(4.5, 0.06 * pb.s); ctx.beginPath(); ctx.moveTo(hl.x, hl.y); ctx.lineTo(hr.x, hr.y); ctx.stroke();
     const hose = L(-0.44, BASE.y, BASE.z);
-    ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pb.x, pb.y - 4); ctx.quadraticCurveTo((pb.x + hose.x) / 2, pb.y + 10, hose.x, hose.y); ctx.stroke();
+    ctx.strokeStyle = "#23303a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pb.x, pb.y - 4); ctx.quadraticCurveTo((pb.x + hose.x) / 2, pb.y + 10, hose.x, hose.y); ctx.stroke();
   }
 
   const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
