@@ -46,6 +46,7 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .settings h3 { margin: 0; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
 .set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
+.set-row select { font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; padding: 2px 6px; background: var(--paper); color: var(--ink); cursor: pointer; }
 .prev { font-family: var(--body); font-size: .75rem; opacity: .65; margin-left: 6px; white-space: nowrap; }
 h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 4vw, 2.5rem); color: var(--paper); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(0,0,0,.18); }
 .sub { color: var(--paper); opacity: .9; font-size: .95rem; }
@@ -166,6 +167,14 @@ body.lab .stage > :not(canvas) { display: none; }
     <div class="settings" id="settings" hidden>
       <h3>Settings</h3>
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
+      <label class="set-row">Camera
+        <select id="camSel">
+          <option value="standard">Standard</option>
+          <option value="raised">Raised</option>
+          <option value="high">High</option>
+          <option value="steep">Steep</option>
+        </select>
+      </label>
     </div>
   </header>
 
@@ -280,6 +289,20 @@ body.lab .stage > :not(canvas) { display: none; }
   // set well back and zoomed in (telephoto), so the launcher stays the same size but the field comes closer.
   // pitch is the downward tilt; in flight the camera rises and turns to keep the spud in view
   const CAM = { x: 0, y: 5, y0: 5, z: -15, z0: -15, yaw: 0, zoom: 1, pitch: 9 * Math.PI / 180, base: 9 * Math.PI / 180 };
+  // temporary: camera heights to try out (settings gear); higher ones look down on the rings more
+  // as the camera goes up it also steps back, like standing on a ladder further behind the launcher,
+  // so the view needn't zoom out much to keep both the launcher and the horizon in frame
+  const CAM_PRESETS = {
+    standard: { name: "Standard", y: 5, z: -15, tilt: 9 },
+    raised:   { name: "Raised", y: 8, z: -20, tilt: 12 },
+    high:     { name: "High", y: 12, z: -26, tilt: 15 },
+    steep:    { name: "Steep", y: 16, z: -30, tilt: 19 },
+  };
+  function setCamPreset(key) {
+    const p = CAM_PRESETS[key] || CAM_PRESETS.standard;
+    CAM.y0 = p.y; CAM.z0 = p.z; CAM.base = p.tilt * Math.PI / 180;
+  }
+  try { setCamPreset(localStorage.getItem("pneuman-cam")); } catch (e) {}
   let cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), cyw = 1, syw = 0;
   let F = 500, CY = 200, HZ = 100;
   const NEAR = 0.1;
@@ -326,8 +349,9 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   let CYhome = 200;
   function setupCam(dt = 0) {
-    F0 = Math.min(W * 2.2, H * 2.4);
     const th = Math.atan2(CAM.y0, -CAM.z0), tb = Math.tan(CAM.base);
+    // zoom so the launcher sits near the bottom and the horizon near the top; higher, steeper cameras need a wider view
+    F0 = Math.min(W * 2.2, H * 2.4, H * 0.84 / (tb + Math.tan(th - CAM.base)));
     const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
     CYhome = hz + F0 * tb;
     let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = 0, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
@@ -1682,6 +1706,14 @@ body.lab .stage > :not(canvas) { display: none; }
     try { localStorage.setItem("pneuman-muted", m ? "1" : "0"); } catch (e) {}
   }
   soundTgl.checked = !S.muted;
+  const camSel = $("camSel");
+  try { camSel.value = CAM_PRESETS[localStorage.getItem("pneuman-cam")] ? localStorage.getItem("pneuman-cam") : "standard"; } catch (e) {}
+  camSel.addEventListener("change", () => {
+    setCamPreset(camSel.value);
+    try { localStorage.setItem("pneuman-cam", camSel.value); } catch (e) {}
+    // a fresh ring and prop layout that suits the new view
+    if (S.phase === "title") { S.rings = layoutRings(LEVELS[S.level]); placeProps(); } else camHome();
+  });
   soundTgl.addEventListener("change", () => { setMuted(!soundTgl.checked); if (!S.muted) sfx.click(); });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
   gear.addEventListener("click", (e) => { e.stopPropagation(); showSettings(settings.hidden); });
@@ -1822,7 +1854,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, fencePanels, planStrike, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, fencePanels, planStrike, startLevel, step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
