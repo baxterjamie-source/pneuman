@@ -75,9 +75,9 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .viewbtns button { font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); }
 .viewbtns button:active { box-shadow: 0 1px 0 var(--ink); }
 #arcBtn { background: var(--yellow); }
-.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(35,48,58,.45); padding: 14px; }
-.card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 18px 22px; width: 100%; max-width: 30rem; display: grid; gap: 10px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
-.card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.05; color: var(--red); }
+.overlay { position: absolute; inset: 0; display: grid; place-items: safe center; background: rgba(35,48,58,.45); padding: 10px; overflow-y: auto; }
+.card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 14px 20px; width: 100%; max-width: 30rem; display: grid; gap: 8px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
+.card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.05; color: var(--red); }
 .card p { margin: 0; line-height: 1.45; }
 .card .eyebrow { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; opacity: .65; font-weight: 800; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 800; }
@@ -92,14 +92,14 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .xrow span { display: flex; gap: 0; flex-wrap: wrap; }
 .xrow img { width: 56px; height: 44px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
 /* end-of-level tally */
-.tally { display: grid; gap: 6px; }
-.trow { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
+.tally { display: grid; gap: 4px; }
+.trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
 .trow.in { opacity: 1; transform: none; }
-.trow b { display: inline-block; font-family: var(--display); font-weight: 400; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.trow b { display: inline-block; font-family: var(--display); font-weight: 400; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .trow.bonus b { color: #2e9b3a; }
 .trow small { font-size: .78rem; opacity: .7; }
 .trow.total { background: var(--yellow); border: 3px solid var(--ink); position: relative; }
-.trow.total b { font-size: 1.9rem; }
+.trow.total b { font-size: 1.5rem; }
 .trow.pop b { animation: tally-pop .55s ease-out; }
 .trow.pop::after { content: "✦ ✦ ✦"; position: absolute; right: 64px; top: -6px; color: var(--red); font-size: .9rem; letter-spacing: .3em; animation: tally-spark .9s ease-out forwards; }
 @keyframes tally-pop { 0% { transform: scale(1); } 40% { transform: scale(1.45) rotate(-6deg); } 100% { transform: scale(1); } }
@@ -693,6 +693,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function startLevel(i) {
     S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = [];
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
+    S.yaw = 0; S.hole = 6; S.angDisp = ang(); // each level starts with the launcher straight ahead at 40°
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
   }
@@ -861,7 +862,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const last = S.level === LEVELS.length - 1;
     const allHit = S.rings.every((r) => r.hit);
     let title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
-    let body = `${S.score} of ${maxScore()} points${allHit ? ` with ${S.spudsLeft} spud${S.spudsLeft === 1 ? "" : "s"} to spare` : ""}.`;
+    let body = ""; // the tally says it all
     let btns = `<button id="ovRetry" type="button">Replay level ${S.level + 1}</button>`;
     if (last) {
       // the round total includes the bonuses and the spare spuds
@@ -869,19 +870,21 @@ body.lab .stage > :not(canvas) { display: none; }
       let isBest = false;
       if (best == null || tot > best) { best = tot; isBest = true; try { localStorage.setItem("pneuman-best", String(tot)); } catch (e) {} }
       title = "All three fields done";
-      body += ` Round total with bonuses and spare spuds: ${tot} (rings out of ${mx}).${isBest ? " That's your best yet." : ` Your best is ${best}.`}`;
+      body = `Round total: ${tot}.${isBest ? " Your best yet!" : ` Your best: ${best}.`}`;
       btns = `<button id="ovGo" type="button">Play again</button>` + btns;
     } else btns = `<button id="ovGo" type="button">Next level</button>` + btns;
     showCard(`Level ${S.level + 1} · rings hit`, title, body, counts, btns, last ? () => { S.levelScores = []; startLevel(0); } : () => startLevel(S.level + 1));
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null);
   }
-  // end-of-level tally: the score counts up; then the bonus slides in (naming the objects hit) and counts up; then,
-  // if every ring was cleared, the spare spuds at +1 each; then it all combines into the level total, which pops
+  // end-of-level tally: the score counts up; then the bonus slides in (naming the objects hit) and counts up; then
+  // the spare spuds at +1 each; then it all combines into the level total, which pops. Lines worth nothing are left out
   function runTally(score, bonus, items, spare) {
     const el = $("tally"); el.hidden = false;
+    const extra = spare || 0;
     const what = items.length ? ` <small>(${items.join(", ")})</small>` : "";
-    const spareRow = spare == null ? "" : `<div class="trow bonus"><span>Spare spuds <small>(${spare} × 1)</small></span><b id="tP">+0</b></div>`;
-    el.innerHTML = `<div class="trow in"><span>Score</span><b id="tS">0</b></div><div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
+    const spareRow = extra ? `<div class="trow bonus"><span>Spare spuds <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
+    el.innerHTML = `<div class="trow in"><span>Score</span><b id="tS">0</b></div>${bonusRow}${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -890,22 +893,19 @@ body.lab .stage > :not(canvas) { display: none; }
         if (k >= 1) { clearInterval(id); done && done(); }
       }, 30);
     };
-    const [tS, tB, tP, tT] = ["tS", "tB", "tP", "tT"].map($), extra = spare || 0;
-    const total = () => setTimeout(() => {
-      tT.parentNode.classList.add("in");
-      count(tT, score + bonus + extra, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); });
-    }, 250);
-    count(tS, score, "", Math.min(900, 250 + score * 12), () => setTimeout(() => {
-      tB.parentNode.classList.add("in");
-      count(tB, bonus, "+", 350 + bonus * 25, () => {
-        if (!tP) return total();
-        setTimeout(() => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, total); }, 250);
-      });
-    }, 250));
+    const [tS, tB, tP, tT] = ["tS", "tB", "tP", "tT"].map($);
+    // one line after another: each slides in, counts up, then hands on to the next
+    const steps = [
+      tB && ((next) => { tB.parentNode.classList.add("in"); count(tB, bonus, "+", 350 + bonus * 25, next); }),
+      tP && ((next) => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, next); }),
+      () => { tT.parentNode.classList.add("in"); count(tT, score + bonus + extra, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
+    ].filter(Boolean);
+    const run = (i) => setTimeout(() => steps[i](() => run(i + 1)), 250);
+    count(tS, score, "", Math.min(900, 250 + score * 12), () => run(0));
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
     $("tally").hidden = true; $("extras").hidden = true; // the +5 / −5 pictures are for the start screen only
-    $("ovEyebrow").textContent = eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body;
+    $("ovEyebrow").textContent = eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body; $("ovBody").hidden = !body;
     $("legend").innerHTML = legendHtml; $("ovBtns").innerHTML = btnsHtml;
     $("ovGo").onclick = () => { audio(); go(); };
     const r = $("ovRetry"); if (r) r.onclick = () => { audio(); startLevel(S.level); };
