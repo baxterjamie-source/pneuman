@@ -84,13 +84,14 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 14px; height: 14px; border-radius: 50%; border: 3px solid currentColor; display: inline-block; }
 /* start screen: little pictures of what's worth +5 and what costs 5 */
-.extras { display: grid; gap: 4px; }
-.xrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.extras { display: grid; gap: 0; }
+.xrow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .xrow b { font-family: var(--display); font-weight: 400; font-size: 1.25rem; min-width: 2.2em; }
 .xrow.plus b { color: #2e9b3a; }
 .xrow.minus b { color: var(--red); }
-.xrow span { display: flex; gap: 4px; flex-wrap: wrap; }
-.xrow img { width: 64px; height: 50px; background: #cfeab8; border-radius: 8px; border: 2px solid rgba(35,48,58,.25); }
+.xrow span { display: flex; gap: 0; flex-wrap: wrap; }
+.xrow img { width: 56px; height: 44px; }
+.legend .note { color: var(--ink); opacity: .65; font-size: .85rem; }
 .cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
 /* end-of-level tally */
 .tally { display: grid; gap: 6px; }
@@ -151,7 +152,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   /* the start and level cards fit on a phone: tighter, smaller pictures, and they scroll if they still don't */
   .overlay { padding: 8px; overflow-y: auto; }
   .card { padding: 12px 14px; gap: 7px; font-size: .92rem; }
-  .xrow img { width: 50px; height: 40px; }
+  .xrow img { width: 46px; height: 36px; }
   .xrow b { font-size: 1.05rem; min-width: 1.8em; }
   /* the field grows to fill the screen height left over by the header, scores and controls */
   .wrap { min-height: 100dvh; grid-template-rows: auto auto minmax(300px, 1fr) auto auto; padding-block: 10px 6px; }
@@ -220,6 +221,7 @@ body.lab .stage > :not(canvas) { display: none; }
         <div class="tally" id="tally" hidden></div>
         <div class="legend" id="legend">
           <span style="color:#e0a800"><i></i>2</span><span style="color:#7b45c9"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#e8452c"><i></i>25</span>
+          <span class="note">all rings scored = round ends</span>
         </div>
         <div class="extras" id="extras">
           <div class="xrow plus"><b>+5</b><span id="xPlus"></span></div>
@@ -1194,7 +1196,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const paint = "#5f8550", primer = "#8e9690", rust = "#7a4a26", chrome = "#c9ced2", glass = "#a7c9d9", tire = "#1d1d1f";
     // its shadow
     const sh = [[-half - 0.25, 0.01, -len - 0.1], [half + 0.25, 0.01, -len - 0.1], [half + 0.25, 0.01, len + 0.15], [-half - 0.25, 0.01, len + 0.15]].map((p) => [p[0] + SHADOW.x * 0.6, p[1], p[2] + SHADOW.z * 0.6]);
-    if (pathClip(sh.map(Wp))) { ctx.fillStyle = "rgba(30,60,25,.22)"; ctx.fill(); }
+    if (!o.thumb && pathClip(sh.map(Wp))) { ctx.fillStyle = "rgba(30,60,25,.22)"; ctx.fill(); }
     // the lower body: a box from the sills to the beltline
     const sideL = face([[-half, sill, -len], [-half, sill, len], [-half, belt, len], [-half, belt, -len]], paint, [-1, 0, 0]);
     const sideR = face([[half, sill, len], [half, sill, -len], [half, belt, -len], [half, belt, len]], paint, [1, 0, 0]);
@@ -1329,7 +1331,7 @@ body.lab .stage > :not(canvas) { display: none; }
         ell(cx + Math.cos(a) * R, cy + Math.sin(a) * R, 0.07, 0.07, "#2e231a");
       }
     };
-    groundShadow(o.x, o.z, o.r * 0.6, o.r * 0.7, 0.18);
+    if (!o.thumb) groundShadow(o.x, o.z, o.r * 0.6, o.r * 0.7, 0.18); // (no shadow in the start-screen pictures)
     ctx.save();
     if (o.kind === "cow") {
       // bucks up off the ground when hit
@@ -2429,7 +2431,7 @@ body.lab .stage > :not(canvas) { display: none; }
     camHome();
     const D = PROPS[kind], z = 14, faceOnly = kind === "cow" || kind === "horse";
     // the cow and horse are shown as just their faces, looking at you; the rest whole
-    const o = { kind, x: 0, z, r: D.r, h: D.h, t: -1, face: 1, ph: 1, step: 0, view: faceOnly ? "front" : "side", faceOnly, dip: 0.08,
+    const o = { kind, x: 0, z, r: D.r, h: D.h, t: -1, face: 1, ph: 1, step: 0, view: faceOnly ? "front" : "side", faceOnly, thumb: true, dip: 0.08,
       act: { cow: "chew", horse: "look", chicken: "look", turkey: "strut" }[kind] || "look",
       // the red-and-white cow and the chestnut horse, whose faces read best this small
       yaw: Math.atan2(0, CAM.z0 - z) + 0.55, patch: "#9a4a22", coat: "#b0602e", mane: "#7a3c1c", blaze: true,
