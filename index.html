@@ -90,6 +90,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .trow.in { opacity: 1; transform: none; }
 .trow b { display: inline-block; font-family: var(--display); font-weight: 400; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 .trow.bonus b { color: #2e9b3a; }
+.trow small { font-size: .78rem; opacity: .7; }
 .trow.total { background: var(--yellow); border: 3px solid var(--ink); position: relative; }
 .trow.total b { font-size: 1.9rem; }
 .trow.pop b { animation: tally-pop .55s ease-out; }
@@ -580,10 +581,10 @@ body.lab .stage > :not(canvas) { display: none; }
     horse:     { r: 1.5, h: 2.3, alive: true, say: "NEIGH!", msg: "You spooked the horse!", sound: "neigh" },
     chicken:   { r: 0.7, h: 0.8, alive: true, say: "BAWK!", msg: "You startled the chicken!", sound: "bawk" },
     turkey:    { r: 0.9, h: 1.1, alive: true, say: "GOBBLE!", msg: "You ruffled the wild turkey!", sound: "gobble" },
-    trough:    { r: 1.3, h: 0.8, say: "SPLOSH!", msg: "Right in the water trough!", sound: "splosh" },
-    scarecrow: { r: 0.8, h: 2.5, say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
+    trough:    { r: 1.3, h: 0.8, label: "water trough", say: "SPLOSH!", msg: "Right in the water trough!", sound: "splosh" },
+    scarecrow: { r: 0.8, h: 2.5, label: "scarecrow", say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
     // the bonus is only for breaking the windshield; the rest of the car just goes thunk
-    junker:    { r: 2.8, h: 1.45, say: "CRASH!", msg: "You smashed the junker's windshield!", sound: "glass" },
+    junker:    { r: 2.8, h: 1.45, label: "junker", say: "CRASH!", msg: "You smashed the junker's windshield!", sound: "glass" },
   };
   const propKinds = () => Object.keys(PROPS).filter((k) => S.animals || !PROPS[k].alive);
   // the animals wander among the rings, like the ravens in Howlertown: each picks an action at random,
@@ -673,7 +674,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
 
   function startLevel(i) {
-    S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0;
+    S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = [];
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
@@ -798,7 +799,10 @@ body.lab .stage > :not(canvas) { display: none; }
       prop.t = 0; prop.say = null; sfx[D.sound]();
       if (prop.kind === "junker") smashWindshield(prop);
       if (D.alive) { S.score = Math.max(0, S.score - 5); shotNote(`${D.msg} ${D.say} −5`); } // never below 0
-      else if (!prop.scored) { prop.scored = true; S.bonus += 5; shotNote(`${D.msg} ${D.say} +5 bonus!`); }
+      else if (!prop.scored) {
+        prop.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
+        shotNote(`${D.msg} ${D.say} +5 bonus!`);
+      }
       else shotNote(`${D.msg} ${D.say} (bonus already won)`);
     } else if (fresh) {
       fresh.hit = true; fresh.flash = 1; S.score += fresh.pts; sfx.ring(fresh.pts);
@@ -828,7 +832,9 @@ body.lab .stage > :not(canvas) { display: none; }
   const maxScore = () => S.rings.reduce((a, r) => a + r.pts, 0);
 
   function endLevel() {
-    S.phase = "levelEnd"; S.levelScores[S.level] = { score: S.score, bonus: S.bonus, max: maxScore() };
+    // clearing every ring earns +1 for each spud left over
+    const spare = S.rings.every((r) => r.hit) ? S.spudsLeft : 0;
+    S.phase = "levelEnd"; S.levelScores[S.level] = { score: S.score, bonus: S.bonus, spare, max: maxScore() };
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
     const counts = Object.keys(RINGS).map((t) => {
@@ -841,22 +847,24 @@ body.lab .stage > :not(canvas) { display: none; }
     let body = `${S.score} of ${maxScore()} points${allHit ? ` with ${S.spudsLeft} spud${S.spudsLeft === 1 ? "" : "s"} to spare` : ""}.`;
     let btns = `<button id="ovRetry" type="button">Replay level ${S.level + 1}</button>`;
     if (last) {
-      // the round total includes the bonuses
-      const tot = S.levelScores.reduce((a, s) => a + (s ? s.score + (s.bonus || 0) : 0), 0), mx = S.levelScores.reduce((a, s) => a + (s ? s.max : 0), 0);
+      // the round total includes the bonuses and the spare spuds
+      const tot = S.levelScores.reduce((a, s) => a + (s ? s.score + (s.bonus || 0) + (s.spare || 0) : 0), 0), mx = S.levelScores.reduce((a, s) => a + (s ? s.max : 0), 0);
       let isBest = false;
       if (best == null || tot > best) { best = tot; isBest = true; try { localStorage.setItem("pneuman-best", String(tot)); } catch (e) {} }
       title = "All three fields done";
-      body += ` Round total with bonuses: ${tot} (rings out of ${mx}).${isBest ? " That's your best yet." : ` Your best is ${best}.`}`;
+      body += ` Round total with bonuses and spare spuds: ${tot} (rings out of ${mx}).${isBest ? " That's your best yet." : ` Your best is ${best}.`}`;
       btns = `<button id="ovGo" type="button">Play again</button>` + btns;
     } else btns = `<button id="ovGo" type="button">Next level</button>` + btns;
     showCard(`Level ${S.level + 1} · rings hit`, title, body, counts, btns, last ? () => { S.levelScores = []; startLevel(0); } : () => startLevel(S.level + 1));
-    runTally(S.score, S.bonus);
+    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null);
   }
-  // end-of-level tally: the score counts up, then the bonus slides in and counts up, then the two combine into the
-  // level total, which pops with a little sparkle
-  function runTally(score, bonus) {
+  // end-of-level tally: the score counts up; then the bonus slides in (naming the objects hit) and counts up; then,
+  // if every ring was cleared, the spare spuds at +1 each; then it all combines into the level total, which pops
+  function runTally(score, bonus, items, spare) {
     const el = $("tally"); el.hidden = false;
-    el.innerHTML = `<div class="trow in"><span>Score</span><b id="tS">0</b></div><div class="trow bonus"><span>Bonus</span><b id="tB">+0</b></div><div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    const what = items.length ? ` <small>(${items.join(", ")})</small>` : "";
+    const spareRow = spare == null ? "" : `<div class="trow bonus"><span>Spare spuds <small>(${spare} × 1)</small></span><b id="tP">+0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>Score</span><b id="tS">0</b></div><div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -865,13 +873,17 @@ body.lab .stage > :not(canvas) { display: none; }
         if (k >= 1) { clearInterval(id); done && done(); }
       }, 30);
     };
-    const [tS, tB, tT] = ["tS", "tB", "tT"].map($);
+    const [tS, tB, tP, tT] = ["tS", "tB", "tP", "tT"].map($), extra = spare || 0;
+    const total = () => setTimeout(() => {
+      tT.parentNode.classList.add("in");
+      count(tT, score + bonus + extra, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); });
+    }, 250);
     count(tS, score, "", Math.min(900, 250 + score * 12), () => setTimeout(() => {
       tB.parentNode.classList.add("in");
-      count(tB, bonus, "+", 350 + bonus * 25, () => setTimeout(() => {
-        tT.parentNode.classList.add("in");
-        count(tT, score + bonus, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); });
-      }, 250));
+      count(tB, bonus, "+", 350 + bonus * 25, () => {
+        if (!tP) return total();
+        setTimeout(() => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, total); }, 250);
+      });
     }, 250));
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
