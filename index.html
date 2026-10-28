@@ -858,7 +858,14 @@ body.lab .stage > :not(canvas) { display: none; }
         } else shotNote("Splat.");
       }
     }
-    if (S.struck) { shotNote(`Bird strike! ${shotEl.textContent}`); S.struck = false; }
+    if (S.struck) {
+      // the bird counts as an animal hit: −5, taken after this shot's ring points (never below 0), and named in the tally
+      const lost = Math.min(5, S.score), kind = S.bird ? S.bird.sp.name : "bird";
+      S.score -= lost; S.penalty = (S.penalty || 0) + lost;
+      if (lost) (S.penaltyItems = S.penaltyItems || []).push(kind);
+      shotNote(`Bird strike (${kind})! ${lost ? `−${lost}` : "(no points to lose yet)"} · ${shotEl.textContent}`);
+      S.struck = false;
+    }
     const allHit = S.rings.every((r) => r.hit);
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
     // the valve stays open and the chamber empty until the next spud is loaded and pumped
