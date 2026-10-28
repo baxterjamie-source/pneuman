@@ -97,6 +97,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .trow.in { opacity: 1; transform: none; }
 .trow b { display: inline-block; font-family: var(--display); font-weight: 400; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .trow.bonus b { color: #2e9b3a; }
+.trow.minus b { color: var(--red); }
 .trow small { font-size: .78rem; opacity: .7; }
 .trow.total { background: var(--yellow); border: 3px solid var(--ink); position: relative; }
 .trow.total b { font-size: 1.5rem; }
@@ -702,7 +703,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
 
   function startLevel(i) {
-    S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = [];
+    S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     S.yaw = 0; S.hole = 6; S.angDisp = ang(); // each level starts with the launcher straight ahead at 40°
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
@@ -828,7 +829,13 @@ body.lab .stage > :not(canvas) { display: none; }
       const D = PROPS[prop.kind];
       prop.t = 0; prop.say = null; sfx[D.sound]();
       if (prop.kind === "junker") smashWindshield(prop);
-      if (D.alive) { S.score = Math.max(0, S.score - 5); shotNote(`${D.msg} ${D.say} −5`); } // never below 0
+      if (D.alive) {
+        // −5, but the score never drops below 0; what was actually lost, and to whom, shows in the end-of-level tally
+        const lost = Math.min(5, S.score);
+        S.score -= lost; S.penalty = (S.penalty || 0) + lost;
+        if (lost) (S.penaltyItems = S.penaltyItems || []).push(prop.kind);
+        shotNote(`${D.msg} ${D.say} ${lost ? `−${lost}` : "(no points to lose yet)"}`);
+      }
       else if (!prop.scored) {
         prop.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
         shotNote(`${D.msg} ${D.say} +5 bonus!`);
@@ -886,17 +893,21 @@ body.lab .stage > :not(canvas) { display: none; }
       btns = `<button id="ovGo" type="button">Play again</button>` + btns;
     } else btns = `<button id="ovGo" type="button">Next level</button>` + btns;
     showCard(`Level ${S.level + 1} · rings hit`, title, body, counts, btns, last ? () => { S.levelScores = []; startLevel(0); } : () => startLevel(S.level + 1));
-    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null);
+    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || []);
   }
-  // end-of-level tally: the score counts up; then the bonus slides in (naming the objects hit) and counts up; then
-  // the spare spuds at +1 each; then it all combines into the level total, which pops. Lines worth nothing are left out
-  function runTally(score, bonus, items, spare) {
+  // end-of-level tally: the ring points count up; then any points lost to animals count down (naming them); then the
+  // bonus slides in (naming the objects hit) and counts up; then the spare spuds at +1 each; then it all combines into
+  // the level total, which pops. Lines worth nothing are left out
+  function runTally(score, bonus, items, spare, penalty, hitAnimals) {
     const el = $("tally"); el.hidden = false;
-    const extra = spare || 0;
+    const extra = spare || 0, rings = score + penalty;
+    // "cow ×2, chicken"
+    const tallyNames = (list) => [...new Set(list)].map((k) => { const n = list.filter((x) => x === k).length; return n > 1 ? `${k} ×${n}` : k; }).join(", ");
     const what = items.length ? ` <small>(${items.join(", ")})</small>` : "";
+    const penaltyRow = penalty ? `<div class="trow minus"><span>Animals hit <small>(${tallyNames(hitAnimals)})</small></span><b id="tA">−0</b></div>` : "";
     const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
     const spareRow = extra ? `<div class="trow bonus"><span>Spare spuds <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>Score</span><b id="tS">0</b></div>${bonusRow}${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>Rings</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -905,15 +916,16 @@ body.lab .stage > :not(canvas) { display: none; }
         if (k >= 1) { clearInterval(id); done && done(); }
       }, 30);
     };
-    const [tS, tB, tP, tT] = ["tS", "tB", "tP", "tT"].map($);
+    const [tS, tA, tB, tP, tT] = ["tS", "tA", "tB", "tP", "tT"].map($);
     // one line after another: each slides in, counts up, then hands on to the next
     const steps = [
+      tA && ((next) => { tA.parentNode.classList.add("in"); count(tA, penalty, "−", 350 + penalty * 25, next); }),
       tB && ((next) => { tB.parentNode.classList.add("in"); count(tB, bonus, "+", 350 + bonus * 25, next); }),
       tP && ((next) => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, next); }),
       () => { tT.parentNode.classList.add("in"); count(tT, score + bonus + extra, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
     ].filter(Boolean);
     const run = (i) => setTimeout(() => steps[i](() => run(i + 1)), 250);
-    count(tS, score, "", Math.min(900, 250 + score * 12), () => run(0));
+    count(tS, rings, "", Math.min(900, 250 + rings * 12), () => run(0));
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
     $("tally").hidden = true; $("extras").hidden = true; // the +5 / −5 pictures are for the start screen only
