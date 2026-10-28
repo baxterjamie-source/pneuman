@@ -205,7 +205,7 @@ body.lab .stage > :not(canvas) { display: none; }
         <p id="ovBody">Load a spud (that closes the valve), pump up the chamber, pick a peg hole for the barrel angle, swing the launcher left or right, then open the valve. You get ten spuds per level, and each ring scores once. Small rings are worth far more than big ones.</p>
         <div class="tally" id="tally" hidden></div>
         <div class="legend" id="legend">
-          <span style="color:#e0a800"><i></i>2</span><span style="color:#2e9b3a"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#e8452c"><i></i>25</span>
+          <span style="color:#e0a800"><i></i>2</span><span style="color:#7b45c9"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#e8452c"><i></i>25</span>
         </div>
         <div class="cardbtns" id="ovBtns"><button id="ovGo" type="button">Start level 1</button></div>
       </div>
@@ -251,12 +251,12 @@ body.lab .stage > :not(canvas) { display: none; }
   const RINGS = {
     // generous sizes (3.5 times the first version) so early rounds feel winnable
     yellow: { pts: 2, r: 11.9, color: "#ffcf33", edge: "#e0a800", name: "yellow" },
-    green:  { pts: 5, r: 8.8, color: "#5fd36b", edge: "#2e9b3a", name: "green" },
+    purple: { pts: 5, r: 8.8, color: "#b48cf2", edge: "#7b45c9", name: "purple" }, // purple stands out on grass
     blue:   { pts: 10, r: 6.0, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
     red:    { pts: 25, r: 3.7, color: "#ff6b52", edge: "#e8452c", name: "red" },
   };
   // one ring of each kind, anywhere in the level's distance band
-  const MIX = { yellow: 1, green: 1, blue: 1, red: 1 };
+  const MIX = { yellow: 1, purple: 1, blue: 1, red: 1 };
   const LEVELS = [
     { mix: MIX, z: [12, 72], wind: [0, 0] },
     { mix: MIX, z: [18, 95], wind: [6, 12] },
