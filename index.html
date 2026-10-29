@@ -91,6 +91,13 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .xrow.minus b { color: var(--red); }
 .xrow span { display: flex; gap: 0; flex-wrap: wrap; }
 .xrow img { width: 56px; height: 44px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+/* start card: one card per level, its number big and faint behind its name */
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+.lvl { position: relative; overflow: hidden; text-align: left; padding: 6px 10px; min-height: 54px; display: grid; align-content: end; gap: 0; background: #fff1cf; box-shadow: 0 3px 0 var(--ink); }
+.lvl .num { position: absolute; right: 4px; top: -12px; font-family: var(--display); font-weight: 400; font-size: 3.8rem; line-height: 1; opacity: .14; pointer-events: none; }
+.lvl .nm { position: relative; font-family: var(--display); font-weight: 400; font-size: 1.15rem; line-height: 1.1; }
+.lvl small { position: relative; font-size: .7rem; opacity: .65; }
+.lvl.on { background: var(--yellow); }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
 .trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
@@ -217,6 +224,7 @@ body.lab .stage > :not(canvas) { display: none; }
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
         <h2 id="ovTitle">Pneuman</h2>
         <p id="ovBody">Load a spud, pump it up, set the angle and aim, then fire. Ten spuds per level; each ring scores once. Clear all rings ends round.</p>
+        <div class="levels" id="levels" hidden></div>
         <div class="tally" id="tally" hidden></div>
         <div class="legend" id="legend">
           <span style="color:#e0a800"><i></i>2</span><span style="color:#7b45c9"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#e8452c"><i></i>25</span>
@@ -260,7 +268,7 @@ body.lab .stage > :not(canvas) { display: none; }
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.8</p>
+  <p class="ver">Pneuman v1.9</p>
 </div>
 
 <script>
@@ -281,14 +289,23 @@ body.lab .stage > :not(canvas) { display: none; }
   const deg = (d) => d * Math.PI / 180;
   const BAND = {
     rings: { red: deg(22), blue: deg(30), purple: deg(38.7), yellow: deg(38.7) },
-    props: { trough: deg(25), scarecrow: deg(25), junker: deg(30) }, animals: deg(30),
+    props: { trough: deg(25), scarecrow: deg(25), junker: deg(30), leaves: deg(28), mailbox: deg(30), trampoline: deg(30) }, animals: deg(30),
     wander: deg(33),
   };
   const inBand = (x, z, max) => Math.abs(Math.atan2(x, Math.max(1, z))) <= max;
+  // each level is a place with a name, so players can pick the ones they like; none is meant to be harder than the
+  // next. scene: the landscape it's built from (see SCENES). targets: how each scoring colour shows up there
+  // (a flat "ring" on the ground, a ring on a house "roof", or a "spinner" on a frame). props: its bonus objects
+  // and penalties, from PROPS. maxPsi: the most the gauge takes in that level (120 if not given), so a level can cap
+  // how far a spud can go. mapZ: how far up the field the corner map reaches
   const LEVELS = [
-    { mix: MIX, z: [12, 72], wind: [0, 0] },
-    { mix: MIX, z: [18, 95], wind: [6, 12] },
-    { mix: MIX, z: [25, 115], wind: [11, 20] },
+    { id: "pasture", name: "Pasture", scene: "pasture", mix: MIX, z: [12, 72], wind: [0, 0],
+      props: ["cow", "horse", "chicken", "turkey", "trough", "scarecrow", "junker"] },
+    { id: "culdesac", name: "Cul de sac", scene: "culdesac", mix: MIX, z: [18, 78], wind: [6, 12], maxPsi: 120, mapZ: 112,
+      targets: { purple: "spinner", blue: "roof" },
+      props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour"] },
+    { id: "backforty", name: "Back forty", scene: "pasture", mix: MIX, z: [25, 115], wind: [11, 20],
+      props: ["cow", "horse", "chicken", "turkey", "trough", "scarecrow", "junker"] },
   ];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
@@ -302,8 +319,6 @@ body.lab .stage > :not(canvas) { display: none; }
     loaded: false, loadT: 0, lastPsi: 0, valve: 1, valveTarget: 1, angDisp: 40, puff: 0, kick: 0, windShow: null,
   };
   const LOAD_TIME = 1.5;
-  let best = null;
-  try { const b = localStorage.getItem("pneuman-best"); if (b) best = Number(b); } catch (e) {}
   try { S.muted = localStorage.getItem("pneuman-muted") === "1"; } catch (e) {}
   // settings: animals in the field (on by default), 10 m distance stripes on the grass (off by default)
   S.animals = true; S.stripes = false;
@@ -521,6 +536,13 @@ body.lab .stage > :not(canvas) { display: none; }
     glass: () => sample("windshield") || sample("glass") || sample("shatter") ||
       (noise(0.08, 5200, 0.6, 2400), noise(0.45, 3800, 0.35, 7000), [0.06, 0.14, 0.23, 0.31, 0.42].forEach((d, i) => tone(2600 + i * 420, 2300 + i * 380, 0.09, 0.08, "triangle", d))),
     thunk: () => sample("thunk") || (tone(140, 70, 0.18, 0.5, "triangle"), noise(0.12, 500, 0.35, 180)),
+    // the cul de sac's things, synthesised until there are recordings of the same names
+    rustle: () => sample("leaves") || (noise(0.6, 2600, 0.35, 900), noise(0.45, 1200, 0.2, 600)),
+    clang: () => sample("clang") || (tone(820, 790, 0.6, 0.22, "square"), tone(1240, 1210, 0.7, 0.14, "triangle"), noise(0.06, 3200, 0.3)),
+    boing: () => sample("boing") || (tone(150, 520, 0.3, 0.35), tone(520, 260, 0.35, 0.22, "sine", 0.28)),
+    yip: () => sample("dog") || [0, 0.16].forEach((d) => tone(1150, 700, 0.09, 0.2, "square", d)),
+    hey: () => sample("hey") || (tone(320, 250, 0.35, 0.28, "sawtooth"), tone(240, 190, 0.3, 0.18, "sawtooth", 0.05)),
+    whirr: () => [0, 0.09, 0.18, 0.27, 0.36].forEach((d, i) => tone(500 - i * 40, 420 - i * 40, 0.07, 0.12, "triangle", d)),
     // a struck bird's cry: its kind's recording, louder and cut short
     squawk: (sp) => sample(sp.call, 0.9, sp.call === "bird_long" ? 1.6 : 0) || (tone(sp.pitch, sp.pitch * 0.6, 0.14, 0.2, "square"), tone(sp.pitch * 1.1, sp.pitch * 0.55, 0.18, 0.2, "square", 0.16)),
   };
@@ -529,6 +551,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const rnd = (a, b) => a + Math.random() * (b - a);
   const ang = () => HOLES[S.hole];
   const lvl = () => LEVELS[S.level];
+  // the gauge's dial always reads to 120; a level can stop the pump lower
+  const maxPsi = () => lvl().maxPsi || MAX_PSI;
   const noteEl = $("note"); let noteT = null;
   function note(msg, ms = 3200) {
     noteEl.textContent = msg; noteEl.hidden = false; noteEl.style.opacity = "1";
@@ -567,30 +591,58 @@ body.lab .stage > :not(canvas) { display: none; }
     const onScreen = (b) => b.x0 > 6 && b.x1 < W - 6 && b.y0 > 8;
     const rings = [];
     for (const [type, count] of Object.entries(L.mix)) {
+      // how this colour shows up here: flat on the ground (a ring), on a house roof, or as a spinner on its frame
+      const form = (L.targets || {})[type] || "ring";
       for (let i = 0; i < count; i++) {
         const R = RINGS[type];
+        if (form === "roof") {
+          // the place picks a roof facing the launcher; it must be on screen and clear of the other targets
+          // (and below the notes along the top of the view)
+          const seen = (b) => onScreen(b) && b.y0 > H * 0.1;
+          const opts = shuffle(S.scene.roofTargets(type)), ok = opts.find((t) => seen(t.box) && !rings.some((o) => overlaps(t.box, o.box))) || opts.find((t) => seen(t.box)) || opts.find((t) => onScreen(t.box)) || opts[0];
+          if (ok) rings.push(ok);
+          continue;
+        }
+        // a spinner only needs room for its frame
+        const rr = form === "spinner" ? SPIN.foot : R.r;
         let placed = null;
         for (let tries = 0; tries < 600 && !placed; tries++) {
           // big rings need room: the near edge stays well clear of the launcher
-          const z = rnd(Math.max(L.z[0], R.r + 8), L.z[1]);
+          const z = rnd(Math.max(L.z[0], rr + 8), L.z[1]);
           // the smaller the ring, the closer to straight ahead it sits (see BAND), so it stays in reach in a crosswind
-          const halfW = (W / 2) / P(0, 0, z).s - R.r - 1;
+          const halfW = (W / 2) / P(0, 0, z).s - rr - 1;
           const x = rnd(-1, 1) * Math.max(2, Math.min(z * Math.tan(BAND.rings[type]), halfW * 0.9));
+          // not where the place has something in the way (a house, a tree)
+          if (!S.scene.free(x, z, rr, form)) continue;
           // rings this big don't always fit side by side, so the rules relax as the tries go on: first apart on the
           // ground and on screen; then apart on the ground; then allowed to overlap, as long as neither ring's centre
           // is inside the other (each keeps a part of its own; a spud landing in both scores the better one)
-          const box = ringBox(x, z, R.r), c = P(x, 0, z);
-          const apart = rings.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + R.r + 2);
-          const centresClear = rings.every((o) => Math.hypot(o.x - x, o.z - z) > Math.max(o.r, R.r) + 1);
+          const box = form === "spinner" ? spinnerBox(x, z) : ringBox(x, z, rr), c = P(x, 0, z);
+          const apart = rings.every((o) => o.form === "roof" || Math.hypot(o.x - x, o.z - z) > o.r + rr + 2);
+          const centresClear = rings.every((o) => o.form === "roof" || Math.hypot(o.x - x, o.z - z) > Math.max(o.r, rr) + 1);
           if (tries < 250 && (!apart || !onScreen(box) || blocked.some((b) => overlaps(box, b)) || rings.some((o) => overlaps(box, o.box)))) continue;
           if (tries >= 250 && tries < 450 && (!apart || !onScreen(box))) continue;
           if (tries >= 450 && (!centresClear || c.x < 30 || c.x > W - 30)) continue;
-          placed = { type, x, z, r: R.r, pts: R.pts, hit: false, box };
+          placed = { type, form, x, z, r: rr, pts: R.pts, hit: false, box };
+          // the spinner's disc faces the launcher
+          if (form === "spinner") Object.assign(placed, { yaw: Math.atan2(-x, CAM.z0 - z), ang: 0, spin: 0 });
         }
         if (placed) rings.push(placed);
       }
     }
     return rings;
+  }
+  // what a target is called in the shot notes
+  const tName = (t) => `${RINGS[t.type].name} ${t.form === "spinner" ? "spinner" : t.form === "roof" ? "roof ring" : "ring"}`;
+  // "3.2 m short, 1.5 m left of the blue ring", for the nearest target not yet scored
+  function missNote(x, z) {
+    const open = S.rings.filter((r) => !r.hit);
+    if (!open.length) return "";
+    const n = open.reduce((a, b) => (Math.hypot(a.x - x, a.z - z) < Math.hypot(b.x - x, b.z - z) ? a : b));
+    const dz = z - n.z, dx = x - n.x, parts = [];
+    if (Math.abs(dz) >= 0.1) parts.push(`${Math.abs(dz).toFixed(1)} m ${dz < 0 ? "short" : "long"}`);
+    if (Math.abs(dx) >= 0.1) parts.push(`${Math.abs(dx).toFixed(1)} m ${dx < 0 ? "left" : "right"}`);
+    return `${parts.join(", ")} of the ${tName(n)}`;
   }
   function rollWind() {
     const [a, b] = lvl().wind;
@@ -605,17 +657,26 @@ body.lab .stage > :not(canvas) { display: none; }
   // ================= flow =================
   // things in the field near the rings. The spud stops on whatever it hits, and it reacts. Hitting an animal
   // (alive) costs 5 points every time; hitting an object earns a 5-point bonus, once per level
+  // alive: hitting it costs 5 points; animal: the Animals setting takes it out of the field
   const PROPS = {
-    cow:       { r: 1.5, h: 1.8, alive: true, say: "MOOO!", msg: "You hit the cow!", sound: "moo" },
-    horse:     { r: 1.5, h: 2.3, alive: true, say: "NEIGH!", msg: "You spooked the horse!", sound: "neigh" },
-    chicken:   { r: 0.7, h: 0.8, alive: true, say: "BAWK!", msg: "You startled the chicken!", sound: "bawk" },
-    turkey:    { r: 0.9, h: 1.1, alive: true, say: "GOBBLE!", msg: "You ruffled the wild turkey!", sound: "gobble" },
+    cow:       { r: 1.5, h: 1.8, alive: true, animal: true, say: "MOOO!", msg: "You hit the cow!", sound: "moo" },
+    horse:     { r: 1.5, h: 2.3, alive: true, animal: true, say: "NEIGH!", msg: "You spooked the horse!", sound: "neigh" },
+    chicken:   { r: 0.7, h: 0.8, alive: true, animal: true, say: "BAWK!", msg: "You startled the chicken!", sound: "bawk" },
+    turkey:    { r: 0.9, h: 1.1, alive: true, animal: true, say: "GOBBLE!", msg: "You ruffled the wild turkey!", sound: "gobble" },
+    dog:       { r: 0.6, h: 0.75, alive: true, animal: true, say: "YIP!", msg: "You spooked the dog!", sound: "yip" },
+    // a neighbour in a rocking chair on the porch
+    neighbour: { r: 0.7, h: 1.4, alive: true, label: "neighbour", say: "HEY!", msg: "You beaned the neighbour on the porch!", sound: "hey" },
     trough:    { r: 1.3, h: 0.8, label: "water trough", say: "SPLOSH!", msg: "Right in the water trough!", sound: "splosh" },
     scarecrow: { r: 0.8, h: 2.5, label: "scarecrow", say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
     // the bonus is only for breaking the windshield; the rest of the car just goes thunk
     junker:    { r: 2.8, h: 1.45, label: "junker", say: "CRASH!", msg: "You smashed the junker's windshield!", sound: "glass" },
+    leaves:    { r: 1.6, h: 0.9, label: "leaf pile", say: "FWOOMP!", msg: "Right into the leaf pile!", sound: "rustle", lawn: true },
+    mailbox:   { r: 0.8, h: 1.7, label: "community mailbox", say: "CLANG!", msg: "Bang on the community mailbox!", sound: "clang" },
+    // the bonus is for dropping in onto the mat (it bounces you on); the net just catches the spud
+    trampoline: { r: 2.2, h: 2.7, label: "trampoline", say: "BOING!", msg: "Off the trampoline!", sound: "boing", lawn: true },
   };
-  const propKinds = () => Object.keys(PROPS).filter((k) => S.animals || !PROPS[k].alive);
+  // a level's props, less the animals when they're switched off. A kind listed twice is placed twice
+  const propKinds = () => lvl().props.filter((k) => S.animals || !PROPS[k].animal);
   // the animals wander among the rings, like the ravens in Howlertown: each picks an action at random,
   // does it for a random while, then picks the next. Walking is slow, a few metres at a time
   const WANDER = {
@@ -623,12 +684,16 @@ body.lab .stage > :not(canvas) { display: none; }
     horse:   { speed: 0.75, stride: 4.5, hop: [4, 11], acts: { walk: 0.4, graze: 0.42, look: 0.18 }, dur: { graze: [4, 9], look: [2, 4] } },
     chicken: { speed: 0.5, stride: 14, hop: [1, 4], acts: { walk: 0.45, peck: 0.4, look: 0.15 }, dur: { peck: [2, 5], look: [1, 2.5] } },
     turkey:  { speed: 0.45, stride: 11, hop: [1.5, 5], acts: { walk: 0.4, peck: 0.35, strut: 0.25 }, dur: { peck: [2, 5], strut: [2.5, 5] } },
+    // the dog trots about the lawns, sniffs, and now and then pees or poops
+    dog:     { speed: 1.1, stride: 10, hop: [2, 8], acts: { walk: 0.45, sniff: 0.25, look: 0.12, pee: 0.1, poop: 0.08 }, dur: { sniff: [2, 4], look: [1.5, 3], pee: [2.5, 3.5], poop: [3, 4] } },
   };
   function pickAct(o) {
     const Wd = WANDER[o.kind], acts = Object.entries(Wd.acts);
     let r = Math.random() * acts.reduce((a, [, w]) => a + w, 0), act = acts[0][0];
     for (const [name, w] of acts) { if ((r -= w) <= 0) { act = name; break; } }
-    o.act = act;
+    o.act = act; o.done = false;
+    // a dog peeing leaves a little puddle that spreads
+    if (act === "pee") addMark("pee", o.x - (o.face || 1) * 0.35, o.z);
     if (act !== "walk") { o.timer = rnd(...Wd.dur[act]); return; }
     // head off a few metres in any direction (toward you, away, or across), staying close to the rings,
     // in the field, and clear of the other props
@@ -638,6 +703,8 @@ body.lab .stage > :not(canvas) { display: none; }
       const tx = Math.max(-44, Math.min(44, o.x + Math.sin(a) * d)), tz = Math.max(12, Math.min(zMax, o.z + Math.cos(a) * d));
       if (!S.rings.some((r) => Math.hypot(r.x - tx, r.z - tz) < r.r + 6) || !inBand(tx, tz, BAND.wander)) continue;
       if (S.props.some((p) => p !== o && Math.hypot(p.x - tx, p.z - tz) < p.r + o.r + 1)) continue;
+      // (and not into a house, or through the ones in between)
+      if (!S.scene.free(tx, tz, o.r, "wander") || !S.scene.free((o.x + tx) / 2, (o.z + tz) / 2, o.r, "wander")) continue;
       o.tx = tx; o.tz = tz; o.timer = d / Wd.speed + 3; return;
     }
     // nowhere suitable nearby: drift back toward the nearest ring
@@ -647,9 +714,10 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function updateWander(o, dt) {
     const Wd = WANDER[o.kind]; if (!Wd) return;
-    o.dip += ((o.act === "graze" ? 1.05 : o.act === "walk" ? 0.18 : 0.08) - o.dip) * Math.min(1, dt * 2.5);
+    o.dip += ((o.act === "graze" || o.act === "sniff" ? 1.05 : o.act === "walk" ? 0.18 : 0.08) - o.dip) * Math.min(1, dt * 2.5);
     if (o.t >= 0) return; // just been hit: it stands and reacts
     o.timer -= dt;
+    if (o.act === "poop" && !o.done && o.timer < 0.8) { o.done = true; addMark("poop", o.x - (o.face || 1) * 0.45, o.z); }
     if (o.act === "walk") {
       const dx = o.tx - o.x, dz = o.tz - o.z, d = Math.hypot(dx, dz);
       if (d < 0.15) { pickAct(o); return; }
@@ -662,9 +730,20 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     if (o.timer <= 0) pickAct(o);
   }
+  const shuffle = (a) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   function placeProps(kinds) {
     for (const kind of kinds) {
-      const D = PROPS[kind];
+      const D = PROPS[kind], spots = S.scene.spots(kind);
+      if (spots) {
+        // this place has set spots for it (a driveway, a porch, the curb): the first one that's free
+        for (const s of shuffle(spots)) {
+          if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - s.x, r.z - s.z) < r.r + D.r + 0.5)) continue;
+          if (S.props.some((o) => (s.house && o.house === s.house) || Math.hypot(o.x - s.x, o.z - s.z) < o.r + D.r + 0.5)) continue;
+          S.props.push(newProp(kind, s.x, s.z, s));
+          break;
+        }
+        continue;
+      }
       for (let tries = 0; tries < 300; tries++) {
         // in harm's way: usually just short of a ring or just past it along the line of fire (where a shot that's
         // a bit short or long lands), sometimes off to one side
@@ -677,37 +756,71 @@ body.lab .stage > :not(canvas) { display: none; }
         // on screen from the launcher (the camera is at home after the ring layout), and clear of the corner map
         const q = P(x, 0, z), mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
         if (q.x < 40 || q.x > W - 40 || (q.x > W - mw - 30 && q.y > H - mh - 30)) continue;
-        if (S.rings.some((r) => Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
+        if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
         if (S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
-        const o = { kind, x, z, r: D.r, h: D.h, t: -1, face: Math.random() < 0.5 ? 1 : -1, ph: rnd(0, 6) };
-        if (kind === "cow") {
-          // Holstein black or red-and-white, with its own irregular patches (on the body, in metres)
-          o.patch = Math.random() < 0.6 ? "#25262b" : "#9a4a22";
-          o.spots = Array.from({ length: 5 }, () => ({ x: rnd(-1.1, 0.9), y: rnd(0.8, 1.5), rx: rnd(0.18, 0.42), ry: rnd(0.14, 0.3), a: rnd(-0.6, 0.6) }));
-        }
-        if (kind === "horse") {
-          // bay, chestnut or grey, with a darker mane and tail, maybe a white blaze
-          const coat = [["#8a5432", "#2b211c"], ["#b0602e", "#7a3c1c"], ["#9a9a98", "#4a4a4a"]][Math.floor(Math.random() * 3)];
-          o.coat = coat[0]; o.mane = coat[1]; o.blaze = Math.random() < 0.6;
-        }
-        if (kind === "junker") {
-          // parked nose-on to the launcher so the windshield faces you, turned a little to show a three-quarter view
-          o.yaw = Math.atan2(-x, CAM.z0 - z) + rnd(0.3, 0.55) * (Math.random() < 0.5 ? 1 : -1);
-          o.smash = null;
-        }
-        if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
-        S.props.push(o);
+        // and somewhere this place allows it (not in a house; the leaf pile and trampoline on a lawn)
+        if (!S.scene.free(x, z, D.r, kind)) continue;
+        S.props.push(newProp(kind, x, z));
+        break;
+      }
+      // nowhere in harm's way would do (a big lawn-only thing like the trampoline): anywhere free in view instead
+      if (!S.props.some((o) => o.kind === kind)) for (let tries = 0; tries < 300; tries++) {
+        const z = rnd(lvl().z[0], lvl().z[1]), x = rnd(-1, 1) * z * Math.tan(BAND.props[kind] || BAND.animals), q = P(x, 0, z);
+        if (q.x < 40 || q.x > W - 40 || !S.scene.free(x, z, D.r, kind)) continue;
+        if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1) || S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
+        S.props.push(newProp(kind, x, z));
         break;
       }
     }
   }
+  // a prop of this kind at x, z, with its own look; s can set more (a yaw, a height off the ground, its house)
+  function newProp(kind, x, z, s = {}) {
+    const D = PROPS[kind];
+    const o = { kind, x, z, r: D.r, h: D.h, t: -1, face: Math.random() < 0.5 ? 1 : -1, ph: rnd(0, 6), y0: 0, ...s };
+    if (kind === "cow") {
+      // Holstein black or red-and-white, with its own irregular patches (on the body, in metres)
+      o.patch = Math.random() < 0.6 ? "#25262b" : "#9a4a22";
+      o.spots = Array.from({ length: 5 }, () => ({ x: rnd(-1.1, 0.9), y: rnd(0.8, 1.5), rx: rnd(0.18, 0.42), ry: rnd(0.14, 0.3), a: rnd(-0.6, 0.6) }));
+    }
+    if (kind === "horse") {
+      // bay, chestnut or grey, with a darker mane and tail, maybe a white blaze
+      const coat = [["#8a5432", "#2b211c"], ["#b0602e", "#7a3c1c"], ["#9a9a98", "#4a4a4a"]][Math.floor(Math.random() * 3)];
+      o.coat = coat[0]; o.mane = coat[1]; o.blaze = Math.random() < 0.6;
+    }
+    if (kind === "junker") {
+      // parked nose-on to the launcher so the windshield faces you, turned a little to show a three-quarter view
+      // (unless it's parked in a driveway, which sets its own heading and paint)
+      if (o.yaw == null) o.yaw = Math.atan2(-x, CAM.z0 - z) + rnd(0.3, 0.55) * (Math.random() < 0.5 ? 1 : -1);
+      o.smash = null;
+    }
+    // the mailbox and trampoline are 3D; they face the launcher unless their spot says otherwise
+    if ((kind === "mailbox" || kind === "trampoline") && o.yaw == null) o.yaw = Math.atan2(-x, CAM.z0 - z);
+    if (kind === "dog") {
+      const coats = [["#c8913f", "#f3e2c0"], ["#2a2626", "#f1ede6"], ["#7a4a2a", "#e9dcc7"], ["#e8d6b0", "#fff6e6"]];
+      [o.coat, o.belly] = coats[Math.floor(Math.random() * coats.length)];
+    }
+    if (kind === "neighbour") o.look = NEIGHBOUR_LOOKS[Math.floor(Math.random() * NEIGHBOUR_LOOKS.length)];
+    if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
+    return o;
+  }
+  // little marks a dog leaves on the lawn (a puddle that spreads, a small pile)
+  function addMark(kind, x, z) { (S.marks = S.marks || []).push({ kind, x, z, t: 0 }); if (S.marks.length > 14) S.marks.shift(); }
 
-  function startLevel(i) {
-    S.level = i; S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds()); S.bird = null; S.feathers = []; S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
+  // set a level's place up with fresh targets and props (also used behind the start card, to show the level picked)
+  function previewLevel(i) {
+    S.level = i; S.scene = sceneFor(LEVELS[i]); S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds());
+    S.bird = null; S.feathers = []; S.bits = []; S.pops = []; S.marks = []; S.preNote = null; S.bonus = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     S.yaw = 0; S.hole = 6; S.angDisp = ang(); // each level starts with the launcher straight ahead at 40°
+    S.scene.reset();
+    hud();
+  }
+  function startLevel(i) {
+    previewLevel(i);
+    S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
-    note(i === 0 ? "Level 1 · no wind · load a spud, then pump up" : `Level ${i + 1} · wind ${S.wind.kmh} km/h`);
+    const L = LEVELS[i];
+    note(`${i + 1} · ${L.name} · ${S.wind.kmh ? `wind ${S.wind.kmh} km/h` : "no wind"}${L.maxPsi && L.maxPsi < MAX_PSI ? ` · max ${L.maxPsi} PSI` : ""}`);
   }
 
   const canAdjust = () => S.phase === "aim" || S.phase === "loading";
@@ -718,8 +831,9 @@ body.lab .stage > :not(canvas) { display: none; }
     leaveArc();
     // with the valve open the air just rushes through: the needle twitches but falls back to 0
     if (valveOpen()) { S.kick = 1; S.pumpAnim = 1; S.loadMsg = 1.8; sfx.bleed(); return; }
-    if (S.psi >= MAX_PSI) { note("Gauge is maxed at 120 PSI"); return; }
-    S.psi = Math.min(MAX_PSI, Math.round((S.psi + 9 * (1 - S.psi / 170)) * 10) / 10);
+    const top = maxPsi();
+    if (S.psi >= top) { note(top < MAX_PSI ? `This level tops out at ${top} PSI` : `Gauge is maxed at ${top} PSI`); return; }
+    S.psi = Math.min(top, Math.round((S.psi + 9 * (1 - S.psi / 170)) * 10) / 10);
     S.pumpAnim = 1; sfx.pump(); hud();
   }
   function bleed() { if (!canAdjust() || S.psi <= 0) return; leaveArc(); S.psi = Math.max(0, Math.round(S.psi) - 1); sfx.bleed(); hud(); }
@@ -763,8 +877,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
-  // 10% of shots: a bird flies across and meets the spud near the top of its arc
-  const BIRD_STRIKE_CHANCE = 0.1;
+  // 5% of shots: a bird flies across and meets the spud near the top of its arc (birds are in every level)
+  const BIRD_STRIKE_CHANCE = 0.05;
   const SPECIES = [
     { name: "crow", body: "#2b2f36", wing: "#1d2026", size: 1.1, say: "CAW!", pitch: 700, call: "bird_long" },
     { name: "gull", body: "#eef2f5", wing: "#9aa6b0", size: 1.25, say: "SKREEE!", pitch: 1300, call: "bird_long" },
@@ -815,49 +929,60 @@ body.lab .stage > :not(canvas) { display: none; }
     } else if (b.state === "away") { b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; if (b.t > 6) S.bird = null; }
   }
 
-  function land(x, z, prop) {
-    S.potato = null; S.curArc.push([x, 0, z]); S.arc = S.curArc; S.curArc = [];
-    S.splats.push({ x, z, a: rnd(0, 6.28), last: true });
+  // −5 for hitting something alive (or a window), but the score never drops below 0; what was actually lost, and to
+  // whom, shows in the end-of-level tally
+  function penalize(name, msg) {
+    const lost = Math.min(5, S.score);
+    S.score -= lost; S.penalty = (S.penalty || 0) + lost;
+    if (lost) (S.penaltyItems = S.penaltyItems || []).push(name);
+    shotNote(`${msg} ${lost ? `−${lost}` : "(no points to lose yet)"}`);
+  }
+  // a +5 bonus, once per object per level
+  function award(prop) {
+    const D = PROPS[prop.kind];
+    if (prop.scored) { shotNote(`${D.msg} ${D.say} (bonus already won)`); return; }
+    prop.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
+    shotNote(`${D.msg} ${D.say} +5 bonus!`);
+  }
+  function scoreTarget(t) {
+    t.hit = true; t.flash = 1; S.score += t.pts; sfx.ring(t.pts);
+    shotNote(`${cap(tName(t))}! +${t.pts}`);
+  }
+  // where the spud ends up: on the ground at x, z, or in/on a prop, or on something in the place (hit: a house's
+  // wall, window or roof, or the spinner)
+  function land(x, z, prop, hit) {
+    const y = (hit && hit.y) || 0;
+    S.potato = null; S.curArc.push([x, y, z]); S.arc = S.curArc; S.curArc = [];
+    // (through a window it's gone inside: no splat)
+    if (!(hit && hit.kind === "window")) S.splats.push({ x, y, z, a: rnd(0, 6.28), last: true });
     S.splats.forEach((s, i) => (s.last = i === S.splats.length - 1));
-    const inside = prop ? [] : S.rings.filter((r) => Math.hypot(r.x - x, r.z - z) <= r.r).sort((a, b) => b.pts - a.pts);
+    // a trampoline bounce or the like earlier in this shot comes first in the note
+    const pre = S.preNote; S.preNote = null;
+    const inside = prop || hit ? [] : S.rings.filter((r) => r.form === "ring" && Math.hypot(r.x - x, r.z - z) <= r.r).sort((a, b) => b.pts - a.pts);
     const fresh = inside.find((r) => !r.hit);
-    if (prop && prop.kind === "junker" && prop.zone !== "glass") {
+    if (hit) landOn(hit, x, z);
+    else if (prop && prop.kind === "junker" && prop.zone !== "glass") {
       // the car's bodywork: the spud stops with a thunk, no points
       prop.t = 0; prop.say = "THUNK!"; sfx.thunk();
       shotNote("Thunk! That's the junker's bodywork. The bonus is for the windshield.");
+    } else if (prop && prop.kind === "trampoline" && prop.zone === "net") {
+      prop.t = 0; prop.say = "FWUMP"; sfx.thunk();
+      shotNote("Caught in the trampoline's net. The bonus is for dropping in onto the mat.");
     } else if (prop) {
       const D = PROPS[prop.kind];
       prop.t = 0; prop.say = null; sfx[D.sound]();
       if (prop.kind === "junker") smashWindshield(prop);
-      if (D.alive) {
-        // −5, but the score never drops below 0; what was actually lost, and to whom, shows in the end-of-level tally
-        const lost = Math.min(5, S.score);
-        S.score -= lost; S.penalty = (S.penalty || 0) + lost;
-        if (lost) (S.penaltyItems = S.penaltyItems || []).push(prop.kind);
-        shotNote(`${D.msg} ${D.say} ${lost ? `−${lost}` : "(no points to lose yet)"}`);
-      }
-      else if (!prop.scored) {
-        prop.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
-        shotNote(`${D.msg} ${D.say} +5 bonus!`);
-      }
-      else shotNote(`${D.msg} ${D.say} (bonus already won)`);
-    } else if (fresh) {
-      fresh.hit = true; fresh.flash = 1; S.score += fresh.pts; sfx.ring(fresh.pts);
-      shotNote(`${cap(RINGS[fresh.type].name)} ring! +${fresh.pts}`);
-    } else {
+      if (prop.kind === "leaves") scatterLeaves(prop);
+      if (prop.kind === "mailbox") burstMail(prop);
+      if (D.alive) penalize(D.label || prop.kind, `${D.msg} ${D.say}`);
+      else award(prop);
+    } else if (fresh) scoreTarget(fresh);
+    else {
       sfx.splat();
-      if (inside.length) shotNote(`In the ${RINGS[inside[0].type].name} ring, but it's already scored`);
-      else {
-        const open = S.rings.filter((r) => !r.hit);
-        if (open.length) {
-          const n = open.reduce((a, b) => (Math.hypot(a.x - x, a.z - z) < Math.hypot(b.x - x, b.z - z) ? a : b));
-          const dz = z - n.z, dx = x - n.x, parts = [];
-          if (Math.abs(dz) >= 0.1) parts.push(`${Math.abs(dz).toFixed(1)} m ${dz < 0 ? "short" : "long"}`);
-          if (Math.abs(dx) >= 0.1) parts.push(`${Math.abs(dx).toFixed(1)} m ${dx < 0 ? "left" : "right"}`);
-          shotNote(`${parts.join(", ")} of the ${RINGS[n.type].name} ring`);
-        } else shotNote("Splat.");
-      }
+      if (inside.length) shotNote(`In the ${tName(inside[0])}, but it's already scored`);
+      else shotNote(missNote(x, z) || "Splat.");
     }
+    if (pre) shotNote(`${pre} · ${shotEl.textContent}`);
     if (S.struck) {
       // the bird counts as an animal hit: −5, taken after this shot's ring points (never below 0), and named in the tally
       const lost = Math.min(5, S.score), kind = S.bird ? S.bird.sp.name : "bird";
@@ -872,34 +997,47 @@ body.lab .stage > :not(canvas) { display: none; }
     S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
     hud();
   }
+  // the spud hit something in the place itself
+  function landOn(hit, x, z) {
+    const miss = missNote(x, z), then = miss ? ` · ${miss}` : "";
+    if (hit.kind === "spinner") {
+      // it spins on its axle either way; it scores once
+      const t = hit.target; t.spin = (t.spin || 0) + 16; sfx.whirr();
+      if (!t.hit) scoreTarget(t); else shotNote(`The ${tName(t)} spins, but it's already scored`);
+    } else if (hit.kind === "roof") {
+      if (hit.ring && !hit.ring.hit) scoreTarget(hit.ring);
+      else { sfx.thunk(); shotNote(hit.ring ? `On the ${tName(hit.ring)}, but it's already scored` : `Up on the roof${then}`); }
+    } else if (hit.kind === "window") {
+      breakWindow(hit); sfx.glass();
+      S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "CRASH!", t: 0 });
+      penalize("window", "You broke a window! CRASH!");
+    } else {
+      sfx.thunk(); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "THUNK!", t: 0 });
+      shotNote(`Thunk! Off the side of a house${then}`);
+    }
+  }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
   const maxScore = () => S.rings.reduce((a, r) => a + r.pts, 0);
 
   function endLevel() {
     // clearing every ring earns +1 for each spud left over
     const spare = S.rings.every((r) => r.hit) ? S.spudsLeft : 0;
-    S.phase = "levelEnd"; S.levelScores[S.level] = { score: S.score, bonus: S.bonus, spare, max: maxScore() };
+    S.phase = "levelEnd";
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
     const counts = Object.keys(RINGS).map((t) => {
       const all = S.rings.filter((r) => r.type === t).length, got = hits.filter((r) => r.type === t).length;
       return `<span style="color:${RINGS[t].edge}"><i></i>${got}/${all}</span>`;
     }).join("");
-    const last = S.level === LEVELS.length - 1;
-    const allHit = S.rings.every((r) => r.hit);
-    let title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
-    let body = ""; // the tally says it all
-    let btns = `<button id="ovRetry" type="button">Replay level ${S.level + 1}</button>`;
-    if (last) {
-      // the round total includes the bonuses and the spare spuds
-      const tot = S.levelScores.reduce((a, s) => a + (s ? s.score + (s.bonus || 0) + (s.spare || 0) : 0), 0), mx = S.levelScores.reduce((a, s) => a + (s ? s.max : 0), 0);
-      let isBest = false;
-      if (best == null || tot > best) { best = tot; isBest = true; try { localStorage.setItem("pneuman-best", String(tot)); } catch (e) {} }
-      title = "All three fields done";
-      body = `Round total: ${tot}.${isBest ? " Your best yet!" : ` Your best: ${best}.`}`;
-      btns = `<button id="ovGo" type="button">Play again</button>` + btns;
-    } else btns = `<button id="ovGo" type="button">Next level</button>` + btns;
-    showCard(`Level ${S.level + 1} · rings hit`, title, body, counts, btns, last ? () => { S.levelScores = []; startLevel(0); } : () => startLevel(S.level + 1));
+    const allHit = S.rings.every((r) => r.hit), L = lvl(), next = (S.level + 1) % LEVELS.length;
+    const title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
+    // each level keeps its own best (the level total, with bonuses and spare spuds), since levels can be played in any order
+    const tot = S.score + S.bonus + spare, prev = getBest(L), isBest = prev == null || tot > prev;
+    if (isBest) setBest(L, tot);
+    const body = isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`;
+    const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
+    showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
+    $("ovPick").onclick = () => { audio(); showStart(S.level); };
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || []);
   }
   // end-of-level tally: the ring points count up; then any points lost to animals count down (naming them); then the
@@ -911,7 +1049,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // "cow ×2, chicken"
     const tallyNames = (list) => [...new Set(list)].map((k) => { const n = list.filter((x) => x === k).length; return n > 1 ? `${k} ×${n}` : k; }).join(", ");
     const what = items.length ? ` <small>(${items.join(", ")})</small>` : "";
-    const penaltyRow = penalty ? `<div class="trow minus"><span>Animals hit <small>(${tallyNames(hitAnimals)})</small></span><b id="tA">−0</b></div>` : "";
+    // "Animals hit" when it was only animals (birds included); "Penalties" once a window or a neighbour is in there
+    const onlyAnimals = hitAnimals.every((k) => (PROPS[k] && PROPS[k].animal) || k === "bird" || SPECIES.some((sp) => sp.name === k));
+    const penaltyRow = penalty ? `<div class="trow minus"><span>${onlyAnimals ? "Animals hit" : "Penalties"} <small>(${tallyNames(hitAnimals)})</small></span><b id="tA">−0</b></div>` : "";
     const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
     const spareRow = extra ? `<div class="trow bonus"><span>Spare spuds <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
     el.innerHTML = `<div class="trow in"><span>Rings</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
@@ -934,8 +1074,27 @@ body.lab .stage > :not(canvas) { display: none; }
     const run = (i) => setTimeout(() => steps[i](() => run(i + 1)), 250);
     count(tS, rings, "", Math.min(900, 250 + rings * 12), () => run(0));
   }
+  const bestKey = (L) => `pneuman-best-${L.id}`;
+  function getBest(L) { try { const v = localStorage.getItem(bestKey(L)); return v == null ? null : Number(v); } catch (e) { return null; } }
+  function setBest(L, v) { try { localStorage.setItem(bestKey(L), String(v)); } catch (e) {} }
+  // the start card: how to play, then a card for each level (its number big and faint behind its name), and the
+  // +5 / −5 pictures for the level picked. Picking one sets it up behind the card; Play starts it
+  let startPick = 0;
+  function showStart(sel = startPick) {
+    startPick = sel;
+    if (S.level !== sel || S.phase !== "title") { S.phase = "title"; previewLevel(sel); }
+    showCard("Pneumatic potato launcher", "Pneuman", "Load a spud, pump it up, set the angle and aim, then fire. Ten spuds per level; each target scores once. Clear them all to end the round. Pick a place:",
+      ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join(""),
+      `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button>`, () => startLevel(startPick));
+    const el = $("levels"); el.hidden = false;
+    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("");
+    [...el.children].forEach((b) => {
+      b.onclick = () => { audio(); const i = Number(b.dataset.i); if (i === startPick) startLevel(i); else showStart(i); };
+    });
+    $("extras").hidden = false; extrasFor(LEVELS[sel]);
+  }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
-    $("tally").hidden = true; $("extras").hidden = true; // the +5 / −5 pictures are for the start screen only
+    $("tally").hidden = true; $("extras").hidden = true; $("levels").hidden = true; // (the pictures and level cards are for the start card)
     $("ovEyebrow").textContent = eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body; $("ovBody").hidden = !body;
     $("legend").innerHTML = legendHtml; $("ovBtns").innerHTML = btnsHtml;
     $("ovGo").onclick = () => { audio(); go(); };
@@ -945,12 +1104,13 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= hud =================
   function hud() {
-    $("lvlOut").textContent = `${S.level + 1} / ${LEVELS.length}`;
+    $("lvlOut").textContent = `${S.level + 1} · ${lvl().name}`;
     $("scoreOut").textContent = `${S.score} / ${maxScore()}`;
     $("bonusOut").textContent = `+${S.bonus || 0}`; $("bonusOut").hidden = $("bonusK").hidden = !S.bonus;
     $("spudsOut").innerHTML = Array.from({ length: SPUDS }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("");
     // after a shot, the last pressure stays on show as a guide until the next one is fired
     const prev = S.lastPsi ? `<span class="prev">(prev. = ${S.lastPsi} psi)</span>` : "";
+    psiIn.max = maxPsi();
     $("psiOut").innerHTML = `${Math.round(S.psi)}<small>PSI</small>${prev}`; psiIn.value = Math.round(S.psi);
     $("angOut").innerHTML = `${ang()}<small>°</small>`; $("holeOut").textContent = `hole ${S.hole + 1}/${HOLES.length}`;
     [...$("holes").children].forEach((b, i) => b.classList.toggle("on", i === S.hole));
@@ -996,6 +1156,10 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.callT <= 0) { S.callT = rnd(20, 45); if (actx && !S.muted && $("overlay").hidden) sfx.birdCall(); }
     for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); updateJunker(o, dt); }
     updateBird(dt);
+    for (const t of S.rings) if (t.form === "spinner") updateSpinner(t, dt);
+    updateBits(dt);
+    for (const m of S.marks || []) m.t += dt;
+    S.scene.update(dt);
 
     const p = S.potato;
     if (p) {
@@ -1007,11 +1171,19 @@ body.lab .stage > :not(canvas) { display: none; }
         const py = p.y, px = p.x, pz = p.z;
         p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; p.rot += p.spin * h;
         if (p.y <= 0) { const t = py / (py - p.y); land(px + (p.x - px) * t, pz + (p.z - pz) * t); break; }
-        // a spud coming down into an animal or an object stops there (the junker checks its actual shape)
-        const hit = (S.props || []).find((o) => (o.kind === "junker" ? carHit(o, p) : p.y < o.h && Math.hypot(p.x - o.x, p.z - o.z) < o.r));
+        const prev = { x: px, y: py, z: pz };
+        // the place's own solid things (houses: walls, windows, roofs)
+        const sh = S.scene.collide(p, prev);
+        if (sh) { land(sh.land[0], sh.land[2], null, { ...sh, y: sh.land[1] }); break; }
+        // a spinner's disc, wherever it has turned to
+        const spun = S.rings.find((t) => t.form === "spinner" && spinnerHit(t, prev, p));
+        if (spun) { land(p.x, p.z, null, { kind: "spinner", target: spun }); break; }
+        // a spud coming down into an animal or an object stops there (the junker and trampoline check their actual shape)
+        const hit = (S.props || []).find((o) => (o.kind === "junker" ? carHit(o, p) : o.kind === "trampoline" ? (o.zone = trampHit(o, p, prev)) : p.y < o.y0 + o.h && p.y > o.y0 - 0.2 && Math.hypot(p.x - o.x, p.z - o.z) < o.r));
+        if (hit && hit.kind === "trampoline" && hit.zone === "mat" && Math.abs(p.vy) > 3) { bounce(hit, p); continue; }
         if (hit) { land(p.x, p.z, hit); break; }
       }
-      if (S.potato) { const l = S.curArc[S.curArc.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1], p.z - l[2]) > 0.8) S.curArc.push([p.x, p.y, p.z]); }
+      if (S.potato) { const l = S.curArc[S.curArc.length - 1] || [p.x, p.y, p.z]; if (Math.hypot(p.x - l[0], p.y - l[1], p.z - l[2]) > 0.8) S.curArc.push([p.x, p.y, p.z]); }
     }
     if (S.phase === "settle") { S.timer -= dt; if (S.timer <= 0) { const f = S.after; S.after = null; S.phase = "wait"; f && f(); } }
   }
@@ -1070,8 +1242,64 @@ body.lab .stage > :not(canvas) { display: none; }
     const ridge = (az, a, b, c) => Math.abs(Math.sin(az * a + 1)) * 0.5 + Math.abs(Math.sin(az * b + 2)) * 0.3 + Math.abs(Math.sin(az * c)) * 0.2;
     skyline("#a9c6d8", (az) => 0.012 + 0.05 * ridge(az, 4.1, 11, 23));
     skyline("#8fb4c4", (az) => 0.008 + 0.032 * ridge(az + 0.7, 6.3, 15, 31));
-    skyline("#9ad07a", (az) => 0.012 * (1 + Math.sin(az * 26 + 1)));
-    // plain grass with a few faint lighter and darker patches; the 10 m mowing stripes are a setting (off by default)
+    skyline(S.scene.hills, (az) => 0.012 * (1 + Math.sin(az * 26 + 1)));
+    // the place's ground and everything that's always behind the targets (far trees, fences)
+    S.scene.back();
+    // distance numbers down the left side of the field
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    let lastY = Infinity;
+    for (let z = 10; z <= 120; z += 10) {
+      const q = P(-z * 0.42 - 4, 0, z);
+      if (q.behind || q.x < 24 || lastY - q.y < 26) continue;
+      lastY = q.y;
+      ctx.font = `800 ${Math.max(10, Math.min(18, q.s * 2.2))}px Nunito, sans-serif`;
+      ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText(`${z} m`, q.x, q.y);
+    }
+
+    // rings flat on the ground, far to near
+    const rings = [...S.rings].sort((a, b) => b.z - a.z);
+    for (const r of rings) if (r.form === "ring") drawRing(r);
+    // splats on the ground, and what the dog left
+    for (const m of S.marks || []) drawMark(m);
+    for (const s of S.splats) if (!s.y) drawSplat(s);
+    // the last shot's path, dotted, appears once it has landed (none while a spud is in the air)
+    if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
+    // everything standing up, far to near, after splats so the numbers stay readable: ring flags, spinners, the props,
+    // and the place's own things (houses, which carry the roof ring, and yard trees)
+    const dist = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z);
+    const standing = [
+      ...rings.filter((r) => r.form !== "roof").map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : drawFlag(r)) })),
+      ...(S.props || []).map((o) => ({ d: dist(o), f: () => drawProp(o) })),
+      ...S.scene.standing.map((s) => ({ d: dist(s), f: () => s.draw(s) })),
+    ];
+    standing.sort((a, b) => b.d - a.d);
+    for (const s of standing) s.f();
+    // splats up on a roof, flying bits (leaves, letters, glass), the place's falling leaves, and its bubbles
+    for (const s of S.splats) if (s.y) drawSplat(s);
+    drawBits();
+    S.scene.front();
+    for (const b of S.pops || []) { const q = P(b.x, b.y + 1, b.z); if (!q.behind && b.t < 2.2) bubble(q.x, q.y, b.text, (2.2 - b.t) / 0.4); }
+    drawStrikeBird();
+
+    // potato, its shadow, and an off-screen marker when it flies above the view
+    if (S.potato) {
+      const p = S.potato, sh = P(p.x, 0, p.z), q = P(p.x, p.y, p.z), rr = Math.max(2.5, 0.09 * q.s);
+      ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rr * 1.3, rr * 0.45, 0, 0, 7); ctx.fill();
+      if (q.y < 6) {
+        ctx.fillStyle = "#23303a"; ctx.beginPath(); ctx.moveTo(q.x, 6); ctx.lineTo(q.x - 8, 18); ctx.lineTo(q.x + 8, 18); ctx.fill();
+        ctx.font = "800 12px Nunito, sans-serif"; ctx.fillStyle = "#23303a"; ctx.textAlign = "center"; ctx.fillText(`${Math.round(p.y)} m up`, q.x, 30);
+      } else drawPotato(q.x, q.y, rr, p.rot);
+    }
+
+    drawWindsock();
+    drawLauncher();
+    // the corner map would cover part of the arc, so it steps aside while viewing the arc
+    if (S.arcView == null) drawMinimap();
+    if (S.loadMsg > 0) drawLoadFirst();
+  }
+  // the pasture's ground: plain grass with a few faint lighter and darker patches (the 10 m mowing stripes are a
+  // setting, off by default), the stream, then the trees and fence panels far to near, then tufts
+  function pastureBack() {
     ctx.fillStyle = "#73c94f"; ctx.fillRect(0, HZ, W, H - HZ);
     if (S.stripes) {
       ctx.fillStyle = "#67bb45";
@@ -1096,45 +1324,6 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.strokeStyle = t.dark ? "#4e9a35" : "#8fd96a"; ctx.lineWidth = Math.max(1, 0.04 * q.s); ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(q.x - h * 0.35, q.y - h * 0.8); ctx.lineTo(q.x, q.y); ctx.lineTo(q.x, q.y - h); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + h * 0.4, q.y - h * 0.75); ctx.stroke();
     }
-    // distance numbers down the left side of the field
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    let lastY = Infinity;
-    for (let z = 10; z <= 120; z += 10) {
-      const q = P(-z * 0.42 - 4, 0, z);
-      if (q.behind || q.x < 24 || lastY - q.y < 26) continue;
-      lastY = q.y;
-      ctx.font = `800 ${Math.max(10, Math.min(18, q.s * 2.2))}px Nunito, sans-serif`;
-      ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText(`${z} m`, q.x, q.y);
-    }
-
-    // rings, far to near
-    const rings = [...S.rings].sort((a, b) => b.z - a.z);
-    for (const r of rings) drawRing(r);
-    // splats
-    for (const s of S.splats) drawSplat(s);
-    // the last shot's path, dotted, appears once it has landed (none while a spud is in the air)
-    if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
-    // ring flags and the props standing in the field, far to near, after splats so the numbers stay readable
-    const standing = [...rings.map((r) => ({ d: Math.hypot(r.x - CAM.x, r.z - CAM.z), r })), ...(S.props || []).map((o) => ({ d: Math.hypot(o.x - CAM.x, o.z - CAM.z), o }))];
-    standing.sort((a, b) => b.d - a.d);
-    for (const s of standing) s.r ? drawFlag(s.r) : drawProp(s.o);
-    drawStrikeBird();
-
-    // potato, its shadow, and an off-screen marker when it flies above the view
-    if (S.potato) {
-      const p = S.potato, sh = P(p.x, 0, p.z), q = P(p.x, p.y, p.z), rr = Math.max(2.5, 0.09 * q.s);
-      ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rr * 1.3, rr * 0.45, 0, 0, 7); ctx.fill();
-      if (q.y < 6) {
-        ctx.fillStyle = "#23303a"; ctx.beginPath(); ctx.moveTo(q.x, 6); ctx.lineTo(q.x - 8, 18); ctx.lineTo(q.x + 8, 18); ctx.fill();
-        ctx.font = "800 12px Nunito, sans-serif"; ctx.fillStyle = "#23303a"; ctx.textAlign = "center"; ctx.fillText(`${Math.round(p.y)} m up`, q.x, 30);
-      } else drawPotato(q.x, q.y, rr, p.rot);
-    }
-
-    drawWindsock();
-    drawLauncher();
-    // the corner map would cover part of the arc, so it steps aside while viewing the arc
-    if (S.arcView == null) drawMinimap();
-    if (S.loadMsg > 0) drawLoadFirst();
   }
   // a comic speech bubble over something in the field
   function bubble(x, y, text, alpha = 1) {
@@ -1221,7 +1410,8 @@ body.lab .stage > :not(canvas) { display: none; }
       decal(pts, color);
     };
     const { len, half, sill, belt, roof, wsBot, wsTop, rwTop, rwBot, cabHalf, roofHalf } = CAR;
-    const paint = "#5f8550", primer = "#8e9690", rust = "#7a4a26", chrome = "#c9ced2", glass = "#a7c9d9", tire = "#1d1d1f";
+    // faded green, unless this one has its own paint (the driveway junker in the cul de sac)
+    const paint = o.paint || "#5f8550", top = o.roofPaint || "#59804b", primer = "#8e9690", rust = "#7a4a26", chrome = "#c9ced2", glass = "#a7c9d9", tire = "#1d1d1f";
     // its shadow
     const sh = [[-half - 0.25, 0.01, -len - 0.1], [half + 0.25, 0.01, -len - 0.1], [half + 0.25, 0.01, len + 0.15], [-half - 0.25, 0.01, len + 0.15]].map((p) => [p[0] + SHADOW.x * 0.6, p[1], p[2] + SHADOW.z * 0.6]);
     if (!o.thumb && pathClip(sh.map(Wp))) { ctx.fillStyle = "rgba(30,60,25,.22)"; ctx.fill(); }
@@ -1275,7 +1465,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const nRw = (() => { const dy = roof - belt, dz = rwTop - rwBot, l = Math.hypot(dy, dz); return [0, dz / l, -dy / l]; })();
     const wsCorners = [[-cabHalf, belt, wsBot], [cabHalf, belt, wsBot], [roofHalf, roof, wsTop], [-roofHalf, roof, wsTop]];
     const wsVis = face(wsCorners, glass, nWs, false);
-    face([[roofHalf, roof, wsTop], [-roofHalf, roof, wsTop], [-roofHalf, roof, rwTop], [roofHalf, roof, rwTop]], "#59804b", [0, 1, 0]);
+    face([[roofHalf, roof, wsTop], [-roofHalf, roof, wsTop], [-roofHalf, roof, rwTop], [roofHalf, roof, rwTop]], top, [0, 1, 0]);
     face([[-roofHalf, roof, rwTop], [roofHalf, roof, rwTop], [cabHalf, belt, rwBot], [-cabHalf, belt, rwBot]], "#7d9fb0", nRw, false);
     for (const sx of [-1, 1]) {
       const n = [sx * 0.95, 0.31, 0];
@@ -1338,6 +1528,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // the props are drawn from simple shapes measured in metres (m) from their base point
   function drawProp(o) {
     if (o.kind === "junker") { drawJunker(o); return; }
+    if (PROP_DRAW[o.kind]) { PROP_DRAW[o.kind](o); return; }
     const b = P(o.x, 0, o.z);
     // off screen: skip it (except a face-only portrait, whose feet are always out of the picture)
     if (b.behind || (!o.faceOnly && (b.x < -80 || b.x > W + 80 || b.y < -40 || b.y > H + 80))) return;
@@ -1904,9 +2095,791 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     ctx.restore();
   }
-  function groundCircle(x, z, r, n = 40) {
+
+  // ================= building blocks =================
+  // pieces any level can reuse: solid 3D things, places (each a "scene"), and the targets and props that live in them
+
+  // light from the sun, for shading the faces of solid things
+  const SUN_L = (() => { const v = [Math.sin(SUN.az), 0.8, Math.cos(SUN.az)], l = Math.hypot(...v); return v.map((c) => c / l); })();
+  // a solid thing in its own frame (x to its right, y up, z toward its front), standing at o.x, o.z, turned by o.yaw.
+  // face() draws a face only if it faces the camera, lit by the sun and hazed with distance
+  function solid(o) {
+    const c = Math.cos(o.yaw), s = Math.sin(o.yaw);
+    const Wp = ([lx, ly, lz]) => [o.x + lx * c + lz * s, ly, o.z - lx * s + lz * c];
+    const nW = ([nx, ny, nz]) => [nx * c + nz * s, ny, -nx * s + nz * c];
+    const hz = (col) => (col[0] === "#" || col.startsWith("rgb(") ? haze(col, o.x, o.z) : col);
+    const facing = (pts, n) => {
+      const nw = nW(n), k = 1 / pts.length;
+      let mx = 0, my = 0, mz = 0;
+      for (const p of pts.map(Wp)) { mx += p[0] * k; my += p[1] * k; mz += p[2] * k; }
+      return nw[0] * (CAM.x - mx) + nw[1] * (CAM.y - my) + nw[2] * (CAM.z - mz) > 0;
+    };
+    const face = (pts, color, n, edge = "rgba(30,34,38,.35)") => {
+      if (!facing(pts, n)) return false;
+      const nw = nW(n), lit = 0.74 + 0.3 * Math.max(0, nw[0] * SUN_L[0] + nw[1] * SUN_L[1] + nw[2] * SUN_L[2]);
+      if (!pathClip(pts.map(Wp))) return false;
+      ctx.fillStyle = haze(shadeHex(color, lit - 1), o.x, o.z); ctx.fill();
+      if (edge) { ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke(); }
+      return true;
+    };
+    const decal = (pts, color, stroke, w = 1) => {
+      if (!pathClip(pts.map(Wp))) return;
+      if (color) { ctx.fillStyle = hz(color); ctx.fill(); }
+      if (stroke) { ctx.strokeStyle = hz(stroke); ctx.lineWidth = w; ctx.stroke(); }
+    };
+    const line = (a, b, color, w) => { if (pathClip([Wp(a), Wp(b)], false)) { ctx.strokeStyle = hz(color); ctx.lineWidth = Math.max(1, w); ctx.lineCap = "round"; ctx.stroke(); } };
+    return { Wp, nW, face, decal, line, facing, at: (p) => P(...Wp(p)), u: P(o.x, 0, o.z).s };
+  }
+  // a box from corner a to corner b in a solid's frame; says which faces showed
+  function box3(sd, [x0, y0, z0], [x1, y1, z1], color, o = {}) {
+    return {
+      front: sd.face([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], o.front || color, [0, 0, 1], o.edge),
+      back: sd.face([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], color, [0, 0, -1], o.edge),
+      left: sd.face([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], color, [-1, 0, 0], o.edge),
+      right: sd.face([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], color, [1, 0, 0], o.edge),
+      top: o.noTop ? false : sd.face([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], o.top || color, [0, 1, 0], o.edge),
+    };
+  }
+  // a small billboard drawing kit for figures (people, dogs), measured in metres up from their base point
+  function billboard(o) {
+    const b = P(o.x, o.y0 || 0, o.z), u = b.s, f = o.face || 1;
+    const X = (m) => b.x + m * u * f, Y = (m) => b.y - m * u;
+    const ell = (x, y, rx, ry, fill, stroke, rot = 0) => { ctx.beginPath(); ctx.ellipse(X(x), Y(y), Math.max(0.5, rx * u), Math.max(0.5, ry * u), rot * f, 0, 7); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.03 * u); ctx.stroke(); } };
+    const line = (x0, y0, x1, y1, w, color) => { ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, w * u); ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke(); };
+    const poly = (pts, fill, stroke) => {
+      ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.025 * u); ctx.stroke(); }
+    };
+    return { b, u, X, Y, ell, line, poly };
+  }
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+  // ---- places ----
+  // a scene draws its ground and far things (back), lists what stands up in it (standing: drawn far to near with
+  // the props), draws anything over the top (front), says where things may go (free), what a spud hits (collide),
+  // fixed spots for some props (spots), the roofs a ring can go on (roofTargets), and draws itself on the corner map
+  const PASTURE = {
+    hills: "#9ad07a", back: pastureBack, standing: [], front() {}, update() {}, reset() {},
+    free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
+  };
+  let CUL = null;
+  const sceneFor = (L) => (L.scene === "culdesac" ? CUL || (CUL = buildCulDeSac()) : PASTURE);
+
+  // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
+  // local frame: z toward the street (the front); the roof's front slope faces the street, so a ring can go on it
+  const HOUSE_LOOKS = [
+    { wall: "#b4563e", trim: "#f4efe6", roof: "#4a4a50", shut: "#2f3a2f" }, // red brick
+    { wall: "#d9c8a4", trim: "#ffffff", roof: "#5b5149", shut: "#6b4a2b" }, // beige siding
+    { wall: "#9db2c2", trim: "#ffffff", roof: "#3f434a", shut: "#2c3e55" }, // grey-blue siding
+    { wall: "#efece4", trim: "#ffffff", roof: "#555a60", shut: "#2f4a3a" }, // white
+    { wall: "#c99b6c", trim: "#f6efe0", roof: "#4b3f38", shut: null },      // tan
+    { wall: "#b7c4a2", trim: "#ffffff", roof: "#4c4f4a", shut: "#5a3a2a" }, // sage
+    { wall: "#a8746a", trim: "#f1ebe1", roof: "#463c3a", shut: null },      // dusty rose brick
+  ];
+  const DOOR_COLORS = ["#7a2a24", "#2c4a6e", "#2f5a3a", "#3a3a3a", "#b8862e"];
+  const SHRUB_COLORS = ["#3e6b34", "#7b2f2f", "#567a3a", "#9a3b2a"]; // (the red ones are burning bushes, in the fall)
+  function makeHouse(x, z, yaw, look, bulb, porch = Math.random() < 0.7) {
+    const w = rnd(11.5, 13.5), d = rnd(9.5, 10.8), hw = 5.8, hr = hw + d * 0.37;
+    const h = { x, z, yaw, w, d, hw, hr, ov: 0.45, k: (hr - hw) / (d / 2), look, bulb, porch,
+      gs: Math.random() < 0.5 ? 1 : -1, gw: 6.4, gh: 3.1, gd: d - 1.4, door: pick(DOOR_COLORS), windows: [], shrubs: [] };
+    // the garage's side (x from gx0 to gx1); the front door sits a little toward the other side
+    h.gx0 = h.gs > 0 ? w / 2 : -w / 2 - h.gw; h.gx1 = h.gs > 0 ? w / 2 + h.gw : -w / 2;
+    h.doorX = -h.gs * w * 0.12;
+    // windows: three upstairs on the front, two downstairs beside the door, and both floors on the end wall
+    // away from the garage (u runs along the wall; y0..y1 is its height)
+    const cols = [-w * 0.33, 0, w * 0.33];
+    for (const u of cols) h.windows.push({ face: "front", u, y0: 3.5, y1: 4.9, hu: 0.65 });
+    for (const u of cols) if (Math.abs(u - h.doorX) > 1.6) h.windows.push({ face: "front", u, y0: 1.0, y1: 2.4, hu: 0.7 });
+    const end = h.gs > 0 ? "L" : "R";
+    for (const u of [-d * 0.22, d * 0.22]) for (const [y0, y1] of [[1.0, 2.3], [3.5, 4.8]]) h.windows.push({ face: end, u, y0, y1, hu: 0.55 });
+    // shrubs along the front, clear of the door
+    for (let u = -w / 2 + 0.9; u < w / 2 - 0.5; u += rnd(1.2, 1.9)) if (Math.abs(u - h.doorX) > (porch ? 2.8 : 1.1)) h.shrubs.push({ u, s: rnd(0.45, 0.7), c: pick(SHRUB_COLORS) });
+    return h;
+  }
+  // a rectangle on one of the house's walls, in its frame: a from-to along the wall, y0 to y1 up it
+  function wallRect(h, face, a, b, y0, y1) {
+    const e = 0.03;
+    if (face === "front") { const z = h.d / 2 + e; return [[a, y0, z], [b, y0, z], [b, y1, z], [a, y1, z]]; }
+    const x = (face === "R" ? 1 : -1) * (h.w / 2 + e);
+    return [[x, y0, a], [x, y0, b], [x, y1, b], [x, y1, a]];
+  }
+  const winRect = (h, wn, pad = 0) => wallRect(h, wn.face, wn.u - wn.hu - pad, wn.u + wn.hu + pad, wn.y0 - pad, wn.y1 + pad);
+  function drawWindow(h, sd, wn) {
+    const L = h.look, u = sd.u;
+    sd.decal(winRect(h, wn, 0.1), L.trim);
+    if (L.shut && wn.face === "front") for (const sgn of [-1, 1]) {
+      const a = wn.u + sgn * (wn.hu + 0.14), b = a + sgn * 0.42;
+      sd.decal(wallRect(h, "front", Math.min(a, b), Math.max(a, b), wn.y0 - 0.05, wn.y1 + 0.05), L.shut);
+    }
+    sd.decal(winRect(h, wn), wn.broken ? "#2b3036" : "#9cc3d6");
+    // inside the glass: corners on screen, so we can draw across it
+    const q = winRect(h, wn).map((p) => sd.at(p));
+    const at = (a, v) => [q[0].x + (q[1].x - q[0].x) * a + (q[3].x - q[0].x) * v, q[0].y + (q[1].y - q[0].y) * a + (q[3].y - q[0].y) * v];
+    const seg = (p0, p1, color, w) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke(); };
+    if (!wn.broken) {
+      // the glazing bars and a glint
+      if (u > 2.5) { seg(at(0.5, 0), at(0.5, 1), haze(L.trim, h.x, h.z), Math.max(1, 0.06 * u)); seg(at(0, 0.5), at(1, 0.5), haze(L.trim, h.x, h.z), Math.max(1, 0.06 * u)); }
+      seg(at(0.15, 0.2), at(0.35, 0.8), "rgba(255,255,255,.55)", Math.max(1, 0.05 * u));
+    } else {
+      // smashed: cracks out from where it hit, and a ring joining them
+      const bk = wn.broken, c = at(bk.u, bk.v);
+      ctx.lineCap = "round";
+      for (const [a, l] of bk.rays) seg(c, at(bk.u + Math.cos(a) * l, bk.v + Math.sin(a) * l * 1.2), "rgba(235,245,250,.85)", 1);
+      ctx.strokeStyle = "rgba(235,245,250,.6)"; ctx.lineWidth = 1; ctx.beginPath();
+      bk.rays.forEach(([a, l], i) => { const p = at(bk.u + Math.cos(a) * l * 0.45, bk.v + Math.sin(a) * l * 0.54); i ? ctx.lineTo(...p) : ctx.moveTo(...p); });
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+  function breakWindow(hit) {
+    const [u, v] = hit.uv;
+    hit.win.broken = { u, v, rays: Array.from({ length: 9 }, (_, i) => [(i / 9) * Math.PI * 2 + rnd(-0.25, 0.25), rnd(0.35, 0.8)]) };
+    for (let i = 0; i < 10; i++) S.bits.push({ kind: "glass", x: hit.at[0], y: hit.at[1], z: hit.at[2], vx: rnd(-1.2, 1.2), vy: rnd(0.3, 2), vz: rnd(-1.2, 1.2), a: rnd(0, 6), s: rnd(0.05, 0.1), c: "rgba(215,235,245,.9)", t: 0, ph: rnd(0, 6) });
+  }
+  function drawRoofRing(h, sd, t) {
+    const R = RINGS[t.type], ring = Array.from({ length: 28 }, (_, i) => {
+      const a = (i / 28) * Math.PI * 2, x = t.lx + Math.cos(a) * t.r, z = t.lz + Math.sin(a) * t.r * t.cosR;
+      return [x, h.hr - h.k * z + 0.03, z];
+    });
+    if (!pathClip(ring.map(sd.Wp))) return;
+    // painted on the shingles, a bit more solid than the ground rings so it reads against the dark roof
+    ctx.fillStyle = t.hit ? "rgba(255,255,255,.6)" : hexA(R.color, 0.6); ctx.fill();
+    ctx.lineWidth = Math.max(1.4, 0.16 * sd.u); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
+    ctx.lineWidth = Math.max(0.8, 0.1 * sd.u); ctx.strokeStyle = t.hit ? "#cfd6da" : R.edge; ctx.stroke();
+    // its flag stands up from the ring's top edge, toward the ridge
+    const fz = t.lz - t.r * t.cosR;
+    drawFlag(t, sd.Wp([t.lx, h.hr - h.k * fz, fz]));
+  }
+  function drawHouse(h) {
+    const c0 = P(h.x, 0, h.z);
+    if (c0.behind && Math.hypot(h.x - CAM.x, h.z - CAM.z) > 25) return;
+    if (c0.x < -W * 1.5 || c0.x > W * 2.5) return;
+    const sd = solid(h), L = h.look, u = sd.u, { w, d, hw, hr, ov, k, gw, gh, gd, gx0, gx1 } = h, hx = w / 2, hzz = d / 2;
+    const body = () => {
+      const f = box3(sd, [-hx, 0, -hzz], [hx, hw, hzz], L.wall, { noTop: true });
+      // the gable ends, up to the ridge
+      sd.face([[-hx, hw, -hzz], [-hx, hw, hzz], [-hx, hr, 0]], L.wall, [-1, 0, 0]);
+      sd.face([[hx, hw, hzz], [hx, hw, -hzz], [hx, hr, 0]], L.wall, [1, 0, 0]);
+      // siding lines, a band between the floors, and corner boards
+      if (f.front) {
+        if (u > 5) for (let y = 0.4; y < hw; y += 0.45) sd.line([-hx, y, hzz + 0.01], [hx, y, hzz + 0.01], "rgba(0,0,0,.06)", 1);
+        sd.line([-hx, 3.05, hzz + 0.02], [hx, 3.05, hzz + 0.02], L.trim, 0.12 * u);
+        for (const sx of [-1, 1]) sd.line([sx * hx, 0, hzz + 0.02], [sx * hx, hw, hzz + 0.02], L.trim, 0.16 * u);
+      }
+      for (const wn of h.windows) if (f[{ front: "front", L: "left", R: "right" }[wn.face]]) drawWindow(h, sd, wn);
+      if (f.front) {
+        sd.decal(wallRect(h, "front", h.doorX - 0.65, h.doorX + 0.65, 0, 2.45), L.trim);
+        sd.decal(wallRect(h, "front", h.doorX - 0.5, h.doorX + 0.5, 0, 2.3), h.door);
+      }
+      // the roof, past the walls a little, with shingle rows and trim along its edges
+      const RX = hx + ov, RZ = hzz + ov, ey = hw - ov * k, rise = hr - ey, nl = Math.hypot(RZ, rise);
+      const front = sd.face([[RX, ey, RZ], [-RX, ey, RZ], [-RX, hr, 0], [RX, hr, 0]], L.roof, [0, RZ / nl, rise / nl]);
+      sd.face([[-RX, ey, -RZ], [RX, ey, -RZ], [RX, hr, 0], [-RX, hr, 0]], L.roof, [0, RZ / nl, -rise / nl]);
+      if (front) {
+        for (let i = 1; i < 5; i++) sd.line([-RX, ey + rise * i / 5, RZ * (1 - i / 5)], [RX, ey + rise * i / 5, RZ * (1 - i / 5)], "rgba(0,0,0,.14)", 1);
+        sd.line([-RX, ey, RZ], [RX, ey, RZ], L.trim, 0.12 * u);
+        const ring = S.rings.find((t) => t.house === h);
+        if (ring) drawRoofRing(h, sd, ring);
+      }
+      for (const sx of [-1, 1]) { sd.line([sx * RX, ey, RZ], [sx * RX, hr, 0], L.trim, 0.1 * u); sd.line([sx * RX, hr, 0], [sx * RX, ey, -RZ], L.trim, 0.1 * u); }
+      // a brick chimney at the far end of the ridge
+      const cx = -h.gs * (hx - 1.3);
+      box3(sd, [cx - 0.45, hr - 0.3, -1.6], [cx + 0.45, hr + 1.1, -0.7], "#8e4a36");
+      // a porch over the front door, then the shrubs along the front
+      if (h.porch && f.front) {
+        const x0 = h.doorX - 2.3, x1 = h.doorX + 2.3, z1 = hzz + 2;
+        box3(sd, [x0, 0, hzz], [x1, 0.35, z1], "#c9c4ba");
+        for (const px of [x0 + 0.25, x1 - 0.25]) box3(sd, [px - 0.1, 0.35, z1 - 0.35], [px + 0.1, 2.85, z1 - 0.15], L.trim);
+        box3(sd, [x0 - 0.15, 2.85, hzz], [x1 + 0.15, 3.05, z1 + 0.1], L.roof);
+      }
+      if (f.front) for (const s of h.shrubs) {
+        const q = sd.at([s.u, 0, hzz + 0.7]), r = s.s * q.s;
+        if (q.behind) continue;
+        ctx.fillStyle = haze(s.c, h.x, h.z); ctx.beginPath(); ctx.ellipse(q.x, q.y - r * 0.7, r * 1.15, r * 0.85, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = haze(shadeHex(s.c, 0.18), h.x, h.z); ctx.beginPath(); ctx.ellipse(q.x - r * 0.3, q.y - r * 0.95, r * 0.5, r * 0.35, 0, 0, 7); ctx.fill();
+      }
+    };
+    const garage = () => {
+      const z0 = hzz - gd, zc = hzz - gd / 2, gr = gh + 0.9, xo = h.gs > 0 ? gx1 : gx0;
+      const f = box3(sd, [gx0, 0, z0], [gx1, gh, hzz], L.wall, { noTop: true });
+      sd.face([[xo, gh, h.gs > 0 ? hzz : z0], [xo, gh, h.gs > 0 ? z0 : hzz], [xo, gr, zc]], L.wall, [h.gs, 0, 0]);
+      if (f.front) {
+        sd.decal(wallRect(h, "front", gx0 + 0.6, gx1 - 0.6, 0, 2.5), L.trim);
+        sd.decal(wallRect(h, "front", gx0 + 0.75, gx1 - 0.75, 0, 2.35), "#e4e0d6");
+        for (let y = 0.6; y < 2.35; y += 0.58) sd.line([gx0 + 0.75, y, hzz + 0.04], [gx1 - 0.75, y, hzz + 0.04], "rgba(0,0,0,.18)", 1);
+      }
+      const xa = gx0 - (h.gs < 0 ? 0.3 : 0), xb = gx1 + (h.gs > 0 ? 0.3 : 0), Rf = hzz + 0.3 - zc, Rb = zc - (z0 - 0.3), rise = gr - gh + 0.15;
+      sd.face([[xb, gh - 0.15, hzz + 0.3], [xa, gh - 0.15, hzz + 0.3], [xa, gr, zc], [xb, gr, zc]], L.roof, [0, Rf / Math.hypot(Rf, rise), rise / Math.hypot(Rf, rise)]);
+      sd.face([[xa, gh - 0.15, z0 - 0.3], [xb, gh - 0.15, z0 - 0.3], [xb, gr, zc], [xa, gr, zc]], L.roof, [0, Rb / Math.hypot(Rb, rise), -rise / Math.hypot(Rb, rise)]);
+    };
+    // the garage and the house are drawn farther one first
+    const gc = sd.Wp([(gx0 + gx1) / 2, 0, hzz - gd / 2]);
+    if (Math.hypot(gc[0] - CAM.x, gc[2] - CAM.z) > Math.hypot(h.x - CAM.x, h.z - CAM.z)) { garage(); body(); } else { body(); garage(); }
+  }
+  // is x, z within m of the house (its walls, porch and garage)?
+  function houseNear(h, x, z, m) {
+    const [lx, lz] = carToLocal(h, x, z), hz = h.d / 2;
+    const porch = h.porch && Math.abs(lx - h.doorX) < 2.5 + m ? 2 : 0;
+    if (Math.abs(lx) <= h.w / 2 + m && lz >= -hz - m && lz <= hz + m + porch) return true;
+    return lx >= h.gx0 - m && lx <= h.gx1 + m && lz >= hz - h.gd - m && lz <= hz + m;
+  }
+  // has the spud (now at p, a moment ago at q) hit the house, and where: a roof (maybe its ring), a window, or a wall.
+  // at: where it hit; land: where it comes to rest (on the roof, or at the foot of the wall)
+  function houseHit(h, p, q) {
+    const c = Math.cos(h.yaw), s = Math.sin(h.yaw);
+    const toL = (pt) => { const dx = pt.x - h.x, dz = pt.z - h.z; return [dx * c - dz * s, pt.y, dx * s + dz * c]; };
+    const Wl = (lx, ly, lz) => [h.x + lx * c + lz * s, ly, h.z - lx * s + lz * c];
+    const [bx, by, bz] = toL(p), hx = h.w / 2, hz = h.d / 2, RX = hx + h.ov, RZ = hz + h.ov;
+    if (by > h.hr + 0.5 || bx < Math.min(-RX, h.gx0) - 1 || bx > Math.max(RX, h.gx1) + 1 || Math.abs(bz) > RZ + 1) return null;
+    const [ax, ay, az] = toL(q), roofY = (z) => h.hr - h.k * Math.abs(z);
+    const inBody = Math.abs(bx) <= hx && Math.abs(bz) <= hz && by <= roofY(bz);
+    const inEaves = Math.abs(bx) <= RX && Math.abs(bz) <= RZ && by <= roofY(bz) && by >= roofY(bz) - 0.35;
+    if (inBody || inEaves) {
+      // which wall it came in through, if any
+      let face = null, t = 0;
+      if (ay <= roofY(Math.min(Math.abs(az), RZ)) - 0.05) {
+        if (az > hz && bz <= hz) { face = "front"; t = (az - hz) / (az - bz); }
+        else if (az < -hz && bz >= -hz) { face = "back"; t = (az + hz) / (az - bz); }
+        else if (ax < -hx && bx >= -hx) { face = "L"; t = (ax + hx) / (ax - bx); }
+        else if (ax > hx && bx <= hx) { face = "R"; t = (ax - hx) / (ax - bx); }
+      }
+      if (!face) {
+        // down onto the roof: the ring is an ellipse on the ground plan (the slope squashes it front to back)
+        const y = roofY(bz), ring = S.rings.find((r) => r.house === h && bz > 0 && Math.hypot((bx - r.lx) / r.r, (bz - r.lz) / (r.r * r.cosR)) <= 1);
+        return { kind: "roof", house: h, ring, at: Wl(bx, y, bz), land: Wl(bx, y + 0.05, bz) };
+      }
+      const x = ax + (bx - ax) * t, y = ay + (by - ay) * t, z = az + (bz - az) * t, along = face === "front" || face === "back" ? x : z;
+      const win = h.windows.find((wn) => wn.face === face && Math.abs(along - wn.u) <= wn.hu && y >= wn.y0 && y <= wn.y1);
+      const n = { front: [0, 1], back: [0, -1], L: [-1, 0], R: [1, 0] }[face], foot = Wl(x + n[0] * 0.35, 0, z + n[1] * 0.35);
+      if (win) return { kind: "window", house: h, win, uv: [(along - (win.u - win.hu)) / (2 * win.hu), (y - win.y0) / (win.y1 - win.y0)], at: Wl(x, y, z), land: foot };
+      return { kind: "wall", house: h, at: Wl(x, y, z), land: foot };
+    }
+    // the garage: a low box with a shallow roof
+    const z0 = hz - h.gd, zc = hz - h.gd / 2, gTop = (z) => h.gh + 0.9 * (1 - Math.abs(z - zc) / (h.gd / 2));
+    if (bx >= h.gx0 && bx <= h.gx1 && bz >= z0 && bz <= hz && by <= gTop(bz)) {
+      if (ay > gTop(Math.max(z0, Math.min(hz, az))) - 0.05) return { kind: "roof", house: h, at: Wl(bx, gTop(bz), bz), land: Wl(bx, gTop(bz) + 0.05, bz) };
+      return { kind: "wall", house: h, at: Wl(bx, by, bz), land: Wl(ax, 0, az) };
+    }
+    return null;
+  }
+
+  // ---- fall trees: tall deciduous trees turning colour, some with a good part of their leaves already down ----
+  const FALL_KINDS = {
+    maple: { h: [13, 18], w: [9, 12], cols: ["#d9481e", "#e86a24", "#c7321f", "#f08a2c"] },
+    oak:   { h: [14, 19], w: [11, 14], cols: ["#a4501f", "#b8692a", "#8d4a22", "#c98a3a"] },
+    birch: { h: [11, 15], w: [5, 7], cols: ["#f2c230", "#e8b42a", "#f6d45a"], bark: "#e9e7de" },
+    ash:   { h: [14, 20], w: [8, 11], cols: ["#d9b23a", "#c9a836", "#b8a03e", "#e3c450"] },
+  };
+  const LEAF_COLS = ["#d9481e", "#e86a24", "#f2c230", "#c98a3a", "#a4501f", "#e3c450", "#b8692a"];
+  function makeFallTree(x, z, scale = 1) {
+    const kind = pick(Object.keys(FALL_KINDS)), K = FALL_KINDS[kind];
+    // how bare it is: most have lost a few leaves, some a lot (their limbs show through)
+    const bare = Math.random() < 0.3 ? rnd(0.4, 0.65) : rnd(0, 0.2);
+    const blobs = Array.from({ length: 12 }, () => ({ x: rnd(-0.36, 0.36), y: rnd(0.45, 0.9), r: rnd(0.16, 0.27), c: pick(K.cols) })).filter(() => Math.random() > bare).sort((a, b) => a.y - b.y);
+    const limbs = Array.from({ length: 6 }, (_, i) => ({ a: -1.1 + i * 0.44 + rnd(-0.1, 0.1), l: rnd(0.28, 0.42), y: rnd(0.38, 0.55) }));
+    return { kind, x, z, h: rnd(...K.h) * scale, w: rnd(...K.w) * scale, blobs, limbs, bark: K.bark || "#5a4130", cols: K.cols, shade: rnd(-0.06, 0.06), draw: drawFallTree };
+  }
+  function drawFallTree(t) {
+    const b = P(t.x, 0, t.z);
+    if (b.behind) return;
+    const near = Math.hypot(t.x - CAM.x, t.z - CAM.z);
+    if (near < 14) return;
+    const u = b.s, w = t.w * u, x = b.x, y = b.y, h = Math.max(1, y - P(t.x, t.h, t.z).y);
+    if (x + w < 0 || x - w > W || y - h > H || y < -10) return;
+    ctx.save(); if (near < 34) ctx.globalAlpha = (near - 14) / 20;
+    const C = (hex) => haze(shadeHex(hex, t.shade), t.x, t.z);
+    // a tapering trunk, and the main limbs (they show through where the leaves have gone)
+    ctx.fillStyle = C(t.bark);
+    ctx.beginPath(); ctx.moveTo(x - w * 0.055, y); ctx.lineTo(x + w * 0.055, y); ctx.lineTo(x + w * 0.025, y - h * 0.58); ctx.lineTo(x - w * 0.025, y - h * 0.58); ctx.fill();
+    ctx.strokeStyle = C(t.bark); ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, w * 0.025);
+    for (const l of t.limbs) { ctx.beginPath(); ctx.moveTo(x, y - h * l.y); ctx.lineTo(x + Math.sin(l.a) * w * l.l, y - h * (l.y + Math.cos(l.a) * l.l * 0.75)); ctx.stroke(); }
+    for (const bl of t.blobs) { ctx.fillStyle = C(bl.c); ctx.beginPath(); ctx.ellipse(x + bl.x * w, y - bl.y * h, bl.r * w, bl.r * w * 0.85, 0, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+  // a round shrub, for the island in the middle of the cul de sac
+  function drawBush(s) {
+    const q = P(s.x, 0, s.z);
+    if (q.behind) return;
+    const r = s.r * q.s;
+    ctx.fillStyle = haze(s.c, s.x, s.z); ctx.beginPath(); ctx.ellipse(q.x, q.y - r * 0.6, r * 1.1, r * 0.8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = haze(shadeHex(s.c, 0.2), s.x, s.z); ctx.beginPath(); ctx.ellipse(q.x - r * 0.3, q.y - r * 0.9, r * 0.45, r * 0.3, 0, 0, 7); ctx.fill();
+  }
+
+  // ---- the cul de sac: looking up a suburban street into its round end, in the fall ----
+  // the street runs straight ahead from behind the launcher, then opens into a round "bulb" like a keyhole, with a
+  // small planted island in the middle. Houses stand round the bulb facing in, and down both sides of the street
+  const CDS = { cx: 0, cz: 66, rb: 14.5, hw: 4.5, isl: 4.2, rh: 29.5 };
+  CDS.jz = CDS.cz - Math.sqrt(CDS.rb * CDS.rb - CDS.hw * CDS.hw); // where the straight street opens into the bulb
+  const onTarmac = (x, z, pad = 0) => (Math.abs(x) <= CDS.hw + pad && z <= CDS.jz + 1) || Math.hypot(x - CDS.cx, z - CDS.cz) <= CDS.rb + pad;
+  // the street's outline (on the ground), grown by off: up one side, round the bulb, and back down the other
+  function keyhole(off) {
+    const r = CDS.rb + off, hw = CDS.hw + off, a0 = Math.asin(hw / r), pts = [[-hw, 0, -90]];
+    for (let i = 0; i <= 48; i++) { const a = -(Math.PI - a0) + (i / 48) * 2 * (Math.PI - a0); pts.push([CDS.cx + Math.sin(a) * r, 0, CDS.cz + Math.cos(a) * r]); }
+    pts.push([hw, 0, -90]);
+    return pts;
+  }
+  const circle = (x, z, r, n = 32) => Array.from({ length: n }, (_, i) => [x + Math.cos((i / n) * Math.PI * 2) * r, 0, z + Math.sin((i / n) * Math.PI * 2) * r]);
+  function buildCulDeSac() {
+    const houses = [], trees = [], looks = shuffle(HOUSE_LOOKS);
+    // five round the bulb (the three facing the launcher always have porches, for the neighbours), four down the street
+    [-104, -54, 0, 54, 104].forEach((deg, i) => {
+      const a = deg * Math.PI / 180;
+      houses.push(makeHouse(CDS.cx + Math.sin(a) * CDS.rh, CDS.cz + Math.cos(a) * CDS.rh, a + Math.PI, looks[i % looks.length], deg, Math.abs(deg) < 60 || undefined));
+    });
+    [[-21, 6], [-21, 32], [21, 0], [21, 28]].forEach(([x, z], i) => houses.push(makeHouse(x, z, x < 0 ? Math.PI / 2 : -Math.PI / 2, looks[(i + 5) % looks.length], null)));
+    // driveways from each garage out to the street, and a front walk from each door
+    const reach = (sd, lx, from) => { let len = 1; while (len < 40 && !onTarmac(...((p) => [p[0], p[2]])(sd.Wp([lx, 0, from + len])), 0.2)) len += 0.5; return len; };
+    const drives = houses.map((h) => {
+      const sd = solid(h), gx = (h.gx0 + h.gx1) / 2, len = reach(sd, gx, h.d / 2);
+      return { house: h, gx, len, pts: [[gx - 2.8, 0, h.d / 2], [gx + 2.8, 0, h.d / 2], [gx + 2.8, 0, h.d / 2 + len + 0.6], [gx - 2.8, 0, h.d / 2 + len + 0.6]].map(sd.Wp) };
+    });
+    const walks = houses.map((h) => {
+      const sd = solid(h), z0 = h.d / 2 + (h.porch ? 2 : 0), len = reach(sd, h.doorX, z0);
+      return [[h.doorX - 0.6, 0, z0], [h.doorX + 0.6, 0, z0], [h.doorX + 0.6, 0, z0 + len + 0.6], [h.doorX - 0.6, 0, z0 + len + 0.6]].map(sd.Wp);
+    });
+    const inDrive = (dr, x, z, m) => { const h = dr.house, [lx, lz] = carToLocal(h, x, z); return Math.abs(lx - dr.gx) <= 2.8 + m && lz >= h.d / 2 - m && lz <= h.d / 2 + dr.len + 0.6 + m; };
+    // tall trees between the houses and behind them, in the front yards down the street, and a line of woods beyond
+    const clear = (x, z, pad) => !onTarmac(x, z, pad + 2.2) && houses.every((h) => !houseNear(h, x, z, pad)) && drives.every((dr) => !inDrive(dr, x, z, pad));
+    const add = (x, z, scale = 1) => { if (clear(x, z, 1.5) && trees.every((t) => Math.hypot(t.x - x, t.z - z) > 5.5)) trees.push(makeFallTree(x, z, scale)); };
+    for (const deg of [-130, -79, -27, 27, 79, 130]) { const a = deg * Math.PI / 180, r = CDS.rh + rnd(2, 8); add(CDS.cx + Math.sin(a) * r, CDS.cz + Math.cos(a) * r, rnd(0.95, 1.2)); }
+    for (let deg = -160; deg <= 160; deg += rnd(9, 15)) { const a = deg * Math.PI / 180, r = CDS.rh + rnd(13, 26); add(CDS.cx + Math.sin(a) * r, CDS.cz + Math.cos(a) * r, rnd(1, 1.3)); }
+    for (const side of [-1, 1]) {
+      for (let z = rnd(-10, 0); z < 58; z += rnd(11, 17)) add(side * rnd(9.5, 12), z, rnd(0.85, 1.05));
+      for (let z = -40; z < 70; z += rnd(8, 13)) add(side * rnd(32, 52), z, rnd(0.9, 1.2));
+    }
+    const far = [];
+    for (let x = -220; x <= 220; x += rnd(6, 11)) far.push(makeFallTree(x, rnd(150, 178), rnd(1.05, 1.35)));
+    far.sort((a, b) => b.z - a.z);
+    // the island: a ring of curb round a mulch bed with low shrubs
+    const bushes = Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2 + rnd(-0.3, 0.3), r = rnd(1.2, 2.6); return { x: CDS.cx + Math.cos(a) * r, z: CDS.cz + Math.sin(a) * r, r: rnd(0.45, 0.75), c: pick(SHRUB_COLORS), draw: drawBush }; });
+    // fallen leaves: thick under each tree, scattered over the lawns, and drifted along the curb
+    const leaves = [];
+    for (const t of trees) for (let i = 0; i < 28; i++) { const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * t.w * 0.8; leaves.push({ x: t.x + Math.cos(a) * r, z: t.z + Math.sin(a) * r, c: pick(t.cols), a: rnd(0, 3), s: rnd(0.12, 0.2) }); }
+    for (let i = 0; i < 260; i++) leaves.push({ x: rnd(-45, 45), z: rnd(-5, 125), c: pick(LEAF_COLS), a: rnd(0, 3), s: rnd(0.12, 0.2) });
+    const edge = keyhole(0.5);
+    for (let i = 0; i < 160; i++) { const k = Math.floor(rnd(1, edge.length - 2)), f = Math.random(), A = edge[k], B = edge[k + 1]; if (A[2] < 0) continue; leaves.push({ x: A[0] + (B[0] - A[0]) * f + rnd(-0.3, 0.3), z: A[2] + (B[2] - A[2]) * f + rnd(-0.3, 0.3), c: pick(LEAF_COLS), a: rnd(0, 3), s: rnd(0.12, 0.2) }); }
+    // the tarmac's sealed cracks, a few dark lines
+    const seams = Array.from({ length: 9 }, () => { const x = rnd(-3.5, 3.5), z = rnd(5, 85); return [[x, 0.01, z], [x + rnd(-1.5, 1.5), 0.01, z + rnd(2, 6)]]; }).filter(([a]) => onTarmac(a[0], a[2], -0.5));
+    // leaves coming down from the trees, all the time
+    const falling = Array.from({ length: 34 }, () => ({ t: pick(trees), y: -1, x: 0, z: 0, ph: rnd(0, 6), v: rnd(0.5, 0.9), c: pick(LEAF_COLS) }));
+    const fillPath = (pts, color) => { if (pathClip(pts)) { ctx.fillStyle = color; ctx.fill(); } };
+    return {
+      hills: "#bda55c", houses, trees, drives,
+      standing: [...houses.map((h) => ({ x: h.x, z: h.z, draw: () => drawHouse(h) })), ...trees, ...bushes],
+      back() {
+        ctx.fillStyle = "#83ad4d"; ctx.fillRect(0, HZ, W, H - HZ);
+        for (const t of far) drawFallTree(t);
+        // the sidewalk round the street (with a grass verge between it and the curb), driveways and front walks,
+        // then the curb, the tarmac, and the island
+        fillPath(keyhole(3.8), haze("#cfcac0", 0, 70)); fillPath(keyhole(2.2), "#7fa94b");
+        for (const dr of drives) fillPath(dr.pts, haze("#cbc6bb", dr.house.x, dr.house.z));
+        for (const wk of walks) fillPath(wk, haze("#d3cec4", wk[0][0], wk[0][2]));
+        fillPath(keyhole(0.35), "#d6d2ca"); fillPath(keyhole(0), "#5d6166");
+        ctx.strokeStyle = "rgba(30,32,36,.45)"; ctx.lineWidth = 1.5;
+        for (const sm of seams) if (pathClip(sm, false)) ctx.stroke();
+        fillPath(circle(CDS.cx, CDS.cz, CDS.isl + 0.35), "#d6d2ca"); fillPath(circle(CDS.cx, CDS.cz, CDS.isl), "#7fa94b"); fillPath(circle(CDS.cx, CDS.cz, CDS.isl * 0.72), "#6b4a32");
+        // shadows of the houses and trees
+        for (const h of houses) {
+          const sd = solid(h), off = h.hw * 0.35, sh = [[-h.w / 2, 0, -h.d / 2], [h.w / 2, 0, -h.d / 2], [h.w / 2, 0, h.d / 2], [-h.w / 2, 0, h.d / 2]].map(sd.Wp).map(([x, y, z]) => [x + SHADOW.x * off, 0.01, z + SHADOW.z * off]);
+          fillPath(sh, "rgba(30,50,25,.18)");
+        }
+        for (const t of trees) groundShadow(t.x, t.z, t.h * 0.4, t.w * 0.5, 0.15);
+        for (const l of leaves) {
+          const q = P(l.x, 0, l.z);
+          if (q.behind || q.x < -4 || q.x > W + 4 || q.y > H + 4 || q.y < HZ) continue;
+          const r = Math.max(0.8, l.s * q.s);
+          ctx.fillStyle = l.c; ctx.beginPath(); ctx.ellipse(q.x, q.y, r, r * 0.5, l.a, 0, 7); ctx.fill();
+        }
+      },
+      front() {
+        for (const f of falling) {
+          if (f.y < 0) continue;
+          const q = P(f.x, f.y, f.z);
+          if (q.behind) continue;
+          const r = Math.max(1, 0.13 * q.s), now = performance.now() / 1000;
+          ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(Math.sin(now * 3 + f.ph) * 1.2); ctx.fillStyle = f.c;
+          ctx.beginPath(); ctx.ellipse(0, 0, r, r * (0.3 + 0.4 * Math.abs(Math.cos(now * 4 + f.ph))), 0, 0, 7); ctx.fill(); ctx.restore();
+        }
+      },
+      update(dt) {
+        const now = performance.now() / 1000;
+        for (const f of falling) {
+          if (f.y < 0) {
+            // start again from somewhere in a tree's crown
+            const t = f.t = pick(trees);
+            f.x = t.x + rnd(-0.35, 0.35) * t.w; f.z = t.z + rnd(-0.3, 0.3) * t.w; f.y = t.h * rnd(0.5, 0.85);
+            continue;
+          }
+          f.y -= f.v * dt; f.x += (Math.sin(now * 1.3 + f.ph) * 0.7 + S.wind.x * 0.35) * dt; f.z += S.wind.z * 0.35 * dt;
+          if (f.y <= 0.02) f.y = -1;
+        }
+      },
+      reset() { for (const h of houses) for (const wn of h.windows) wn.broken = null; },
+      free(x, z, r, form) {
+        const pad = form === "ring" ? 0.6 : 1;
+        if (houses.some((h) => houseNear(h, x, z, r + pad))) return false;
+        if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < r + (form === "ring" ? 0.8 : 1.4))) return false;
+        if (form === "ring") return true;
+        if (Math.hypot(x - CDS.cx, z - CDS.cz) < CDS.isl + r + 0.3) return false; // (the island)
+        if (PROPS[form] && PROPS[form].lawn && (onTarmac(x, z, r + 0.4) || drives.some((dr) => inDrive(dr, x, z, r)))) return false;
+        return true;
+      },
+      collide(p, q) {
+        for (const h of houses) { const r = houseHit(h, p, q); if (r) return r; }
+        return null;
+      },
+      spots(kind) {
+        const facingUs = (h) => h.bulb != null && Math.abs(h.bulb) < 60;
+        // the junker sits in the driveway of a house facing the launcher, nose to the street
+        if (kind === "junker") return drives.filter((dr) => facingUs(dr.house) && dr.len > 6).map((dr) => {
+          const [x, , z] = solid(dr.house).Wp([dr.gx, 0, dr.house.d / 2 + 3.2]);
+          return { x, z, yaw: dr.house.yaw, paint: "#8b4a3e", roofPaint: "#7d4237" };
+        });
+        // the neighbours rock on their porches, beside the door
+        if (kind === "neighbour") return houses.filter((h) => facingUs(h) && h.porch).map((h) => {
+          const [x, , z] = solid(h).Wp([h.doorX + (Math.random() < 0.5 ? 1.4 : -1.4), 0, h.d / 2 + 1]);
+          return { x, z, y0: 0.35, house: h };
+        });
+        // the community mailbox stands on the verge at the end of the bulb, facing in
+        if (kind === "mailbox") return [-32, -18, 0, 18, 32].map((deg) => {
+          const a = deg * Math.PI / 180, r = CDS.rb + 1.4;
+          return { x: CDS.cx + Math.sin(a) * r, z: CDS.cz + Math.cos(a) * r, yaw: a + Math.PI };
+        }).concat([22, 30, 38, 44].flatMap((z) => [-1, 1].map((sx) => ({ x: sx * (CDS.hw + 1.4), z, yaw: -sx * Math.PI / 2 + sx * 0.5 }))))
+          .filter((s) => !drives.some((dr) => inDrive(dr, s.x, s.z, 0.8)) && inBand(s.x, s.z, BAND.props.mailbox));
+        return null;
+      },
+      // the blue ring can go on the front slope of a roof facing the launcher
+      roofTargets(type) {
+        const R = 2.6, out = [];
+        for (const h of houses) {
+          if (h.bulb == null || Math.abs(h.bulb) > 60) continue;
+          const sd = solid(h), cosR = 1 / Math.hypot(1, h.k), lx = rnd(-1, 1) * (h.w / 2 - R - 0.6), lz = h.d / 4 + rnd(-0.3, 0.3);
+          const [x, y, z] = sd.Wp([lx, h.hr - h.k * lz, lz]);
+          if (!inBand(x, z, BAND.rings[type])) continue;
+          // its outline on screen (with the flag), to keep the other targets clear of it
+          const qs = Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2, px = lx + Math.cos(a) * R, pz = lz + Math.sin(a) * R * cosR; return sd.at([px, h.hr - h.k * pz, pz]); });
+          const box = { x0: Math.min(...qs.map((q) => q.x)) - 3, x1: Math.max(...qs.map((q) => q.x)) + 30, y0: Math.min(...qs.map((q) => q.y)) - 22, y1: Math.max(...qs.map((q) => q.y)) + 3 };
+          out.push({ type, form: "roof", house: h, lx, lz, cosR, x, y, z, r: R, pts: RINGS[type].pts, hit: false, box });
+        }
+        return out;
+      },
+      map(MX, MY, sc) {
+        const path = (pts) => { ctx.beginPath(); pts.forEach(([x, , z], i) => (i ? ctx.lineTo(MX(x), MY(z)) : ctx.moveTo(MX(x), MY(z)))); ctx.closePath(); };
+        ctx.fillStyle = "#a6aaae"; path(keyhole(0)); ctx.fill();
+        ctx.fillStyle = "#b9dca0"; ctx.beginPath(); ctx.arc(MX(CDS.cx), MY(CDS.cz), CDS.isl * sc, 0, 7); ctx.fill();
+        ctx.fillStyle = "#c59a74";
+        for (const h of houses) {
+          const sd = solid(h), hz = h.d / 2;
+          path([[-h.w / 2, 0, -hz], [h.w / 2, 0, -hz], [h.w / 2, 0, hz], [-h.w / 2, 0, hz]].map(sd.Wp)); ctx.fill();
+          path([[h.gx0, 0, hz - h.gd], [h.gx1, 0, hz - h.gd], [h.gx1, 0, hz], [h.gx0, 0, hz]].map(sd.Wp)); ctx.fill();
+        }
+      },
+    };
+  }
+
+  // ---- the spinner: a disc in a steel hoop on a wooden A-frame, facing the launcher. Hit, it spins on its axle ----
+  const SPIN = { rad: 1.5, cy: 2.1, px: 1.85, foot: 2.1 };
+  function spinnerBox(x, z) {
+    const sd = solid({ x, z, yaw: Math.atan2(-x, CAM.z0 - z) });
+    const qs = [[-SPIN.px - 0.2, 0, 0], [SPIN.px + 0.2, 0, 0], [0, SPIN.cy + SPIN.rad + 0.25, 0], [0, 0, 0.8]].map(sd.at);
+    return { x0: Math.min(...qs.map((q) => q.x)) - 3, x1: Math.max(...qs.map((q) => q.x)) + 3, y0: Math.min(...qs.map((q) => q.y)) - 3, y1: Math.max(...qs.map((q) => q.y)) + 3 };
+  }
+  // did the spud (a moment ago at q, now at p) pass through the disc, wherever it has turned to?
+  function spinnerHit(t, q, p) {
+    const c = Math.cos(t.yaw), s = Math.sin(t.yaw);
+    const toL = (pt) => { const dx = pt.x - t.x, dz = pt.z - t.z; return [dx * c - dz * s, pt.y - SPIN.cy, dx * s + dz * c]; };
+    const a = toL(q), b = toL(p);
+    if (Math.abs(b[0]) > SPIN.rad + 0.5 || Math.abs(b[2]) > SPIN.rad + 0.5) return false;
+    // the disc's normal turns about the axle (x): (0, -sin, cos)
+    const ca = Math.cos(t.ang), sa = Math.sin(t.ang), da = -a[1] * sa + a[2] * ca, db = -b[1] * sa + b[2] * ca;
+    if ((da > 0) === (db > 0)) return false;
+    const k = da / (da - db), x = a[0] + (b[0] - a[0]) * k, y = a[1] + (b[1] - a[1]) * k, z = a[2] + (b[2] - a[2]) * k;
+    return Math.hypot(x, y * ca + z * sa) <= SPIN.rad;
+  }
+  function updateSpinner(t, dt) {
+    if (!t.spin && !t.ang) return;
+    t.ang += t.spin * dt;
+    if (Math.abs(t.spin) > 2.5) t.spin *= Math.exp(-0.45 * dt);
+    else {
+      // slowing down, it swings to rest facing you again
+      const rest = Math.round(t.ang / (Math.PI * 2)) * Math.PI * 2;
+      t.spin += (rest - t.ang) * 6 * dt; t.spin *= Math.exp(-2.5 * dt);
+      if (Math.abs(t.spin) < 0.02 && Math.abs(rest - t.ang) < 0.01) { t.ang = 0; t.spin = 0; }
+    }
+  }
+  function drawSpinner(t) {
+    if (P(t.x, 0, t.z).behind) return;
+    const sd = solid(t), R = RINGS[t.type], u = sd.u, { rad, cy, px } = SPIN, wood = "#8a5a30", steel = "#1e2a33";
+    groundShadow(t.x, t.z, 0.9, 2.0, 0.16);
+    // the A-frame legs each side, and the feet rails
+    for (const sx of [-1, 1]) {
+      sd.line([sx * px, 0, -0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u); sd.line([sx * px, 0, 0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u);
+      sd.line([sx * px, 0.05, -0.8], [sx * px, 0.05, 0.8], wood, 0.1 * u);
+    }
+    // the disc, turned about its axle; the back is a darker shade, and once scored it's white
+    const ca = Math.cos(t.ang), sa = Math.sin(t.ang);
+    const disc = Array.from({ length: 28 }, (_, i) => { const a = (i / 28) * Math.PI * 2, yy = Math.sin(a) * rad; return [Math.cos(a) * rad, cy + yy * ca, yy * sa]; });
+    const front = sd.facing(disc, [0, -sa, ca]);
+    if (pathClip(disc.map(sd.Wp))) {
+      ctx.fillStyle = haze(t.hit ? "#eef0f2" : front ? R.color : shadeHex(R.edge, 0.1), t.x, t.z); ctx.fill();
+      ctx.strokeStyle = R.edge; ctx.lineWidth = Math.max(1, 0.06 * u); ctx.stroke();
+    }
+    // the hoop it turns in, held by its axle pins
+    if (pathClip(Array.from({ length: 28 }, (_, i) => { const a = (i / 28) * Math.PI * 2; return sd.Wp([Math.cos(a) * (rad + 0.2), cy + Math.sin(a) * (rad + 0.2), 0]); }))) {
+      ctx.strokeStyle = haze(steel, t.x, t.z); ctx.lineWidth = Math.max(1.5, 0.09 * u); ctx.stroke();
+    }
+    for (const sx of [-1, 1]) sd.line([sx * px, cy, 0], [sx * rad, cy, 0], steel, 0.08 * u);
+    // its points on its face
+    if (front && Math.abs(ca) > 0.3) {
+      const c = sd.at([0, cy, 0]), fs = Math.max(9, rad * 1.05 * c.s), label = t.hit ? "✓" : String(t.pts);
+      ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, Math.abs(ca));
+      ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineWidth = Math.max(2, fs * 0.12); ctx.strokeStyle = "#23303a"; ctx.fillStyle = "#fffaf0"; ctx.lineJoin = "round";
+      ctx.strokeText(label, 0, fs * 0.05); ctx.fillText(label, 0, fs * 0.05);
+      ctx.restore();
+    }
+  }
+
+  // ---- the trampoline: a blue-padded round mat on U legs, with a net round it ----
+  const TRAMP = { r: 2.1, y: 0.9, net: 1.8 };
+  // "mat" if the spud dropped in through the open top onto the mat, "net" if it came in from the side
+  function trampHit(o, p, q) {
+    const [bx, bz] = carToLocal(o, p.x, p.z);
+    if (Math.hypot(bx, bz) > TRAMP.r + 0.15 || p.y > TRAMP.y + TRAMP.net) return null;
+    const [ax, az] = carToLocal(o, q.x, q.z);
+    if (Math.hypot(ax, az) > TRAMP.r) return "net";
+    if (q.y > TRAMP.y + 0.05 && p.y <= TRAMP.y + 0.05) return "mat";
+    return null;
+  }
+  // off the mat: a bonus the first time, and the spud flies on (where it lands next counts too)
+  function bounce(o, p) {
+    const D = PROPS.trampoline;
+    o.t = 0; o.say = null; sfx.boing();
+    // straight up mostly: it comes down again a few metres on
+    p.y = TRAMP.y + 0.06; p.vy = Math.abs(p.vy) * 0.6; p.vx *= 0.3; p.vz *= 0.3;
+    if (!o.scored) { o.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label); S.preNote = `${D.msg} ${D.say} +5 bonus!`; }
+    else S.preNote = `${D.say} (bonus already won)`;
+    hud();
+  }
+  function drawTrampoline(o) {
+    if (P(o.x, 0, o.z).behind) return;
+    const sd = solid(o), u = sd.u, { r: R, y: Y, net: NH } = TRAMP, n = 24, step = (Math.PI * 2) / n, black = "#1c2126";
+    if (!o.thumb) groundShadow(o.x, o.z, R * 0.85, R * 0.9, 0.14);
+    // which side is toward the camera
+    const [cx, cz] = carToLocal(o, CAM.x, CAM.z), ca = Math.atan2(cz, cx), near = (a) => Math.cos(a - ca) > 0;
+    const pt = (rr, y, a) => [Math.cos(a) * rr, y, Math.sin(a) * rr];
+    const netSeg = (a0, a1) => { if (pathClip([pt(R, Y, a0), pt(R, Y, a1), pt(R, Y + NH, a1), pt(R, Y + NH, a0)].map(sd.Wp))) { ctx.fillStyle = "rgba(25,30,36,.26)"; ctx.fill(); } };
+    const leg = (a) => { sd.line(pt(R - 0.05, Y, a), pt(R + 0.1, 0, a - 0.14), black, 0.07 * u); sd.line(pt(R - 0.05, Y, a), pt(R + 0.1, 0, a + 0.14), black, 0.07 * u); };
+    const post = (a) => { sd.line(pt(R, Y, a), pt(R + 0.15, Y + NH * 0.55, a), black, 0.06 * u); sd.line(pt(R + 0.15, Y + NH * 0.55, a), pt(R, Y + NH, a), black, 0.06 * u); };
+    const legsAt = [0, 1, 2, 3, 4, 5].map((i) => i * Math.PI / 3 + 0.3), postsAt = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => i * Math.PI / 4);
+    // far side first: its legs, net and posts
+    legsAt.filter((a) => !near(a)).forEach(leg);
+    for (let i = 0; i < n; i++) if (!near(i * step + step / 2)) netSeg(i * step, (i + 1) * step);
+    postsAt.filter((a) => !near(a)).forEach(post);
+    // the pad and the mat, which sags a moment when something lands on it
+    const sag = o.t >= 0 && o.t < 0.5 ? Math.sin((o.t / 0.5) * Math.PI) * 0.25 : 0;
+    const ringPts = (rr, y) => Array.from({ length: n }, (_, i) => sd.Wp(pt(rr, y, i * step)));
+    if (pathClip(ringPts(R + 0.05, Y))) { ctx.fillStyle = haze("#2f6fd0", o.x, o.z); ctx.fill(); ctx.strokeStyle = haze("#1d4c95", o.x, o.z); ctx.lineWidth = 1; ctx.stroke(); }
+    if (pathClip(ringPts(R - 0.35, Y + 0.01 - sag * 0.3))) { ctx.fillStyle = "#24282c"; ctx.fill(); }
+    // near side over the mat: legs, the ladder, net and posts, and the net's top rim
+    legsAt.filter(near).forEach(leg);
+    for (const da of [-0.13, 0.13]) sd.line(pt(R + 0.4, 0, ca + da), pt(R + 0.08, Y, ca + da), "#2f6fd0", 0.05 * u);
+    for (const y of [0.3, 0.6]) sd.line(pt(R + 0.4 - y * 0.35, y, ca - 0.13), pt(R + 0.4 - y * 0.35, y, ca + 0.13), "#2f6fd0", 0.05 * u);
+    for (let i = 0; i < n; i++) if (near(i * step + step / 2)) netSeg(i * step, (i + 1) * step);
+    postsAt.filter(near).forEach(post);
+    if (pathClip(ringPts(R, Y + NH))) { ctx.strokeStyle = haze(black, o.x, o.z); ctx.lineWidth = Math.max(1, 0.05 * u); ctx.stroke(); }
+    if (o.t >= 0 && o.t < 2.2) { const q = sd.at([0, Y + NH + 0.6, 0]); bubble(q.x, q.y, o.say || PROPS.trampoline.say, (2.2 - o.t) / 0.4); }
+  }
+
+  // ---- the community mailbox: a grey cabinet of little doors under a red cap, on a post ----
+  function drawMailbox(o) {
+    if (P(o.x, 0, o.z).behind) return;
+    const sd = solid(o), u = sd.u;
+    if (!o.thumb) { groundShadow(o.x, o.z, 0.6, 0.7, 0.18); sd.decal([[-0.8, 0.01, -0.5], [0.8, 0.01, -0.5], [0.8, 0.01, 0.6], [-0.8, 0.01, 0.6]], "#c9c5bc"); }
+    box3(sd, [-0.09, 0, -0.09], [0.09, 0.55, 0.09], "#c8ccce");
+    const f = box3(sd, [-0.55, 0.55, -0.28], [0.55, 1.55, 0.28], "#d5d9da");
+    if (f.front) {
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) {
+        const x0 = -0.5 + c * 0.51, y0 = 0.62 + r * 0.22;
+        if (o.open && r === 1 && c === 0) continue;
+        sd.decal([[x0, y0, 0.285], [x0 + 0.47, y0, 0.285], [x0 + 0.47, y0 + 0.19, 0.285], [x0, y0 + 0.19, 0.285]], null, "#8f979b", 1);
+      }
+      // hit, one little door hangs open on its hinge
+      if (o.open) {
+        sd.decal([[-0.5, 0.84, 0.285], [-0.03, 0.84, 0.285], [-0.03, 1.03, 0.285], [-0.5, 1.03, 0.285]], "#3a4044");
+        sd.decal([[-0.5, 0.84, 0.29], [-0.5, 0.84, 0.76], [-0.5, 1.03, 0.76], [-0.5, 1.03, 0.29]], "#c3c8ca", "#8f979b");
+      }
+    }
+    box3(sd, [-0.6, 1.55, -0.32], [0.6, 1.7, 0.33], "#c8322b");
+    if (o.t >= 0 && o.t < 2.2) { const q = sd.at([0, 2.3, 0]); bubble(q.x, q.y, PROPS.mailbox.say, (2.2 - o.t) / 0.4); }
+  }
+  function burstMail(o) {
+    o.open = true;
+    const [x, , z] = solid(o).Wp([-0.26, 0.93, 0.4]);
+    for (let i = 0; i < 9; i++) S.bits.push({ kind: "letter", x, y: 0.95, z, vx: rnd(-1.5, 1.5), vy: rnd(1.5, 3.5), vz: rnd(-1.5, 1.5), a: rnd(0, 6), s: rnd(0.09, 0.13), c: pick(["#fbfbf6", "#f3e7c9", "#e9eef5"]), t: 0, ph: rnd(0, 6) });
+  }
+
+  // ---- the leaf pile: a heap raked up in a front yard. Hit, it bursts and the leaves flutter down ----
+  function drawLeafPile(o) {
+    const b = P(o.x, 0, o.z);
+    if (b.behind || b.x < -80 || b.x > W + 80) return;
+    if (!o.leaves) o.leaves = Array.from({ length: 70 }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()); return { x: Math.cos(a) * rr * 1.5, z: Math.sin(a) * rr * 1.1, y: (1 - rr * rr) * 0.75 + rnd(0, 0.08), c: pick(LEAF_COLS), a: rnd(0, 3) }; }).sort((p, q) => q.z - p.z);
+    const k = o.scattered ? 1.9 : 1;
+    if (!o.scattered && !o.thumb) groundShadow(o.x, o.z, 1.3, 1.5, 0.16);
+    if (!o.scattered) { groundCircle(o.x, o.z, 1.45, 20); ctx.fillStyle = haze("#9a5a2a", o.x, o.z); ctx.fill(); }
+    for (const l of o.leaves) {
+      const q = P(o.x + l.x * k, o.scattered ? 0.02 : l.y, o.z + l.z * k), r = Math.max(1, 0.16 * q.s);
+      ctx.fillStyle = l.c; ctx.beginPath(); ctx.ellipse(q.x, q.y, r, r * 0.6, l.a, 0, 7); ctx.fill();
+    }
+    if (o.t >= 0 && o.t < 2.2) { const q = P(o.x, 2, o.z); bubble(q.x, q.y, PROPS.leaves.say, (2.2 - o.t) / 0.4); }
+  }
+  function scatterLeaves(o) {
+    o.scattered = true; o.h = 0.25;
+    for (let i = 0; i < 50; i++) S.bits.push({ kind: "leaf", x: o.x + rnd(-1, 1), y: rnd(0.2, 0.8), z: o.z + rnd(-0.8, 0.8), vx: rnd(-3, 3), vy: rnd(3, 7), vz: rnd(-3, 3), a: rnd(0, 6), s: rnd(0.11, 0.16), c: pick(LEAF_COLS), t: 0, ph: rnd(0, 6) });
+  }
+
+  // ---- the dog: trots about the lawns, sniffs, pees and poops. Hit, it jumps and yips ----
+  function drawDog(o) {
+    const g = billboard(o), { b, ell, line } = g;
+    if (b.behind || (!o.thumb && (b.x < -60 || b.x > W + 60 || b.y < -40 || b.y > H + 60))) return;
+    const t = o.t, hit = t >= 0, now = performance.now() / 1000, coat = o.coat || "#c8913f", belly = o.belly || "#f3e2c0", dark = shadeHex(coat, -0.35), edge = "#3a2a1e", nose = "#1b1b1b";
+    if (!o.thumb) groundShadow(o.x, o.z, 0.45, 0.35, 0.18);
+    ctx.save();
+    const jump = hit && t < 0.7 ? Math.sin((t / 0.7) * Math.PI) * 0.45 : 0;
+    ctx.translate(0, -jump * b.s);
+    const walking = o.act === "walk" && !hit, sw = walking ? Math.sin(o.step) * 0.1 : 0, wag = Math.sin(now * (hit ? 22 : 9) + o.ph) * 0.12, dip = o.dip || 0;
+    if (o.view === "front" || o.view === "back") {
+      // end-on
+      for (const sx of [-1, 1]) line(sx * 0.11, 0.36, sx * 0.11, 0.03 + (walking ? Math.max(0, Math.sin(o.step + (sx > 0 ? Math.PI : 0))) * 0.06 : 0), 0.07, coat);
+      ell(0, 0.46, 0.2, 0.16, coat, edge);
+      if (o.view === "front") {
+        ell(0, 0.43, 0.12, 0.12, belly);
+        const hy = 0.66 - dip * 0.22;
+        for (const sx of [-1, 1]) ell(sx * 0.14, hy + 0.02, 0.05, 0.1, dark, edge, sx * 0.4);
+        ell(0, hy, 0.15, 0.13, coat, edge);
+        for (const sx of [-1, 1]) ell(sx * 0.055, hy + 0.03, 0.02, 0.022, nose);
+        ell(0, hy - 0.05, 0.07, 0.05, belly, edge); ell(0, hy - 0.035, 0.025, 0.02, nose);
+      } else {
+        line(0, 0.55, wag, 0.8, 0.05, coat);
+        ell(0, 0.47, 0.2, 0.16, coat, edge);
+      }
+    } else {
+      // side-on, facing the way it walks
+      const pose = hit ? "alarm" : o.act, squat = pose === "poop" ? 0.1 : 0;
+      line(0.25 + sw, 0.38, 0.27 + sw * 1.4, 0.02, 0.07, coat); line(0.2 - sw, 0.38, 0.19 - sw * 1.4, 0.02, 0.07, dark);
+      if (pose === "pee") { line(-0.25, 0.38, -0.5, 0.42, 0.07, coat); line(-0.21, 0.36, -0.22, 0.02, 0.07, dark); }
+      else { line(-0.25 - sw, 0.38 - squat, -0.28 - sw * 1.4, 0.02, 0.07, coat); line(-0.2 + sw, 0.38 - squat, -0.19 + sw * 1.4, 0.02, 0.07, dark); }
+      line(-0.36, 0.5 - squat, -0.55, pose === "poop" ? 0.78 : 0.66 + wag, 0.05, coat);
+      ell(0, 0.46 - squat / 2, 0.38, 0.15, coat, edge, squat ? -0.25 : 0);
+      ell(0.03, 0.4 - squat / 2, 0.26, 0.06, belly);
+      const hx = 0.42, hy = 0.66 - dip * 0.3;
+      line(0.28, 0.52, hx - 0.04, hy - 0.02, 0.13, coat);
+      line(0.3, 0.57, 0.36, 0.49, 0.04, "#c0392b");
+      ell(hx, hy, 0.13, 0.11, coat, edge);
+      ell(hx + 0.13, hy - 0.03, 0.08, 0.05, coat, edge); ell(hx + 0.2, hy - 0.02, 0.025, 0.022, nose);
+      ell(hx + 0.05, hy + 0.03, 0.018, 0.02, nose);
+      ell(hx - 0.04, hy + 0.01, 0.05, 0.09, dark, edge, 0.3);
+    }
+    ctx.restore();
+    if (hit && t < 2.2) bubble(b.x, g.Y(1.0), PROPS.dog.say, (2.2 - t) / 0.4);
+  }
+  // what the dog leaves: a puddle that spreads a little, a small pile (with a whiff over it for a while)
+  function drawMark(m) {
+    const q = P(m.x, 0, m.z);
+    if (q.behind || q.x < -10 || q.x > W + 10) return;
+    if (m.kind === "pee") { groundCircle(m.x, m.z, Math.min(0.32, 0.08 + m.t * 0.08), 14); ctx.fillStyle = "rgba(205,185,60,.38)"; ctx.fill(); return; }
+    const r = Math.max(1, 0.09 * q.s);
+    ctx.fillStyle = "#5a3a1f"; ctx.beginPath(); ctx.ellipse(q.x, q.y - r * 0.3, r * 1.3, r * 0.6, 0, 0, 7); ctx.ellipse(q.x, q.y - r * 0.9, r * 0.8, r * 0.45, 0, 0, 7); ctx.fill();
+    if (m.t < 8 && r > 1.5) {
+      ctx.strokeStyle = `rgba(120,140,60,${0.5 * (1 - m.t / 8)})`; ctx.lineWidth = 1;
+      for (const dx of [-0.7, 0.7]) { ctx.beginPath(); for (let i = 0; i <= 6; i++) { const y = q.y - r * (1.6 + i * 0.4); ctx.lineTo(q.x + dx * r + Math.sin(i + m.t * 3) * r * 0.3, y); } ctx.stroke(); }
+    }
+  }
+
+  // ---- the neighbour: rocking on the porch with a mug. Hit, they're up out of the chair shaking a fist ----
+  const NEIGHBOUR_LOOKS = [
+    { skin: "#f1c9a5", hair: "#d8d8d8", shirt: "#b23a3a", pants: "#3d4a63", hat: null },
+    { skin: "#8d5a3b", hair: "#2a1d16", shirt: "#3f7a5a", pants: "#5a4a3a", hat: null },
+    { skin: "#e8b98f", hair: "#7a4a22", shirt: "#e0b23a", pants: "#2f3a4a", hat: "#2c4a6e" },
+    { skin: "#c58c62", hair: "#111111", shirt: "#6b4fa0", pants: "#3a3a3a", hat: null },
+  ];
+  function drawNeighbour(o) {
+    const g = billboard(o), { b, ell, line, poly } = g;
+    if (b.behind || b.x < -60 || b.x > W + 60) return;
+    const L = o.look || NEIGHBOUR_LOOKS[0], t = o.t, up = t >= 0 && t < 2.4, now = performance.now() / 1000, wood = "#7a4f2c", edge = "#2a2420";
+    const chair = () => {
+      for (const sx of [-1, 1]) { line(sx * 0.24, 0.05, sx * 0.24, 0.45, 0.05, wood); ell(sx * 0.24, 0.04, 0.06, 0.035, wood); }
+      poly([[-0.26, 0.45], [0.26, 0.45], [0.24, 1.25], [-0.24, 1.25]], wood, edge);
+      for (const x of [-0.12, 0, 0.12]) line(x, 0.52, x, 1.18, 0.03, shadeHex(wood, 0.25));
+      poly([[-0.27, 0.43], [0.27, 0.43], [0.27, 0.5], [-0.27, 0.5]], shadeHex(wood, 0.1), edge);
+    };
+    const head = (x, y) => {
+      ell(x, y, 0.12, 0.13, L.skin, edge);
+      if (L.hat) { poly([[x - 0.13, y + 0.04], [x + 0.13, y + 0.04], [x + 0.11, y + 0.15], [x - 0.11, y + 0.15]], L.hat); line(x - 0.02, y + 0.04, x + 0.17, y + 0.03, 0.03, L.hat); }
+      else ell(x, y + 0.08, 0.125, 0.065, L.hair);
+      for (const sx of [-1, 1]) ell(x + sx * 0.045, y + 0.01, 0.015, 0.018, "#1b1b1b");
+    };
+    ctx.save();
+    if (!up) {
+      // rocking: chair and sitter tip back and forth about the rockers
+      const rock = Math.sin(now * 1.7 + o.ph) * 0.09;
+      ctx.translate(b.x, b.y); ctx.rotate(rock); ctx.translate(-b.x, -b.y);
+      chair();
+      poly([[-0.2, 0.48], [0.2, 0.48], [0.17, 0.95], [-0.17, 0.95]], L.shirt, edge);
+      head(0, 1.08);
+      for (const sx of [-1, 1]) {
+        ell(sx * 0.1, 0.5, 0.085, 0.07, L.pants, edge);
+        line(sx * 0.1, 0.48, sx * 0.11, 0.09, 0.075, L.pants); ell(sx * 0.11, 0.06, 0.065, 0.035, "#2a2a2a");
+        line(sx * 0.27, 0.6, sx * 0.27, 0.45, 0.04, wood);
+        line(sx * 0.19, 0.9, sx * 0.27, 0.63, 0.06, L.shirt); ell(sx * 0.27, 0.61, 0.04, 0.04, L.skin);
+      }
+      ell(0.3, 0.67, 0.035, 0.045, "#e8e2d4", edge);
+    } else {
+      // up out of the chair beside it, one fist shaking
+      ctx.translate(0, 0);
+      chair();
+      const x = 0.5, shake = Math.sin(t * 22) * 0.06;
+      for (const sx of [-1, 1]) line(x + sx * 0.08, 0.8, x + sx * 0.1, 0.05, 0.08, L.pants);
+      poly([[x - 0.18, 0.8], [x + 0.18, 0.8], [x + 0.16, 1.35], [x - 0.16, 1.35]], L.shirt, edge);
+      line(x - 0.15, 1.3, x - 0.24, 0.95, 0.06, L.shirt);
+      line(x + 0.15, 1.3, x + 0.3 + shake, 1.65, 0.06, L.shirt); ell(x + 0.31 + shake, 1.69, 0.05, 0.05, L.skin, edge);
+      head(x, 1.48);
+    }
+    ctx.restore();
+    if (up) bubble(b.x + 0.5 * b.s, g.Y(2.0), PROPS.neighbour.say, (2.4 - t) / 0.4);
+  }
+  const PROP_DRAW = { dog: drawDog, neighbour: drawNeighbour, leaves: drawLeafPile, mailbox: drawMailbox, trampoline: drawTrampoline };
+
+  // ---- flying bits: leaves from the pile, letters from the mailbox, glass from a window ----
+  function updateBits(dt) {
+    for (const b of S.bits || []) {
+      b.t += dt;
+      if (b.y <= 0.02 && b.vy <= 0) continue;
+      const flutter = b.kind !== "glass";
+      b.vy -= (flutter ? 2.4 : G) * dt;
+      if (flutter) { b.vy = Math.max(b.vy, -0.9); b.vx *= 0.985; b.vz *= 0.985; }
+      b.x += (b.vx + (flutter ? Math.sin(b.t * 4 + b.ph) * 0.6 + S.wind.x * 0.4 : 0)) * dt;
+      b.z += (b.vz + (flutter ? S.wind.z * 0.4 : 0)) * dt;
+      b.y = Math.max(0.02, b.y + b.vy * dt); b.a += dt * (flutter ? 4 : 9);
+      if (b.y <= 0.02) b.vy = 0;
+    }
+    if (S.bits && S.bits.length > 260) S.bits.splice(0, S.bits.length - 260);
+  }
+  function drawBits() {
+    for (const b of S.bits || []) {
+      const q = P(b.x, b.y, b.z);
+      if (q.behind) continue;
+      const r = Math.max(1.2, b.s * q.s), flying = b.y > 0.05;
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(b.a); ctx.fillStyle = b.c;
+      if (b.kind === "letter") { ctx.fillRect(-r, -r * 0.65, r * 2, r * 1.3); ctx.strokeStyle = "rgba(60,70,80,.5)"; ctx.lineWidth = 0.6; ctx.strokeRect(-r, -r * 0.65, r * 2, r * 1.3); }
+      else if (b.kind === "glass") { ctx.beginPath(); ctx.moveTo(-r, r * 0.6); ctx.lineTo(r, r * 0.3); ctx.lineTo(0, -r); ctx.closePath(); ctx.fill(); }
+      else { ctx.beginPath(); ctx.ellipse(0, 0, r, r * (flying ? 0.2 + 0.5 * Math.abs(Math.cos(b.t * 5 + b.ph)) : 0.5), 0, 0, 7); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+
+  function groundCircle(x, z, r, n = 40, y = 0) {
     ctx.beginPath();
-    for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, q = P(x + Math.cos(a) * r, 0, z + Math.sin(a) * r); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+    for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, q = P(x + Math.cos(a) * r, y, z + Math.sin(a) * r); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
     ctx.closePath();
   }
   function drawRing(r) {
@@ -1918,9 +2891,9 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.lineWidth = Math.max(0.8, 0.095 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
     if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2)); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
   }
-  function drawFlag(r) {
-    // the flag stands at the back edge of its ring, so it never hides the middle
-    const R = RINGS[r.type], base = P(r.x, 0, r.z + r.r), top = P(r.x, FLAG_H, r.z + r.r);
+  function drawFlag(r, at = [r.x, 0, r.z + r.r]) {
+    // the flag stands at the back edge of its ring, so it never hides the middle (on a roof: at its top edge)
+    const R = RINGS[r.type], base = P(...at), top = P(at[0], at[1] + FLAG_H, at[2]);
     const h = Math.max(12, base.y - top.y);
     const tx = base.x, ty = base.y - h;
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, base.y); ctx.lineTo(tx, ty); ctx.stroke();
@@ -1932,14 +2905,14 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.fillStyle = "#23303a"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, tx + w / 2, ty + fs * 0.56);
   }
   function drawSplat(s) {
-    const c = P(s.x, 0, s.z);
+    const y = s.y || 0, c = P(s.x, y, s.z);
     ctx.fillStyle = s.last ? "#e9c27a" : "rgba(233,194,122,.75)";
-    groundCircle(s.x, s.z, 0.45, 14); ctx.fill();
+    groundCircle(s.x, s.z, 0.45, 14, y); ctx.fill();
     for (let i = 0; i < 5; i++) {
-      const a = s.a + i * 1.26, q = P(s.x + Math.cos(a) * 0.75, 0, s.z + Math.sin(a) * 0.75);
+      const a = s.a + i * 1.26, q = P(s.x + Math.cos(a) * 0.75, y, s.z + Math.sin(a) * 0.75);
       ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1, 0.12 * q.s), 0, 7); ctx.fill();
     }
-    if (s.last) { ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5; groundCircle(s.x, s.z, 0.45, 14); ctx.stroke(); }
+    if (s.last) { ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5; groundCircle(s.x, s.z, 0.45, 14, y); ctx.stroke(); }
     if (c.s < 3) { ctx.fillStyle = s.last ? "#23303a" : "rgba(35,48,58,.5)"; ctx.beginPath(); ctx.arc(c.x, c.y, 2, 0, 7); ctx.fill(); }
   }
   function drawArc(pts, color, dash) {
@@ -2170,7 +3143,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // where the map sits and its scale; shared by drawing and by touching it to aim
   function mapGeom() {
     const mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3), x0 = W - mw - 10, y0 = H - mh - 10;
-    const zmax = lvl().z[1] + 15, sc = (mh - 26) / zmax;
+    const zmax = lvl().mapZ || lvl().z[1] + 15, sc = (mh - 26) / zmax;
     return { mw, mh, x0, y0, zmax, sc, MX: (x) => x0 + mw / 2 + x * sc, MY: (z) => y0 + mh - 14 - z * sc };
   }
   function drawMinimap() {
@@ -2181,10 +3154,13 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, y0, mw, mh, 10) : ctx.rect(x0, y0, mw, mh); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.rect(x0 + 2, y0 + 2, mw - 4, mh - 4); ctx.clip();
     ctx.fillStyle = "#cfeab8"; ctx.fillRect(x0, y0, mw, mh);
+    S.scene.map(MX, MY, sc); // (the street and houses, in the cul de sac)
     // distance arcs
     ctx.strokeStyle = "rgba(35,48,58,.25)"; ctx.lineWidth = 1; ctx.font = "800 9px Nunito, sans-serif"; ctx.fillStyle = "rgba(35,48,58,.6)"; ctx.textAlign = "left";
     for (let z = 25; z < zmax; z += 25) { ctx.beginPath(); ctx.arc(MX(0), MY(0), z * sc, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke(); ctx.fillText(`${z}`, MX(0) + 3, MY(z) + 9); }
     for (const r of S.rings) {
+      // a spinner shows as a short bar, square to the launcher
+      if (r.form === "spinner") { ctx.save(); ctx.translate(MX(r.x), MY(r.z)); ctx.rotate(Math.atan2(-(r.z - CAM.z0), r.x) + Math.PI / 2); ctx.fillStyle = r.hit ? "#fff" : RINGS[r.type].color; ctx.strokeStyle = RINGS[r.type].edge; ctx.lineWidth = 1.5; ctx.fillRect(-4, -2, 8, 4); ctx.strokeRect(-4, -2, 8, 4); ctx.restore(); continue; }
       ctx.beginPath(); ctx.arc(MX(r.x), MY(r.z), Math.max(2.5, r.r * sc), 0, 7);
       ctx.fillStyle = r.hit ? "rgba(255,255,255,.9)" : RINGS[r.type].color; ctx.fill();
       ctx.strokeStyle = r.hit ? "#9aa" : RINGS[r.type].edge; ctx.lineWidth = 1.5; ctx.stroke();
@@ -2206,7 +3182,7 @@ body.lab .stage > :not(canvas) { display: none; }
   pumpBtn.addEventListener("pointerdown", pumpDown);
   ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => pumpBtn.addEventListener(ev, pumpUp));
   $("bleed").addEventListener("click", () => { audio(); bleed(); });
-  psiIn.addEventListener("input", () => { if (S.phase === "aim") { leaveArc(); S.psi = Number(psiIn.value); hud(); } });
+  psiIn.addEventListener("input", () => { if (S.phase === "aim") { leaveArc(); S.psi = Math.min(maxPsi(), Number(psiIn.value)); hud(); } });
   // the peg board works like a slider: tap a hole or drag along it, and the grey pin snaps from hole to hole
   const holesEl = $("holes");
   const holeAt = (clientX) => {
@@ -2229,7 +3205,6 @@ body.lab .stage > :not(canvas) { display: none; }
   $("rotL").addEventListener("click", () => setYaw(S.yaw - 0.5));
   $("rotR").addEventListener("click", () => setYaw(S.yaw + 0.5));
   $("fire").addEventListener("click", () => { audio(); action(); });
-  $("ovGo").addEventListener("click", () => { audio(); startLevel(0); });
 
   // settings: a gear in the header opens a small panel
   const gear = $("gear"), settings = $("settings"), soundTgl = $("soundTgl");
@@ -2245,8 +3220,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.animals = animalsTgl.checked;
     try { localStorage.setItem("pneuman-animals", S.animals ? "1" : "0"); } catch (e) {}
     // take the animals out of the field, or bring them in among the current rings
-    if (S.animals) placeProps(Object.keys(PROPS).filter((k) => PROPS[k].alive));
-    else S.props = S.props.filter((o) => !PROPS[o.kind].alive);
+    if (S.animals) placeProps(lvl().props.filter((k) => PROPS[k].animal));
+    else S.props = S.props.filter((o) => !PROPS[o.kind].animal);
   });
   stripesTgl.addEventListener("change", () => {
     S.stripes = stripesTgl.checked;
@@ -2400,7 +3375,7 @@ body.lab .stage > :not(canvas) { display: none; }
   window.__pneuman = {
     S, fencePanels, planStrike, startLevel, P, hitParts, buffers, sfx, thumb: (k) => thumb(k), view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
-    layoutCheck: (lv, n = 200) => { let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
+    layoutCheck: (lv, n = 200) => { S.scene = sceneFor(LEVELS[lv]); let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
 
   // ================= launcher lab =================
@@ -2459,19 +3434,21 @@ body.lab .stage > :not(canvas) { display: none; }
     camHome();
     const D = PROPS[kind], z = 14, faceOnly = kind === "cow" || kind === "horse";
     // the cow and horse are shown as just their faces, looking at you; the rest whole
-    const o = { kind, x: 0, z, r: D.r, h: D.h, t: -1, face: 1, ph: 1, step: 0, view: faceOnly ? "front" : "side", faceOnly, thumb: true, dip: 0.08,
+    const o = { kind, x: 0, z, r: D.r, h: D.h, t: -1, face: 1, ph: 1, step: 0, view: faceOnly ? "front" : "side", faceOnly, thumb: true, dip: 0.08, y0: 0,
       act: { cow: "chew", horse: "look", chicken: "look", turkey: "strut" }[kind] || "look",
       // the red-and-white cow and the chestnut horse, whose faces read best this small
       yaw: Math.atan2(0, CAM.z0 - z) + 0.55, patch: "#9a4a22", coat: "#b0602e", mane: "#7a3c1c", blaze: true,
       spots: [{ x: -0.5, y: 1.25, rx: 0.35, ry: 0.22, a: 0.3 }, { x: 0.35, y: 1.05, rx: 0.28, ry: 0.2, a: -0.2 }, { x: 0.1, y: 1.45, rx: 0.2, ry: 0.12, a: 0 }] };
     // fit the thing to the picture: measure it on screen, then scale and centre it
     // the part to show, in metres: [left, bottom, right, top]
-    const box = { cow: [-0.55, 0.88, 0.55, 1.78], horse: [-0.45, 1.42, 0.45, 2.42], junker: [-3.1, 0, 3.1, 1.6] }[kind] || [-(o.r + 0.6), 0, o.r + 0.6, o.h + 0.15];
+    const box = { cow: [-0.55, 0.88, 0.55, 1.78], horse: [-0.45, 1.42, 0.45, 2.42], junker: [-3.1, 0, 3.1, 1.6], leaves: [-1.7, 0, 1.7, 1.0], mailbox: [-0.75, 0, 0.75, 1.75],
+      trampoline: [-2.5, 0, 2.5, 2.8], dog: [-0.7, 0, 0.75, 0.85], neighbour: [-0.42, 0, 0.42, 1.3] }[kind] || [-(o.r + 0.6), 0, o.r + 0.6, o.h + 0.15];
     const fit = (zz) => { const a = P(box[0], box[1], zz), b = P(box[2], box[3], zz); return { a, b, k: Math.min(w * 0.9 / (b.x - a.x), h * 0.86 / (a.y - b.y)) }; };
     // bring it close enough to the camera to fill the picture by itself, so outlines keep their normal thickness
     // (scaling a far-off drawing up would fatten every line)
     o.z = CAM.z0 + (z - CAM.z0) / fit(z).k;
     if (kind === "junker") o.yaw = Math.atan2(0, CAM.z0 - o.z) + 0.55;
+    if (kind === "mailbox" || kind === "trampoline") o.yaw = Math.atan2(0, CAM.z0 - o.z) + 0.45;
     const { a, b, k } = fit(o.z);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.translate(w / 2, h / 2); ctx.scale(k, k); ctx.translate(-(a.x + b.x) / 2, -(a.y + b.y) / 2);
@@ -2480,21 +3457,34 @@ body.lab .stage > :not(canvas) { display: none; }
     ({ ctx, W, H, dpr } = keep); camHome();
     return url;
   }
-  {
-    const pic = (k) => `<img src="${thumb(k)}" alt="${PROPS[k].label || k}" title="${PROPS[k].label || k}">`;
-    const kinds = Object.keys(PROPS);
+  // a house window (with a crack across it), for the cul de sac's −5 row
+  function windowThumb() {
+    const off = document.createElement("canvas"); off.width = 128; off.height = 100;
+    const c = off.getContext("2d"); c.scale(2, 2);
+    c.fillStyle = "#ffffff"; c.fillRect(18, 6, 28, 38); c.fillStyle = "#9cc3d6"; c.fillRect(21, 9, 22, 32);
+    c.strokeStyle = "#ffffff"; c.lineWidth = 2; c.beginPath(); c.moveTo(32, 9); c.lineTo(32, 41); c.moveTo(21, 25); c.lineTo(43, 25); c.stroke();
+    c.strokeStyle = "#23303a"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(27, 15); c.lineTo(31, 21); c.lineTo(29, 28); c.moveTo(31, 21); c.lineTo(38, 19); c.moveTo(31, 21); c.lineTo(36, 30); c.stroke();
+    c.strokeStyle = "rgba(35,48,58,.5)"; c.strokeRect(18, 6, 28, 38);
+    return off.toDataURL();
+  }
+  // the start card's +5 and −5 pictures for a level (each drawn once, then kept)
+  const thumbs = {};
+  function extrasFor(L) {
+    const kinds = [...new Set(L.props)], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : thumb(k));
+    const pic = (k) => `<img src="${get(k)}" alt="${k === "window" ? "a house window" : PROPS[k].label || k}" title="${k === "window" ? "a house window" : PROPS[k].label || k}">`;
     $("xPlus").innerHTML = kinds.filter((k) => !PROPS[k].alive).map(pic).join("");
-    $("xMinus").innerHTML = kinds.filter((k) => PROPS[k].alive).map(pic).join("");
+    $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : [])].map(pic).join("");
   }
 
   // ================= go =================
-  S.rings = layoutRings(LEVELS[0]); S.props = []; placeProps(propKinds()); S.feathers = []; S.bonus = 0; hud();
+  previewLevel(0);
   if (new URLSearchParams(location.search).has("lab")) {
     document.body.classList.add("lab"); $("overlay").hidden = true;
     cv.addEventListener("click", labClick);
     (function labFrame() { drawLab(); requestAnimationFrame(labFrame); })();
     return;
   }
+  S.phase = "title"; showStart(0);
   let last = performance.now();
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
