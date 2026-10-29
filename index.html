@@ -290,7 +290,7 @@ body.lab .stage > :not(canvas) { display: none; }
   </section>
 
   <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim (grab it by the wheels to roll it), drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.13</p>
+  <p class="ver">Pneuman v1.14</p>
 </div>
 
 <script>
@@ -326,9 +326,9 @@ body.lab .stage > :not(canvas) { display: none; }
     { id: "culdesac", name: "Cul de sac", scene: "culdesac", mix: MIX, z: [18, 78], wind: [6, 12], maxPsi: 120, mapZ: 112,
       targets: { purple: "spinner", blue: "roof" },
       props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour"] },
-    // hillOdds: the chance each ground ring goes on the front of one of the hills (a little over half, since the
-    // blue ring sometimes goes on the barn roof instead: it comes out at about half of them on a hill)
-    { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118, hillOdds: 0.62,
+    // (a level can also set hillOdds, the chance each ground ring goes on the front of one of its hills; Harvest's
+    // hills are background scenery now, so nothing goes on them)
+    { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118,
       targets: { yellow: "splat", purple: "splat" },
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
   ];
@@ -3124,13 +3124,24 @@ body.lab .stage > :not(canvas) { display: none; }
   // stands up like anything else: it's drawn with the standing things, far to near, so it hides what's behind it,
   // and it draws the rings on its front itself, over its grass
   function drawHill(h) {
-    const n = 26, lo = [146, 158, 68], hi = [208, 212, 122];
-    for (let k = 0; k < n; k++) {
-      const f = (k + 0.5) / n, y = f * h.h, d = (h.r * Math.acos(2 * f - 1)) / Math.PI;
-      const pts = Array.from({ length: 36 }, (_, i) => { const a = (i / 36) * Math.PI * 2; return [h.x + Math.cos(a) * d, y, h.z + Math.sin(a) * d]; });
-      const c = lo.map((v, j) => Math.round(v + (hi[j] - v) * Math.pow(f, 0.6)));
-      if (pathClip(pts)) { ctx.fillStyle = haze(`rgb(${c})`, h.x, h.z); ctx.fill(); }
+    // one solid shape: the outline of the whole hill on screen (the hull of points round it at several heights),
+    // shaded from its darker foot to a lighter crown
+    const qs = [];
+    for (let k = 0; k <= 12; k++) {
+      const f = k / 12, y = f * h.h, d = (h.r * Math.acos(Math.min(1, 2 * f - 1))) / Math.PI;
+      for (let i = 0; i < 32; i++) { const a = (i / 32) * Math.PI * 2, q = P(h.x + Math.cos(a) * d, y, h.z + Math.sin(a) * d); if (q.behind) return; qs.push(q); }
     }
+    qs.sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const lower = [], upper = [];
+    for (const q of qs) { while (lower.length > 1 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop(); lower.push(q); }
+    for (let i = qs.length - 1; i >= 0; i--) { const q = qs[i]; while (upper.length > 1 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop(); upper.push(q); }
+    const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+    const top = P(h.x, h.h, h.z).y, foot = P(h.x, 0, h.z - h.r).y, g = ctx.createLinearGradient(0, top, 0, foot);
+    g.addColorStop(0, haze("#b9c87a", h.x, h.z)); g.addColorStop(1, haze("#7f9a48", h.x, h.z));
+    ctx.beginPath(); hull.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = haze("#6f8a3e", h.x, h.z); ctx.lineWidth = 1; ctx.stroke();
     // (a hill ring's flag stands at its side, not up the slope behind it)
     for (const t of S.rings) if (t.hill === h) { drawRing(t); drawFlag(t, [t.x + t.r * 0.95, S.scene.groundY(t.x + t.r * 0.95, t.z), t.z]); }
   }
@@ -3228,20 +3239,17 @@ body.lab .stage > :not(canvas) { display: none; }
   // just beyond it, and the barn this side of it ----
   function buildHarvest() {
     const run = makeRun([[-130, 140], [-60, 98], [-22, 78], [6, 70], [30, 62], [70, 50], [140, 38]]);
-    // the barn stands broad side on, out to one side this side of the run; the hills are just the other side of
-    // the run, one near the middle and one out on the far side from the barn, so the barn never hides them (and a
-    // ring on a hill's front stays in view)
+    // the barn stands broad side on, out to one side this side of the run
     const bs = Math.random() < 0.5 ? -1 : 1;
     let barn = null;
     for (let i = 0; i < 200 && !barn; i++) { const z = rnd(50, 58), x = bs * rnd(12, 15); if (!run.near(x, z, 11)) barn = makeBarn(x, z); }
-    // (no taller than the launcher's camera can see over at that distance: much above 6 m would be off the top)
+    // rolling hills in the background beyond the run: solid scenery, well clear of every target (the first two in
+    // view ahead, the rest out to the sides, seen when you turn). They may run into each other
     const hills = [];
-    // (broad, so a ring lies along the front slope rather than perched on a knob; they may run into each other)
-    for (const [lo, hi] of [[-4, 4], [18, 25]]) for (let i = 0; i < 200; i++) {
-      const r = rnd(15, 18), z = rnd(92, 102), x = -bs * rnd(lo, hi);
-      if (run.near(x, z, r + 1) || hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r - 12)) continue;
-      hills.push({ x, z, r, h: rnd(6, 7), draw: drawHill });
-      break;
+    for (let i = 0; i < 600 && hills.length < 5; i++) {
+      const r = rnd(18, 28), z = rnd(104, 140), x = hills.length < 2 ? rnd(-32, 32) : rnd(-90, 90);
+      if (run.near(x, z, r + 3) || z - r < 84 || hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r - 16)) continue;
+      hills.push({ x, z, r, h: rnd(9, 12), draw: drawHill });
     }
     const groundY = (x, z) => { let y = 0; for (const h of hills) y += hillY(h, x, z); return y; };
     const bales = [];
@@ -3285,13 +3293,8 @@ body.lab .stage > :not(canvas) { display: none; }
         if (run.near(x, z, r + (form === "ring" || form === "hillring" ? 0.8 : 1.2))) return false;
         if (bales.some((b) => Math.hypot(b.x - x, b.z - z) < r + 1.6)) return false;
         if (barn && form !== "barnwall" && houseNear(barn, x, z, r + 1)) return false;
-        for (const h of hills) {
-          const d = Math.hypot(h.x - x, h.z - z);
-          if (form === "hillring") continue;
-          // a ground ring can't sit over a hill or behind it (a hill ring gets its own spot on the front); the rest keep off
-          if (form === "ring") { if (d < h.r + r && z > h.z - h.r * 0.3) return false; }
-          else if (d < h.r + r + 0.5) return false;
-        }
+        // nothing goes on the hills, or right up against them
+        if (form !== "hillring" && hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r + 2)) return false;
         return true;
       },
       collide(p, q) {
