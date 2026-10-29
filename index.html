@@ -289,8 +289,8 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim, drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.12</p>
+  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim (grab it by the wheels to roll it), drag the field to look around, wheel to zoom</p>
+  <p class="ver">Pneuman v1.13</p>
 </div>
 
 <script>
@@ -610,11 +610,17 @@ body.lab .stage > :not(canvas) { display: none; }
   // re-roll whole layouts until one has no rings overlapping on screen
   function layoutRings(L) {
     let best = null, bestBad = Infinity;
-    // which rings go on a hill, and what the barn gets (if the place has one: the blue ring on its roof, or the
-    // purple splat target on its broad side), are settled once, so the re-rolls below don't quietly favour the flat
-    const plan = { hill: Object.fromEntries(Object.keys(L.mix).map((t) => [t, Math.random() < (L.hillOdds || 0)])), barn: null };
-    if (S.scene.barn) { const r = Math.random(); plan.barn = r < 0.45 ? "roof" : r < 0.9 ? "wall" : null; }
-    if (plan.barn === "roof") plan.hill.blue = false;
+    // which rings go on a hill, and what the barn gets (if the place has one), are settled once, so the re-rolls
+    // below don't quietly favour the flat. The barn ("the broad side of a barn") mostly gets something on its wall:
+    // a ring painted there (blue, sometimes red) or the purple splat target; now and then the blue ring on its roof
+    const plan = { hill: Object.fromEntries(Object.keys(L.mix).map((t) => [t, Math.random() < (L.hillOdds || 0)])), barn: null, barnType: null };
+    if (S.scene.barn) {
+      const r = Math.random();
+      if (r < 0.15) { plan.barn = "roof"; plan.barnType = "blue"; }
+      else if (r < 0.55) { plan.barn = "wallring"; plan.barnType = Math.random() < 0.7 ? "blue" : "red"; }
+      else if (r < 0.92) { plan.barn = "wall"; plan.barnType = "purple"; }
+    }
+    if (plan.barnType && plan.hill[plan.barnType] !== undefined) plan.hill[plan.barnType] = false;
     for (let i = 0; i < 40; i++) {
       const r = layoutOnce(L, plan);
       const bad = r.reduce((n, a, j) => n + r.filter((b, k) => k > j && overlaps(a.box, b.box)).length, 0);
@@ -635,16 +641,17 @@ body.lab .stage > :not(canvas) { display: none; }
     const rings = [];
     for (const [type, count] of Object.entries(L.mix)) {
       // how this colour shows up here: flat on the ground (a ring), on a house roof, or as a spinner on its frame
-      const form = plan.barn === "roof" && type === "blue" ? "roof" : (L.targets || {})[type] || "ring";
+      const onBarn = plan.barnType === type ? plan.barn : null;
+      const form = onBarn === "roof" ? "roof" : onBarn === "wallring" ? "wallring" : (L.targets || {})[type] || "ring";
       // what holds a splat target up: its usual tree or bale, or the barn's broad side
-      const mk = form === "splat" ? (plan.barn === "wall" && type === "purple" ? "barn" : SPLAT[type].mount) : null;
+      const mk = form === "splat" ? (onBarn === "wall" ? "barn" : SPLAT[type].mount) : null;
       for (let i = 0; i < count; i++) {
         const R = RINGS[type];
-        if (form === "roof") {
-          // the place picks a roof facing the launcher; it must be on screen and clear of the other targets
-          // (and below the notes along the top of the view)
+        if (form === "roof" || form === "wallring") {
+          // the place picks a roof (or a wall) facing the launcher; it must be on screen and clear of the other
+          // targets (and below the notes along the top of the view)
           const seen = (b) => onScreen(b) && b.y0 > H * 0.1;
-          const opts = shuffle(S.scene.roofTargets(type)).sort((a, b) => S.scene.hides(a.box, Math.hypot(a.x - CAM.x, a.z - CAM.z)) - S.scene.hides(b.box, Math.hypot(b.x - CAM.x, b.z - CAM.z))), ok = opts.find((t) => seen(t.box) && !rings.some((o) => overlaps(t.box, o.box))) || opts.find((t) => seen(t.box)) || opts.find((t) => onScreen(t.box)) || opts[0];
+          const opts = shuffle(form === "roof" ? S.scene.roofTargets(type) : S.scene.wallTargets(type)).sort((a, b) => S.scene.hides(a.box, Math.hypot(a.x - CAM.x, a.z - CAM.z)) - S.scene.hides(b.box, Math.hypot(b.x - CAM.x, b.z - CAM.z))), ok = opts.find((t) => seen(t.box) && !rings.some((o) => overlaps(t.box, o.box))) || opts.find((t) => seen(t.box)) || opts.find((t) => onScreen(t.box)) || opts[0];
           if (ok) rings.push(ok);
           continue;
         }
@@ -660,11 +667,12 @@ body.lab .stage > :not(canvas) { display: none; }
           const mkNow = mk === "barn" && tries >= 150 ? SPLAT[type].mount : mk;
           const rr = form === "spinner" ? SPIN.foot : form === "splat" ? footOf(mkNow) : R.r;
           if (mkNow === "barn") {
-            const bn = S.scene.barn, p = solid(bn).Wp([rnd(-1, 1) * (bn.w / 2 - 2.6), 0, bn.d / 2 + 0.12]);
+            // on the wall either side of the big doors, never on them
+            const bn = S.scene.barn, rad = SPLAT[type].rad, p = solid(bn).Wp([(Math.random() < 0.5 ? -1 : 1) * rnd(2.7 + rad + 0.3, bn.w / 2 - rad - 0.3), 0, bn.d / 2 + 0.12]);
             x = p[0]; z = p[2];
           } else if (hill && tries < 300) {
             // partway up the side toward the launcher, a little to either side
-            const ux = -hill.x, uz = CAM.z0 - hill.z, ul = Math.hypot(ux, uz), d = hill.r * rnd(0.22, 0.4), side = hill.r * rnd(-0.2, 0.2);
+            const ux = -hill.x, uz = CAM.z0 - hill.z, ul = Math.hypot(ux, uz), d = hill.r * rnd(0.3, 0.5), side = hill.r * rnd(-0.2, 0.2);
             x = hill.x + (ux * d + uz * side) / ul; z = hill.z + (uz * d - ux * side) / ul;
             if (!inBand(x, z, BAND.rings[type])) continue;
           } else {
@@ -681,8 +689,8 @@ body.lab .stage > :not(canvas) { display: none; }
           // ground and on screen; then apart on the ground; then allowed to overlap, as long as neither ring's centre
           // is inside the other (each keeps a part of its own; a spud landing in both scores the better one)
           const box = form === "spinner" ? spinnerBox(x, z) : form === "splat" ? splatBox(type, x, z, mkNow, yaw) : ringBox(x, z, rr, hill && tries < 300), c = P(x, 0, z);
-          const apart = rings.every((o) => o.form === "roof" || Math.hypot(o.x - x, o.z - z) > o.r + rr + 2);
-          const centresClear = rings.every((o) => o.form === "roof" || Math.hypot(o.x - x, o.z - z) > Math.max(o.r, rr) + 1);
+          const apart = rings.every((o) => onBuilding(o) || Math.hypot(o.x - x, o.z - z) > o.r + rr + 2);
+          const centresClear = rings.every((o) => onBuilding(o) || Math.hypot(o.x - x, o.z - z) > Math.max(o.r, rr) + 1);
           // nor hidden from the launcher behind something nearer (a yard tree, a house)
           if (tries < 450 && S.scene.hides(box, Math.hypot(x - CAM.x, z - CAM.z))) continue;
           if (tries < 250 && (!apart || !onScreen(box) || blocked.some((b) => overlaps(box, b)) || rings.some((o) => overlaps(box, o.box)))) continue;
@@ -701,7 +709,9 @@ body.lab .stage > :not(canvas) { display: none; }
     return rings;
   }
   // what a target is called in the shot notes
-  const tName = (t) => `${RINGS[t.type].name} ${t.form === "spinner" ? "spinner" : t.form === "splat" ? "target" : t.form === "roof" ? "roof ring" : t.hill ? "hill ring" : "ring"}`;
+  const tName = (t) => `${RINGS[t.type].name} ${t.form === "spinner" ? "spinner" : t.form === "splat" ? "target" : t.form === "roof" ? "roof ring" : t.form === "wallring" ? "ring on the barn" : t.hill ? "hill ring" : "ring"}`;
+  // a ring up on a roof or painted on a wall: the building draws it, and it doesn't take up ground
+  const onBuilding = (t) => t.form === "roof" || t.form === "wallring";
   // "3.2 m short, 1.5 m left of the blue ring", for the nearest target not yet scored
   function missNote(x, z) {
     const open = S.rings.filter((r) => !r.hit);
@@ -746,8 +756,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // the farmer takes a break sitting on a round bale
     farmer:    { r: 0.6, h: 1.25, alive: true, label: "farmer", say: "OI!", msg: "You knocked the farmer's hat off!", sound: "oi" },
     pumpkins:  { r: 1.2, h: 1.35, label: "pumpkin pile", say: "SPLUNCH!", msg: "Smashed a pumpkin!", sound: "squelch" },
-    // the bonus is for the seat or the exhaust stack; the rest of the tractor just goes thunk
-    tractor:   { r: 2.3, h: 2.4, label: "tractor", say: "CLANG!", msg: "Ding! Right on the old tractor!", sound: "chug" },
+    // anywhere on the tractor wins the bonus (it clangs and coughs a puff of smoke)
+    tractor:   { r: 2.3, h: 2.4, label: "tractor", say: "CLANG!", msg: "Clang! Right on the old tractor!", sound: "chug" },
   };
   // a level's props, less the animals when they're switched off. A kind listed twice is placed twice
   const propKinds = () => lvl().props.filter((k) => S.animals || !PROPS[k].animal);
@@ -812,7 +822,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (spots) {
         // this place has set spots for it (a driveway, a porch, the curb): the first one that's free
         for (const s of shuffle(spots)) {
-          if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - s.x, r.z - s.z) < r.r + D.r + 0.5)) continue;
+          if (S.rings.some((r) => !onBuilding(r) && Math.hypot(r.x - s.x, r.z - s.z) < r.r + D.r + 0.5)) continue;
           if (S.props.some((o) => (s.house && o.house === s.house) || Math.hypot(o.x - s.x, o.z - s.z) < o.r + D.r + 0.5)) continue;
           S.props.push(newProp(kind, s.x, s.z, s));
           break;
@@ -831,7 +841,7 @@ body.lab .stage > :not(canvas) { display: none; }
         // on screen from the launcher (the camera is at home after the ring layout), and clear of the corner map
         const q = P(x, 0, z), mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
         if (q.x < 40 || q.x > W - 40 || (q.x > W - mw - 30 && q.y > H - mh - 30)) continue;
-        if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
+        if (S.rings.some((r) => !onBuilding(r) && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
         if (S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
         // and somewhere this place allows it (not in a house; the leaf pile and trampoline on a lawn)
         if (!S.scene.free(x, z, D.r, kind)) continue;
@@ -842,7 +852,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!S.props.some((o) => o.kind === kind)) for (let tries = 0; tries < 300; tries++) {
         const z = rnd(lvl().z[0], lvl().z[1]), x = rnd(-1, 1) * z * Math.tan(BAND.props[kind] || BAND.animals), q = P(x, 0, z);
         if (q.x < 40 || q.x > W - 40 || !S.scene.free(x, z, D.r, kind)) continue;
-        if (S.rings.some((r) => r.form !== "roof" && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1) || S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
+        if (S.rings.some((r) => !onBuilding(r) && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1) || S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
         S.props.push(newProp(kind, x, z));
         break;
       }
@@ -1059,9 +1069,6 @@ body.lab .stage > :not(canvas) { display: none; }
     } else if (prop && prop.kind === "trampoline" && prop.zone === "net") {
       prop.t = 0; prop.say = "FWUMP"; sfx.thunk();
       shotNote("Caught in the trampoline's net. The bonus is for dropping in onto the mat.");
-    } else if (prop && prop.kind === "tractor" && prop.zone !== "top") {
-      prop.t = 0; prop.say = "THUNK!"; sfx.thunk();
-      shotNote("Thunk! That's the tractor's bodywork. The bonus is for the seat or the exhaust stack.");
     } else if (prop) {
       const D = PROPS[prop.kind];
       prop.t = 0; prop.say = null; sfx[D.sound]();
@@ -1105,6 +1112,10 @@ body.lab .stage > :not(canvas) { display: none; }
       // it spins on its axle either way; it scores once
       const t = hit.target; t.spin = (t.spin || 0) + 16; sfx.whirr();
       if (!t.hit) scoreTarget(t); else shotNote(`The ${tName(t)} spins, but it's already scored`);
+    } else if (hit.kind === "wallring") {
+      // the ring painted on the barn's broad side: it drops at the foot of the wall
+      const t = hit.target;
+      if (!t.hit) scoreTarget(t); else { sfx.thunk(); shotNote(`On the ${tName(t)}, but it's already scored`); }
     } else if (hit.kind === "roof") {
       if (hit.ring && !hit.ring.hit) scoreTarget(hit.ring);
       else { sfx.thunk(); shotNote(hit.ring ? `On the ${tName(hit.ring)}, but it's already scored` : `Up on the roof${then}`); }
@@ -1303,8 +1314,8 @@ body.lab .stage > :not(canvas) { display: none; }
         const spun = S.rings.find((t) => t.form === "spinner" && spinnerHit(t, prev, p));
         if (spun) { land(p.x, p.z, null, { kind: "spinner", target: spun }); break; }
         // a splat target's board, or the tree or bale holding it up (before the place's walls: one hangs on the barn)
-        const board = S.rings.find((t) => t.form === "splat" && (t.zone = splatHit(t, prev, p)));
-        if (board) { land(p.x, p.z, null, board.zone === "board" ? { kind: "board", target: board } : { kind: "mount", target: board, at: [p.x, p.y, p.z] }); break; }
+        const board = S.rings.find((t) => (t.form === "splat" || t.form === "wallring") && (t.zone = splatHit(t, prev, p)));
+        if (board) { land(p.x, p.z, null, board.form === "wallring" ? { kind: "wallring", target: board } : board.zone === "board" ? { kind: "board", target: board } : { kind: "mount", target: board, at: [p.x, p.y, p.z] }); break; }
         // the place's own solid things (houses and the barn: walls, windows, roofs)
         const sh = S.scene.collide(p, prev);
         if (sh) { land(sh.land[0], sh.land[2], null, { ...sh, y: sh.land[1] }); break; }
@@ -1406,7 +1417,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // left out so they don't hide it
     const arcNear = S.arcView != null && S.arc ? Math.min(...S.arc.map(([x, , z]) => Math.hypot(x - CAM.x, z - CAM.z))) - 3 : 0;
     const standing = [
-      ...rings.filter((r) => r.form !== "roof" && !r.hill).map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : r.form === "splat" ? drawSplatTarget(r) : drawFlag(r, [r.x, S.scene.groundY(r.x, r.z + r.r), r.z + r.r])) })),
+      ...rings.filter((r) => !onBuilding(r) && !r.hill).map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : r.form === "splat" ? drawSplatTarget(r) : drawFlag(r, [r.x, S.scene.groundY(r.x, r.z + r.r), r.z + r.r])) })),
       ...(S.props || []).map((o) => ({ d: dist(o), f: () => drawProp(o) })),
       ...S.scene.standing.filter((s) => dist(s) > arcNear).map((s) => ({ d: dist(s), f: () => s.draw(s) })),
     ];
@@ -2303,7 +2314,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // and water a spud can splash into
   // hides(box, d): would something of the place nearer than d cover that screen box, seen from the launcher?
   // wheels: how far either side the launcher can roll, and what stops it
-  const FLAT = { groundY: () => 0, hills: [], flats: [], water: () => false, hides: () => false, wheels: { range: [-12, 12], stop: "That's as far as it rolls" } };
+  const FLAT = { groundY: () => 0, hills: [], flats: [], water: () => false, hides: () => false, wallTargets: () => [], wheels: { range: [-12, 12], stop: "That's as far as it rolls" } };
   const PASTURE = {
     ...FLAT, skyline: "#9ad07a", back: pastureBack, standing: [], front() {}, update() {}, reset() {},
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
@@ -2388,8 +2399,9 @@ body.lab .stage > :not(canvas) { display: none; }
       return [x, h.hr - h.k * z + 0.03, z];
     });
     if (!pathClip(ring.map(sd.Wp))) return;
-    // painted on the shingles, a bit more solid than the ground rings so it reads against the dark roof
-    ctx.fillStyle = t.hit ? "rgba(255,255,255,.6)" : hexA(R.color, 0.6); ctx.fill();
+    // painted on the shingles, a bit more solid than the ground rings so it reads against the dark roof, but still
+    // see-through (the barn's lettering shows under it)
+    ctx.fillStyle = t.hit ? "rgba(255,255,255,.45)" : hexA(R.color, 0.48); ctx.fill();
     ctx.lineWidth = Math.max(1.4, 0.16 * sd.u); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
     ctx.lineWidth = Math.max(0.8, 0.1 * sd.u); ctx.strokeStyle = t.hit ? "#cfd6da" : R.edge; ctx.stroke();
     // its flag stands up from the ring's top edge, toward the ridge
@@ -2420,14 +2432,14 @@ body.lab .stage > :not(canvas) { display: none; }
       // the roof, past the walls a little, with shingle rows and trim along its edges
       const RX = hx + ov, RZ = hzz + ov, ey = hw - ov * k, rise = hr - ey, nl = Math.hypot(RZ, rise);
       const front = sd.face([[RX, ey, RZ], [-RX, ey, RZ], [-RX, hr, 0], [RX, hr, 0]], L.roof, [0, RZ / nl, rise / nl]);
-      sd.face([[-RX, ey, -RZ], [RX, ey, -RZ], [RX, hr, 0], [-RX, hr, 0]], L.roof, [0, RZ / nl, -rise / nl]);
+      const back = sd.face([[-RX, ey, -RZ], [RX, ey, -RZ], [RX, hr, 0], [-RX, hr, 0]], L.roof, [0, RZ / nl, -rise / nl]);
       if (front) {
         for (let i = 1; i < 5; i++) sd.line([-RX, ey + rise * i / 5, RZ * (1 - i / 5)], [RX, ey + rise * i / 5, RZ * (1 - i / 5)], "rgba(0,0,0,.14)", 1);
         sd.line([-RX, ey, RZ], [RX, ey, RZ], L.trim, 0.12 * u);
         const ring = S.rings.find((t) => t.house === h);
         if (ring) drawRoofRing(h, sd, ring);
       }
-      for (const sx of [-1, 1]) { sd.line([sx * RX, ey, RZ], [sx * RX, hr, 0], L.trim, 0.1 * u); sd.line([sx * RX, hr, 0], [sx * RX, ey, -RZ], L.trim, 0.1 * u); }
+      roofEdges(sd, h, RX, RZ, ey, front, back, L.trim, 0.1 * u);
       // a brick chimney at the far end of the ridge
       const cx = -h.gs * (hx - 1.3);
       box3(sd, [cx - 0.45, hr - 0.3, -1.6], [cx + 0.45, hr + 1.1, -0.7], "#8e4a36");
@@ -3147,18 +3159,18 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       sd.decal([[-0.9, 4.0, z], [0.9, 4.0, z], [0.9, 5.0, z], [-0.9, 5.0, z]], "#6e1f19", L.trim, Math.max(1, 0.08 * u));
       for (const sx of [-1, 1]) sd.line([sx * hx, 0, z], [sx * hx, hw, z], L.trim, 0.16 * u);
+      for (const t of S.rings) if (t.form === "wallring" && t.house === h) drawWallRing(h, sd, t);
     }
     const RX = hx + ov, RZ = hz + ov, ey = hw - ov * k, rise = hr - ey, nl = Math.hypot(RZ, rise);
     const front = sd.face([[RX, ey, RZ], [-RX, ey, RZ], [-RX, hr, 0], [RX, hr, 0]], L.roof, [0, RZ / nl, rise / nl]);
-    sd.face([[-RX, ey, -RZ], [RX, ey, -RZ], [RX, hr, 0], [-RX, hr, 0]], L.roof, [0, RZ / nl, -rise / nl]);
-    for (const sx of [-1, 1]) { sd.line([sx * RX, ey, RZ], [sx * RX, hr, 0], L.trim, 0.1 * u); sd.line([sx * RX, hr, 0], [sx * RX, ey, -RZ], L.trim, 0.1 * u); }
+    const back = sd.face([[-RX, ey, -RZ], [RX, ey, -RZ], [RX, hr, 0], [-RX, hr, 0]], L.roof, [0, RZ / nl, -rise / nl]);
+    roofEdges(sd, h, RX, RZ, ey, front, back, L.trim, 0.1 * u);
     if (!front) return;
     sd.line([-RX, ey, RZ], [RX, ey, RZ], L.trim, 0.12 * u);
     const ring = S.rings.find((t) => t.house === h);
-    // the farm's name across the roof, beside the ring if there is one
+    // the farm's name across the middle of the roof (a ring up there lies over it, see-through)
     if (u > 1.2) {
-      let xa = -RX + 0.8, xb = RX - 0.8;
-      if (ring) { if (ring.lx > 0) xb = ring.lx - ring.r - 0.4; else xa = ring.lx + ring.r + 0.4; }
+      const xa = -RX + 0.8, xb = RX - 0.8;
       const text = "BROADSIDE FARMS", fs = 100;
       ctx.font = `800 ${fs}px Nunito, sans-serif`;
       const aspect = fs / ctx.measureText(text).width, slope = Math.hypot(RZ, rise), hm = Math.min(slope * 0.42, (xb - xa) * aspect), wm = hm / aspect, xc = (xa + xb) / 2;
@@ -3173,6 +3185,35 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.restore();
     }
     if (ring) drawRoofRing(h, sd, ring);
+  }
+  // a ring painted on a barn's broad side, at u across the wall (clear of the doors), its middle at cy; it scores
+  // like any ring. As a target it has a place and a heading like a splat board, so the same hit test serves
+  const WALL_RING = { r: 2.1, cy: 2.6 };
+  function wallRingAt(h, type, u) {
+    const sd = solid(h), [x, , z] = sd.Wp([u, 0, h.d / 2 + 0.04]), { r, cy } = WALL_RING;
+    const qs = Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return sd.at([u + Math.cos(a) * r, cy + Math.sin(a) * r, h.d / 2]); });
+    const box = { x0: Math.min(...qs.map((q) => q.x)) - 3, x1: Math.max(...qs.map((q) => q.x)) + 3, y0: Math.min(...qs.map((q) => q.y)) - 3, y1: Math.max(...qs.map((q) => q.y)) + 3 };
+    return { type, form: "wallring", house: h, u, x, z, yaw: h.yaw, cy, rad: r, r, pts: RINGS[type].pts, hit: false, box };
+  }
+  function drawWallRing(h, sd, t) {
+    const R = RINGS[t.type], z = h.d / 2 + 0.03, circ = (r) => Array.from({ length: 32 }, (_, i) => { const a = (i / 32) * Math.PI * 2; return [t.u + Math.cos(a) * r, t.cy + Math.sin(a) * r, z]; });
+    sd.decal(circ(t.r), t.hit ? "rgba(255,255,255,.5)" : hexA(R.color, 0.55), "rgba(255,255,255,.95)", Math.max(1.4, 0.16 * sd.u));
+    sd.decal(circ(t.r), null, t.hit ? "#cfd6da" : R.edge, Math.max(0.8, 0.1 * sd.u));
+    // its points painted in the middle
+    const c = sd.at([t.u, t.cy, z]), fs = Math.max(9, t.r * 0.9 * c.s), label = t.hit ? "✓" : String(t.pts);
+    ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, fs * 0.12); ctx.strokeStyle = "#23303a"; ctx.fillStyle = "#fffaf0";
+    ctx.strokeText(label, c.x, c.y); ctx.fillText(label, c.x, c.y);
+  }
+  // the trim up each gable edge of a roof: the front half shows with the front slope, the back half with the back
+  // slope, and both whenever that gable end faces the camera (so from the front you don't see the far half through
+  // the roof)
+  function roofEdges(sd, h, RX, RZ, ey, front, back, color, w) {
+    for (const sx of [-1, 1]) {
+      const end = sd.facing([[(sx * h.w) / 2, h.hw, h.d / 2], [(sx * h.w) / 2, h.hw, -h.d / 2], [(sx * h.w) / 2, h.hr, 0]], [sx, 0, 0]);
+      if (front || end) sd.line([sx * RX, ey, RZ], [sx * RX, h.hr, 0], color, w);
+      if (back || end) sd.line([sx * RX, h.hr, 0], [sx * RX, ey, -RZ], color, w);
+    }
   }
   // a roof ring on the front slope of a house or barn at lx (across) and lz (up from the ridge's line), with its
   // screen box (and flag) for keeping the other targets clear
@@ -3192,13 +3233,14 @@ body.lab .stage > :not(canvas) { display: none; }
     // ring on a hill's front stays in view)
     const bs = Math.random() < 0.5 ? -1 : 1;
     let barn = null;
-    for (let i = 0; i < 200 && !barn; i++) { const z = rnd(48, 56), x = bs * rnd(16, 20); if (!run.near(x, z, 11)) barn = makeBarn(x, z); }
+    for (let i = 0; i < 200 && !barn; i++) { const z = rnd(50, 58), x = bs * rnd(12, 15); if (!run.near(x, z, 11)) barn = makeBarn(x, z); }
     // (no taller than the launcher's camera can see over at that distance: much above 6 m would be off the top)
     const hills = [];
-    for (const [lo, hi] of [[-3, 4], [15, 21]]) for (let i = 0; i < 200; i++) {
-      const r = rnd(9.5, 11), z = rnd(88, 96), x = -bs * rnd(lo, hi);
-      if (run.near(x, z, r + 1) || hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r - 4)) continue;
-      hills.push({ x, z, r, h: rnd(5.5, 6.5), draw: drawHill });
+    // (broad, so a ring lies along the front slope rather than perched on a knob; they may run into each other)
+    for (const [lo, hi] of [[-4, 4], [18, 25]]) for (let i = 0; i < 200; i++) {
+      const r = rnd(15, 18), z = rnd(92, 102), x = -bs * rnd(lo, hi);
+      if (run.near(x, z, r + 1) || hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r - 12)) continue;
+      hills.push({ x, z, r, h: rnd(6, 7), draw: drawHill });
       break;
     }
     const groundY = (x, z) => { let y = 0; for (const h of hills) y += hillY(h, x, z); return y; };
@@ -3221,9 +3263,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // the bales well beyond the hills are drawn with the far things; the rest stand with everything else
     const farBales = bales.filter((b) => b.z > 135), nearBales = bales.filter((b) => b.z <= 135);
     const backs = [...far.map((t) => ({ z: t.z, f: () => drawTree(t) })), ...farBales.map((b) => ({ z: b.z, f: () => drawBale(b) }))].sort((a, b) => b.z - a.z);
-    // windrows: the mown rows run away from you; and stubble here and there
-    const rows = [];
-    for (let x = -160; x < 160; x += 6) rows.push([[x, 0, -30], [x + 3, 0, -30], [x + 3, 0, 270], [x, 0, 270]]);
+    // stubble here and there (no mown rows: lines running away from you would be a free aiming guide)
     const stubble = Array.from({ length: 170 }, () => { const z = Math.pow(Math.random(), 1.5) * 170 - 4; return { x: rnd(-1, 1) * (z * 0.45 + 12), z }; }).sort((a, b) => b.z - a.z);
     return {
       ...FLAT, skyline: "#b4b45e", hills, groundY, bales, barn,
@@ -3231,8 +3271,6 @@ body.lab .stage > :not(canvas) { display: none; }
       standing: [...nearBales, ...hills, ...(barn ? [{ x: barn.x, z: barn.z, draw: () => drawBarn(barn) }] : [])],
       back() {
         ctx.fillStyle = "#cbb862"; ctx.fillRect(0, HZ, W, H - HZ);
-        ctx.fillStyle = "rgba(235,220,140,.35)";
-        for (const r of rows) if (pathClip(r)) ctx.fill();
         run.draw("#8a9a4a");
         for (const b of backs) b.f();
         for (const t of stubble) {
@@ -3269,8 +3307,10 @@ body.lab .stage > :not(canvas) { display: none; }
         return !qs.some((q) => q.behind) && overlaps(box, { x0: Math.min(...qs.map((q) => q.x)), x1: Math.max(...qs.map((q) => q.x)), y0: Math.min(...qs.map((q) => q.y)), y1: Math.max(...qs.map((q) => q.y)) });
       },
       spots: (kind) => (kind === "farmer" ? seats.map((b) => ({ x: b.x, z: b.z, y0: b.r * 2 - 0.05 })) : null),
-      // the blue ring can go at one end of the barn roof (the farm's name takes the rest)
-      roofTargets: (type) => (barn ? [-1, 1].map((sx) => roofRingAt(barn, type, sx * (barn.w / 2 - 2.6 - 0.7), barn.d / 4)) : []),
+      // now and then the blue ring goes up on the barn roof, anywhere along it (over the lettering)
+      roofTargets: (type) => (barn ? [-1, -0.5, 0, 0.5, 1].map((k) => roofRingAt(barn, type, k * (barn.w / 2 - 2.6 - 0.7), barn.d / 4)) : []),
+      // more often a ring is painted on the barn's broad side, either side of the doors
+      wallTargets: (type) => (barn ? [-1, 1].map((sx) => wallRingAt(barn, type, sx * rnd(5.1, 5.6))) : []),
       map(MX, MY, sc) {
         ctx.strokeStyle = "#4f9fd6"; ctx.lineWidth = Math.max(2, 3 * sc); ctx.beginPath();
         run.run.forEach((s, i) => (i ? ctx.lineTo(MX(s.x), MY(s.z)) : ctx.moveTo(MX(s.x), MY(s.z)))); ctx.stroke();
@@ -3352,11 +3392,12 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.strokeText(label, c.x, c.y + fs * 0.05); ctx.fillText(label, c.x, c.y + fs * 0.05);
   }
 
-  // ---- the old tractor: rusty red, big back wheels, a seat and an exhaust stack. +5 for the seat or the stack ----
+  // ---- the old tractor: rusty red, big back wheels, a seat and an exhaust stack. +5 for hitting it anywhere ----
+  // has the spud hit it: its body and wheels, the seat, or the exhaust stack
   function tractorHit(o, p) {
     const [lx, lz] = carToLocal(o, p.x, p.z), y = p.y;
-    if (Math.abs(lx) < 0.45 && lz > -1.05 && lz < -0.15 && y > 1.15 && y < 1.95) return "top"; // the seat
-    if (Math.hypot(lx - 0.22, lz - 1.25) < 0.32 && y > 1.3 && y < 2.45) return "top"; // the exhaust stack
+    if (Math.abs(lx) < 0.45 && lz > -1.05 && lz < -0.15 && y > 1.15 && y < 1.95) return "seat";
+    if (Math.hypot(lx - 0.22, lz - 1.25) < 0.32 && y > 1.3 && y < 2.45) return "stack";
     if (Math.abs(lx) <= 1.15 && lz >= -1.35 && lz <= 1.95 && y <= (lz < 0.1 ? 1.6 : 1.35)) return "body";
     return null;
   }
@@ -3511,13 +3552,13 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function drawRing(r) {
     // (following the ground up a hill)
-    const R = RINGS[r.type], gy = (x, z) => S.scene.groundY(x, z) + 0.02, c = P(r.x, gy(r.x, r.z), r.z);
-    groundCircle(r.x, r.z, r.r, 40, gy);
+    const R = RINGS[r.type], gy = (x, z) => S.scene.groundY(x, z) + 0.03, c = P(r.x, gy(r.x, r.z), r.z), n = r.hill ? 72 : 40;
+    groundCircle(r.x, r.z, r.r, n, gy);
     ctx.fillStyle = r.hit ? "rgba(255,255,255,.55)" : hexA(R.color, 0.35); ctx.fill();
     // painted line: a white border with the ring's color inside it
     ctx.lineWidth = Math.max(1.4, 0.155 * c.s); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
     ctx.lineWidth = Math.max(0.8, 0.095 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
-    if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2), 40, gy); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
+    if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2), n, gy); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
   }
   function drawFlag(r, at = [r.x, 0, r.z + r.r]) {
     // the flag stands at the back edge of its ring, so it never hides the middle (on a roof: at its top edge)
@@ -3930,6 +3971,11 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     return x >= x0 - 14 && x <= x1 + 14 && y >= y0 - 14 && y <= y1 + 14;
   }
+  // the bottom of the launcher, from the tops of its wheels down: grab it there and dragging rolls it side to side
+  function onWheels({ x, y }) {
+    const top = P(S.lx, 2 * 0.135 * LS + 0.1, -1.15), l = P(S.lx - 1.3, 0, -1.15), r = P(S.lx + 1.3, 0, -1.15);
+    return onLauncher({ x, y }) && y >= top.y - 6 && x >= l.x - 14 && x <= r.x + 14;
+  }
   // the corner map is its own control, like the launcher: touch or drag on it to aim the launcher at that spot
   let mapAim = false, pumpHeldByScene = false;
   function onMap({ x, y }) {
@@ -3947,7 +3993,7 @@ body.lab .stage > :not(canvas) { display: none; }
     pts.set(e.pointerId, p);
     if (pts.size === 2) {
       // a second finger turns an aim into a look: put the launcher back where the first finger found it
-      if (drag) { setYaw(drag.yaw); setHole(drag.hole); drag = null; }
+      if (drag) { if (drag.roll) rollTo(drag.lx); else { setYaw(drag.yaw); setHole(drag.hole); } drag = null; }
       if (canLook()) look = touchSnap();
     } else if (pts.size === 1 && e.button === 0 && S.phase === "aim" && S.loaded && inBox(hitParts.valve, p)) {
       // tapping the blue valve handle fires, once a spud is loaded
@@ -3958,6 +4004,9 @@ body.lab .stage > :not(canvas) { display: none; }
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p)) {
       // touching the map swings the launcher to point at that spot
       mapAim = true; aimAtMap(p);
+    } else if (pts.size === 1 && e.button === 0 && canAdjust() && onWheels(p)) {
+      // grabbed low, by the wheels: dragging sideways rolls it (the spot under the finger stays under it)
+      drag = { roll: true, x: e.clientX, lx: S.lx, s: P(S.lx, 0, -1.15).s };
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onLauncher(p)) {
       drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole };
     } else if (pts.size === 1 && canLook()) look = touchSnap();
@@ -3966,7 +4015,7 @@ body.lab .stage > :not(canvas) { display: none; }
   cv.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) {
       // hovering with a mouse: show which part of the scene does what
-      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? "crosshair" : onLauncher(p) ? "move" : ""; }
+      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? "crosshair" : onWheels(p) ? "ew-resize" : onLauncher(p) ? "move" : ""; }
       return;
     }
     pts.set(e.pointerId, local(e));
@@ -3976,6 +4025,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const z = look.d && now.d ? clamp(S.view.zoom * now.d / look.d, ZOOM_MIN, ZOOM_MAX) : S.view.zoom;
       moveView(look.m.x, look.m.y, now.m.x, now.m.y, z); look = now;
     } else if (mapAim && canAdjust()) aimAtMap(local(e));
+    else if (drag && drag.roll && canAdjust()) rollTo(drag.lx + (e.clientX - drag.x) / drag.s);
     else if (drag && canAdjust()) {
       setYaw(drag.yaw + (e.clientX - drag.x) * 0.08);
       setHole(drag.hole + Math.round((drag.y - e.clientY) / 26));
