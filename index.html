@@ -340,7 +340,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.21</p>
+  <p class="ver">Pneuman v1.22</p>
 </div>
 
 <script>
@@ -1052,7 +1052,7 @@ body.lab .stage > :not(canvas) { display: none; }
     S.flightT = 0; S.struck = false;
     // every shot is recorded: how the launcher was set, the wind, and (as it flies) the flight. Re-live it plays it
     // back; kept in S.shots for the level, ready for challenges and replays later
-    S.rec = { level: S.level, at: Date.now(), lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, wind: { ...S.wind }, frames: [{ t: 0, x: m.x, y: m.y, z: m.z, rot: 0 }], sounds: [], capture: false };
+    S.rec = { level: S.level, at: Date.now(), lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, wind: { ...S.wind }, frames: [{ t: 0, x: m.x, y: m.y, z: m.z, rot: 0 }], sounds: [], capture: false, pre: sceneState() };
     (S.shots = S.shots || []).push(S.rec); hideRelive();
     // a bird strike is pure chance, but never two close together: after one, the next few shots are safe
     if (S.birdCool > 0) S.birdCool--;
@@ -1095,6 +1095,18 @@ body.lab .stage > :not(canvas) { display: none; }
     sfx.squawk(b.sp);
     if (S.rec) { S.rec.strikeT = S.flightT; S.rec.sp = b.sp; }
   }
+  // how everything a shot can change looks right now: targets (scored or not, splat-board marks), the bonus objects
+  // (leaf pile, mailbox, windshield, pumpkins), house windows, and the splats on the ground. A shot's record keeps it
+  // from just before it fired and just after it landed, so Re-live it can show the change happen
+  function sceneState() {
+    const st = [];
+    for (const r of S.rings) st.push([r, { hit: r.hit, marks: r.marks }]);
+    for (const o of S.props || []) st.push([o, { scattered: o.scattered, h: o.h, open: o.open, smash: o.smash, smashed: o.smashed }]);
+    for (const h of S.scene.houses || []) for (const wn of h.windows || []) st.push([wn, { broken: wn.broken }]);
+    st.push([S, { splats: S.splats }]);
+    return st.map(([obj, v]) => [obj, structuredClone(v)]);
+  }
+  function applyState(st) { for (const [obj, v] of st) Object.assign(obj, structuredClone(v)); }
   const featherBurst = (p, sp) => { for (let i = 0; i < 12; i++) S.feathers.push({ x: p.x, y: p.y, z: p.z, vx: rnd(-2.5, 2.5), vy: rnd(-0.5, 2.5), vz: rnd(-2.5, 2.5), t: 0, a: rnd(0, 6), c: sp.wing }); };
   function updateBird(dt) {
     for (const f of S.feathers) { f.t += dt; f.vx *= 0.97; f.vz *= 0.97; f.vy = Math.max(-1.2, f.vy - 3 * dt); f.x += f.vx * dt; f.y = Math.max(0.02, f.y + f.vy * dt); f.z += f.vz * dt; f.a += dt * 3; }
@@ -1141,7 +1153,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function land(x, z, prop, hit) {
     const y = hit && hit.y != null ? hit.y : S.scene.groundY(x, z);
     // the record gets the landing spot, and (below) what the landing set off and sounded like
-    const rec = S.rec, pops0 = (S.pops || []).length;
+    const rec = S.rec, pops0 = (S.pops || []).length, bits0 = (S.bits || []).length;
     if (rec) { rec.frames.push({ t: S.flightT, x, y, z, rot: S.potato ? S.potato.rot : 0 }); rec.capture = true; }
     S.potato = null; S.curArc.push([x, y, z]); S.arc = S.curArc; S.curArc = [];
     // (through a window it's gone inside, a splat target wears its own splat, and the water takes it: no splat)
@@ -1197,6 +1209,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (rec) {
       rec.capture = false; rec.arc = S.arc; rec.prop = prop || null; rec.hit = hit || null; rec.note = shotEl.textContent;
       rec.pops = (S.pops || []).slice(pops0).map((b) => ({ ...b })); rec.flash = S.rings.filter((r) => r.flash === 1);
+      // how it all looks the moment after, and the bits that flew (leaves, letters, glass, chunks)
+      rec.post = sceneState(); rec.bits = structuredClone((S.bits || []).slice(bits0));
       showRelive();
     }
     hud();
@@ -4273,7 +4287,8 @@ body.lab .stage > :not(canvas) { display: none; }
     audio(); shrinkRelive();
     // what to put back afterwards
     const saved = { phase: S.phase, lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, valveTarget: S.valveTarget, arc: S.arc, bird: S.bird, overlay: $("overlay").hidden };
-    S.replay = { rec, pass: 0, saved };
+    // (and the scene as it is now: targets, objects, windows, splats, put back at the end)
+    S.replay = { rec, pass: 0, saved, now: sceneState() };
     S.phase = "replay"; S.arc = null; S.arcView = null; S.view = null; $("overlay").hidden = true; $("resetView").hidden = true;
     S.lx = rec.lx; S.yaw = rec.yaw; S.hole = rec.hole;
     beginPass(); hud();
@@ -4283,6 +4298,8 @@ body.lab .stage > :not(canvas) { display: none; }
     R.t = -RELIVE_LEAD; R.i = 0; R.fired = R.landed = R.struck = false; R.ghost = null; R.hold = 0;
     // loaded and pumped, valve closed, as it was a moment before the shot
     S.psi = R.rec.psi; S.valveTarget = 0; S.valve = 0; S.bird = null; S.feathers = [];
+    // everything as it was before the shot: the target still showing its points, the leaf pile whole, no splat yet…
+    if (R.rec.pre) applyState(R.rec.pre);
     if (R.pass === 0) camHome();
     else {
       // straight to the arc angle
@@ -4295,6 +4312,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const R = S.replay; if (!R) return;
     const s = R.saved;
     S.replay = null;
+    applyState(R.now);
     Object.assign(S, { phase: s.phase, lx: s.lx, yaw: s.yaw, hole: s.hole, psi: s.psi, valveTarget: s.valveTarget, valve: s.valveTarget, arc: s.arc, bird: s.bird, arcView: null, view: null });
     $("overlay").hidden = s.overlay;
     reliveBtn.textContent = RELIVE_LABEL; hud();
@@ -4318,6 +4336,9 @@ body.lab .stage > :not(canvas) { display: none; }
       const L = fr[fr.length - 1], lastBird = fr.length > 1 && fr[fr.length - 2].b;
       // (a bird stays, as it was when the spud came down, and the game carries it on from there)
       R.landed = true; R.ghost = null; S.bird = lastBird ? { ...lastBird } : null;
+      // …and now as it was the moment after: ✓ on the target, the pile burst, the glass cracking, the splat down,
+      // with the same bits flying again
+      if (rec.post) { applyState(rec.post); S.bits.push(...structuredClone(rec.bits || [])); }
       if (rec.prop) rec.prop.t = 0;
       if (rec.hit && rec.hit.kind === "spinner") rec.hit.target.spin = (rec.hit.target.spin || 0) + 16;
       for (const b of rec.pops) S.pops.push({ ...b, t: 0 });
