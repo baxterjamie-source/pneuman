@@ -253,7 +253,7 @@ body.lab .stage > :not(canvas) { display: none; }
         <dt>Roll</dt><dd>Grab the launcher by its wheels and drag sideways.</dd>
         <dt>Pump / fire</dt><dd>Tap the hand pump (hold to keep pumping). Tap the blue valve handle to fire.</dd>
         <dt>Look around</dt><dd>Two fingers on the field, or right-drag / Shift-drag; the mouse wheel zooms.</dd>
-        <dt>Map</dt><dd>⤢ makes it bigger. Pinch it or use the mouse wheel over it to zoom. Zoomed in, drag to move the map about and tap to aim there (a pin shows how far).</dd>
+        <dt>Map</dt><dd>⤢ makes it bigger. Pinch it or use the mouse wheel over it to zoom. Drag the red dotted line to aim. Drag anywhere else to move the map about (once zoomed in); a tap aims there (a pin shows how far).</dd>
       </dl>
       <h3>Keys</h3>
       <p class="kk"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°)<br><kbd>↑</kbd><kbd>↓</kbd> peg hole<br><kbd>A</kbd><kbd>D</kbd> roll<br><kbd>Space</kbd> pump · <kbd>B</kbd> bleed<br><kbd>Enter</kbd> fire · <kbd>M</kbd> sound</p>
@@ -340,7 +340,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.20</p>
+  <p class="ver">Pneuman v1.21</p>
 </div>
 
 <script>
@@ -4190,9 +4190,9 @@ body.lab .stage > :not(canvas) { display: none; }
       }
     }
     for (const s of S.splats) { ctx.fillStyle = s.last ? "#23303a" : "rgba(35,48,58,.4)"; ctx.beginPath(); ctx.arc(MX(s.x), MY(s.z), s.last ? 2.6 : 1.8, 0, 7); ctx.fill(); }
-    // aim line
+    // aim line (bolder while it's being dragged, or the mouse is over it, to show it's the thing that moves)
     const yw = S.yaw * Math.PI / 180;
-    ctx.setLineDash([3, 3]); ctx.strokeStyle = "#e8452c"; ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = "#e8452c"; ctx.lineWidth = MAP.lineHot ? 3 : 1.5;
     ctx.beginPath(); ctx.moveTo(MX(S.lx), MY(0)); ctx.lineTo(MX(S.lx + Math.sin(yw) * zmax), MY(Math.cos(yw) * zmax)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = "#8a5a2b"; ctx.fillRect(MX(S.lx) - 4, MY(0) - 3, 8, 6);
     // the pin where the map was last tapped to aim, with how far that is from the launcher (it goes once the
@@ -4562,6 +4562,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // mapPan: zoomed in, one finger or the mouse slides the map about inside its frame; a tap without sliding aims)
   let mapAim = null, mapPinch = null, mapPan = null, pumpHeldByScene = false;
   const MAP_TAP = 6; // px a touch can wander and still count as a tap
+  // is the point on (or near) the map's red aim line? A finger gets more room than a mouse
+  function onAimLine({ x, y }, kind) {
+    const g = mapGeom(), yw = S.yaw * Math.PI / 180;
+    const ax = g.MX(S.lx), ay = g.MY(0), bx = g.MX(S.lx + Math.sin(yw) * g.zmax), by = g.MY(Math.cos(yw) * g.zmax);
+    const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1)));
+    return Math.hypot(x - (ax + vx * t), y - (ay + vy * t)) <= (kind === "mouse" ? 8 : 16);
+  }
   function onMap({ x, y }) {
     const g = mapGeom();
     return S.arcView == null && g.mh >= 60 && x >= g.x0 && x <= g.x0 + g.mw && y >= g.y0 && y <= g.y0 + g.mh;
@@ -4606,12 +4613,12 @@ body.lab .stage > :not(canvas) { display: none; }
     } else if (pts.size === 1 && e.button === 0 && S.phase === "aim" && inBox(hitParts.pump, p)) {
       // tapping the hand pump pumps (hold it to keep pumping); before loading it says "Load first"
       pumpDown(e); pumpHeldByScene = true;
-    } else if (pts.size === 1 && e.button === 0 && $("overlay").hidden && onMap(p) && MAP.zoom > 1.01) {
-      // zoomed in: sliding moves the map about (any time); a tap aims, on lifting the finger
+    } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p) && onAimLine(p, e.pointerType)) {
+      // grabbing the red dotted aim line: dragging it swings the launcher (the pin rides along with the distance)
+      mapAim = { yaw: S.yaw }; MAP.lineHot = true;
+    } else if (pts.size === 1 && e.button === 0 && $("overlay").hidden && onMap(p)) {
+      // anywhere else on the map: sliding moves the map about inside its frame; a tap aims there, on lifting
       mapPan = { start: p, last: p, moved: false };
-    } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p)) {
-      // touching the whole map swings the launcher to point at that spot (dragging keeps aiming)
-      mapAim = { yaw: S.yaw }; aimAtMap(p);
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onWheels(p)) {
       // grabbed low, by the wheels: dragging sideways rolls it (the spot under the finger stays under it)
       drag = { roll: true, x: e.clientX, lx: S.lx, s: P(S.lx, 0, -1.15).s };
@@ -4623,7 +4630,7 @@ body.lab .stage > :not(canvas) { display: none; }
   cv.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) {
       // hovering with a mouse: show which part of the scene does what
-      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = mapBtnAt(p) ? "pointer" : !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? (MAP.zoom > 1.01 ? "grab" : "crosshair") : onWheels(p) ? "ew-resize" : onLauncher(p) ? "move" : ""; }
+      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = mapBtnAt(p) ? "pointer" : !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? (onAimLine(p, "mouse") ? "ew-resize" : "grab") : onWheels(p) ? "ew-resize" : onLauncher(p) ? "move" : ""; MAP.lineHot = canAdjust() && onMap(p) && onAimLine(p, "mouse"); }
       return;
     }
     pts.set(e.pointerId, local(e));
@@ -4657,7 +4664,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // lifting one of two fingers carries on moving the view with the other
     if (look && pts.size) look = touchSnap();
     if (mapPinch && pts.size) mapPinch = touchSnap();
-    if (!pts.size) { drag = null; look = null; mapAim = null; mapPinch = null; mapPan = null; cv.classList.remove("dragging"); }
+    if (!pts.size) { drag = null; look = null; mapAim = null; mapPinch = null; mapPan = null; MAP.lineHot = false; cv.classList.remove("dragging"); }
   };
   cv.addEventListener("pointerup", endPointer); cv.addEventListener("pointercancel", endPointer);
   cv.addEventListener("wheel", (e) => {
