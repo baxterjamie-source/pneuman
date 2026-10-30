@@ -138,6 +138,8 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .lvl .nm { position: relative; font-family: var(--display); font-weight: 400; font-size: 1.15rem; line-height: 1.1; }
 .lvl small { position: relative; font-size: .7rem; opacity: .65; }
 .lvl.on { background: var(--yellow); }
+.lvl.soon, .lvl.soon:disabled { opacity: .55; background: #e6e1d6; color: #6b6f73; border-color: #8a8f94; box-shadow: 0 3px 0 #8a8f94; cursor: default; }
+.lvl.soon small { font-style: italic; opacity: .9; }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
 .trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
@@ -340,7 +342,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.22</p>
+  <p class="ver">Pneuman v1.23</p>
 </div>
 
 <script>
@@ -383,6 +385,8 @@ body.lab .stage > :not(canvas) { display: none; }
       targets: { yellow: "splat", purple: "splat" },
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
   ];
+  // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
+  const COMING_SOON = ["Lake", "Golf", "Reservoir", "Winery", "Downtown", "Logging"];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
   const G = 9.81, K = 0.0026, MUZZLE = 4.1, MAX_PSI = 120;
@@ -1323,8 +1327,10 @@ body.lab .stage > :not(canvas) { display: none; }
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join(""),
       `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button>`, () => startLevel(startPick));
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
-    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("");
-    [...el.children].forEach((b) => {
+    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
+      // the places still to come, greyed out
+      COMING_SOON.map((name, i) => `<button type="button" class="lvl soon" disabled aria-disabled="true"><span class="num" aria-hidden="true">${LEVELS.length + i + 1}</span><span class="nm">${name}</span><small>coming soon!</small></button>`).join("");
+    [...el.querySelectorAll(".lvl:not(.soon)")].forEach((b) => {
       b.onclick = () => { audio(); const i = Number(b.dataset.i); if (i === startPick) startLevel(i); else showStart(i); };
     });
     $("extras").hidden = false; extrasFor(LEVELS[sel]);
