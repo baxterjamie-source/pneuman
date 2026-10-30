@@ -92,7 +92,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .relive {
   position: absolute; z-index: 4; left: calc(100% - 10px); top: 10px; transform: translate(-100%, 0);
   font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); background: var(--yellow); white-space: nowrap;
-  transition: left .45s ease, top .45s ease, transform .45s ease, font-size .45s ease, padding .45s ease;
+  transition: left .45s ease, top .45s ease, transform .45s ease, font-size .45s ease, padding .45s ease, opacity .35s ease;
 }
 .relive:active { transform: translate(-100%, 3px); }
 .relive.big {
@@ -112,6 +112,11 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .sharename { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: .85rem; }
 .sharename input { flex: 1; min-width: 0; font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; padding: 4px 8px; background: #fff; color: var(--ink); }
 .sharehint { font-size: .85rem; font-weight: 800; color: #2e7d32; }
+/* while the launcher is being worked, the extras slide off the nearest edge (the corner map stays) */
+.shotmsg, .viewbtns, .sharebtn { transition: transform .35s ease, opacity .35s ease; }
+.stage.busy .shotmsg, .stage.busy .viewbtns { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; }
+.stage.busy .sharebtn { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+.stage.busy .relive { transform: translate(24px, 0); opacity: 0; pointer-events: none; animation: none; }
 @keyframes relive-pulse { 50% { transform: translate(-50%, -50%) scale(1.06); } }
 .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; background: rgba(35,48,58,.45); padding: 10px; overflow-y: auto; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 14px 20px; width: 100%; max-width: 30rem; display: grid; gap: 8px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
@@ -180,6 +185,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
 button:disabled { opacity: .45; cursor: not-allowed; }
 .sq { width: 34px; height: 30px; padding: 0; flex: none; font-size: 1rem; }
 .pump { background: var(--yellow); flex: none; padding: 4px 12px; height: 30px; }
+.pump.idle { background: #ddd7c8; color: rgba(35,48,58,.5); }
 /* LOAD / FIRE: kept narrow (its small print wraps) so the controls beside it have room; green to load, red to fire */
 .fire {
   background: var(--red); color: var(--paper); font-family: var(--display); font-weight: 400; font-size: 1.45rem; letter-spacing: .04em;
@@ -194,10 +200,13 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.18); border-radius: 5px; padding: 0 5px; }
 
 /* narrower: angle and rotation on one row, pressure and fire under them */
+/* narrower: angle and rotation on one row; pressure (three quarters) and LOAD / FIRE (a quarter) side by side under
+   them, so the tray is two rows and the field gets the rest */
 @media (max-width: 820px) {
-  .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fire, .ctl-psi { grid-column: 1 / -1; }
-  .fire { width: auto; }
+  .tray { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ctl-ang, .ctl-rot { grid-column: span 2; }
+  .ctl-psi { grid-column: span 3; }
+  .fire { grid-column: span 1; width: auto; }
 }
 @media (max-width: 520px) {
   /* the start and level cards fit on a phone: tighter, smaller pictures, and they scroll if they still don't */
@@ -212,7 +221,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .chip { font-size: .72rem; padding: 2px 7px; border-width: 2px; border-radius: 9px; gap: 5px; }
   .chip .k { font-size: .6rem; }
   .spud { width: 8px; height: 7px; border-width: 1.5px; }
-  .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; }
+  .tray { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px; }
   .ctl { padding: 8px; gap: 6px; }
   /* narrower peg board and arrow buttons so the angle box fits on a phone */
   .row { gap: 5px; }
@@ -223,7 +232,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .ctl-head label, .ctl-head .lbl { font-size: .65rem; letter-spacing: .06em; }
   .row { justify-content: space-between; }
   .val { font-size: 1.3rem; }
-  .fire { padding: 6px; width: auto; font-size: 1.5rem; }
+  .fire { padding: 6px 4px; width: auto; font-size: 1.25rem; }
+  .fire small { font-size: .52rem; letter-spacing: .03em; }
 }
 /* ?lab: the field canvas fills the window to show the launcher contact sheet */
 body.lab .wrap > :not(.stage) { display: none; }
@@ -316,7 +326,7 @@ body.lab .stage > :not(canvas) { display: none; }
   </div>
 
   <section class="tray" aria-label="Launcher settings">
-    <div class="ctl">
+    <div class="ctl ctl-ang">
       <div class="ctl-head"><span class="lbl">Angle <span id="holeOut" class="hole">hole 7/13</span></span><span class="val" id="angOut">40<small>°</small></span></div>
       <div class="row">
         <button class="sq" id="angDown" type="button" aria-label="Lower one hole">▼</button>
@@ -324,7 +334,7 @@ body.lab .stage > :not(canvas) { display: none; }
         <button class="sq" id="angUp" type="button" aria-label="Raise one hole">▲</button>
       </div>
     </div>
-    <div class="ctl">
+    <div class="ctl ctl-rot">
       <div class="ctl-head"><label for="rot">Rotation</label><span class="val" id="rotOut">0<small>°</small></span></div>
       <div class="row">
         <button class="sq" id="rotL" type="button" aria-label="Turn left half a degree">◀</button>
@@ -344,7 +354,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.25</p>
+  <p class="ver">Pneuman v1.26</p>
 </div>
 
 <script>
@@ -1035,7 +1045,17 @@ body.lab .stage > :not(canvas) { display: none; }
 
   const canAdjust = () => S.phase === "aim" || S.phase === "loading";
   // touching any launcher control brings the camera back from an arc view so you can see what you're doing
-  const leaveArc = () => { S.arcView = null; };
+  const leaveArc = () => { S.arcView = null; busy(); };
+  // …and while the player is working the launcher (aiming, turning, rolling, the peg, pumping, bleeding, loading),
+  // the extras slide off the edges of the field: the last shot's message, Re-live it and Share, View arc and Reset
+  // view. Two seconds after the last touch they slide back. The corner map stays. (A shot landing brings them back at once)
+  const stageEl = document.querySelector(".stage");
+  let calmTimer = 0;
+  function busy() {
+    stageEl.classList.add("busy");
+    clearTimeout(calmTimer); calmTimer = setTimeout(calm, 2000);
+  }
+  function calm() { clearTimeout(calmTimer); stageEl.classList.remove("busy"); }
   function pumpStroke() {
     if (!canAdjust()) return;
     leaveArc();
@@ -1418,6 +1438,8 @@ body.lab .stage > :not(canvas) { display: none; }
     ab.textContent = S.arcView == null ? "View arc" : `${ARC_VIEWS[S.arcView].name} ▸`;
     const adj = canAdjust();
     ["pump", "bleed", "angUp", "angDown", "rotL", "rotR"].forEach((id) => ($(id).disabled = !adj));
+    // the Pump button looks greyed until LOAD is pressed (it still works: the needle twitches and it says "Load first")
+    $("pump").classList.toggle("idle", !S.loaded && S.phase !== "loading");
     rotIn.disabled = !adj;
     psiIn.disabled = $("bleed").disabled = !adj || valveOpen();
     const fb = $("fire"), mode = S.loaded ? "fire" : "load";
@@ -4335,6 +4357,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const reliveBtn = $("relive");
   let reliveTimer = 0;
   function showRelive() {
+    calm();
     reliveBtn.textContent = RELIVE_LABEL; reliveBtn.hidden = false; reliveBtn.classList.add("big"); shareBtn.hidden = false;
     clearTimeout(reliveTimer); reliveTimer = setTimeout(shrinkRelive, RELIVE_BIG_MS);
   }
@@ -4428,8 +4451,9 @@ body.lab .stage > :not(canvas) { display: none; }
   const shareLink = (rec) => `${SHARE_URL}?level=${LEVELS[rec.level].id}`;
   const PC = { w: 1200, h: 630, band: 90 }; // (the usual size for a link preview picture)
   // the game's own drawing of the shot, from the side, just after it landed, framed as a postcard. line: what the
-  // bottom band says ("Check out my epic spud!", or for a challenge "Beat my 47!")
-  function postcard(rec, line = SHARE_LINE) {
+  // bottom band says ("Check out my epic spud!", or for a challenge "Beat my 47!"); more: what it says on the right
+  // ("Click image to see more!" on an epic spud, whose picture is the link; the game's address on a challenge)
+  function postcard(rec, line = SHARE_LINE, more = null) {
     const gw = PC.w, gh = PC.h - PC.band * 2, off = document.createElement("canvas");
     off.width = gw; off.height = gh;
     // draw into the picture as the shot was: the launcher as it was set, the arc whole, and what it hit reacting
@@ -4462,10 +4486,15 @@ body.lab .stage > :not(canvas) { display: none; }
     c.textAlign = "right"; c.fillStyle = "#ffcf33"; c.font = '800 26px Nunito, "Segoe UI", sans-serif';
     c.fillText(`${rec.level + 1} · ${LEVELS[rec.level].name}`, PC.w - pad, mid + 4);
     // bottom: the line, and where to play
-    c.textAlign = "left"; c.fillStyle = "#ffcf33"; c.font = '400 46px "Lilita One", "Arial Rounded MT Bold", sans-serif';
+    // (both in the big lettering when there's "more"; shrunk together if they'd crowd each other)
+    const big = (px) => `400 ${px}px "Lilita One", "Arial Rounded MT Bold", sans-serif`;
+    let px = 46;
+    if (more) { c.font = big(px); const room = PC.w - pad * 2 - 40, need = c.measureText(line).width + c.measureText(more).width; if (need > room) px = Math.floor(px * room / need); }
+    c.textAlign = "left"; c.fillStyle = "#ffcf33"; c.font = big(px);
     c.fillText(line, pad, foot + 4);
-    c.textAlign = "right"; c.fillStyle = "#fffaf0"; c.font = '800 22px Nunito, "Segoe UI", sans-serif';
-    c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4);
+    c.textAlign = "right"; c.fillStyle = "#fffaf0";
+    if (more) { c.font = big(px); c.fillText(more, PC.w - pad, foot + 4); }
+    else { c.font = '800 22px Nunito, "Segoe UI", sans-serif'; c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4); }
     return card;
   }
   const shareBtn = $("shareBtn"), shareCard = $("shareCard"), shareHint = $("shareHint");
@@ -4481,8 +4510,10 @@ body.lab .stage > :not(canvas) { display: none; }
   function shareMessage() {
     const s = share;
     if (!s.challenge) {
+      // an epic spud is just the picture, nothing outside it: where it can be clicked (an email) it's the link; text
+      // is only the fallback where a picture can't be sent or pasted
       const link = shareLink(s.rec);
-      return { link, lead: `${SHARE_LINE} 🥔`, tail: "Play Pneuman:", text: `${SHARE_LINE} 🥔 Play Pneuman: ${link}` };
+      return { link, imageOnly: true, lead: SHARE_LINE, tail: "", text: link };
     }
     const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim());
     const lead = c.vs
@@ -4494,7 +4525,9 @@ body.lab .stage > :not(canvas) { display: none; }
   function showShareMessage() {
     const m = shareMessage();
     $("shareImgLink").href = m.link;
-    $("shareMsg").innerHTML = `${esc(m.lead)} ${esc(m.tail)} <a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.link)}</a>`;
+    $("shareMsg").innerHTML = m.imageOnly
+      ? `Just the picture goes. Pasted into an email, clicking it opens Pneuman on ${esc(LEVELS[share.rec.level].name)}.`
+      : `${esc(m.lead)} ${esc(m.tail)} <a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.link)}</a>`;
   }
   // challenge: { score, vs } to send this round as a challenge (vs: the challenge being answered, for challenge back)
   function openShare(challenge = null) {
@@ -4502,7 +4535,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!rec || !rec.arc || S.potato) return;
     if (S.replay) stopRelive();
     audio(); shrinkRelive();
-    const card = postcard(rec, challenge ? `Beat my ${challenge.score}!` : SHARE_LINE);
+    const card = challenge ? postcard(rec, `Beat my ${challenge.score}!`) : postcard(rec, SHARE_LINE, "Click image to see more!");
     share = { rec, card, blob: null, challenge }; shareBlob();
     $("shareImg").src = card.toDataURL("image/png");
     shareCard.querySelector(".eyebrow").textContent = challenge ? (challenge.vs ? "Challenge back" : "Pneuman Challenge") : "Epic spud";
@@ -4522,9 +4555,10 @@ body.lab .stage > :not(canvas) { display: none; }
   shareBtn.addEventListener("click", (e) => { e.stopPropagation(); openShare(); });
   $("shareGo").addEventListener("click", async () => {
     if (!share) return;
-    const text = shareMessage().text, file = shareFile(await shareBlob());
+    const m = shareMessage(), text = m.text, file = shareFile(await shareBlob());
     try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ title: "Pneuman", text, files: [file] });
+      // (an epic spud goes as the picture alone, nothing outside it; a challenge as the picture with its message)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share(m.imageOnly ? { files: [file] } : { title: "Pneuman", text, files: [file] });
       else await navigator.share({ title: "Pneuman", text });
       closeShare();
     } catch (err) {
@@ -4542,6 +4576,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   function shareHtml(m, card) {
     const link = esc(m.link), pic = card.toDataURL("image/jpeg", 0.86);
+    const img = `<a href="${link}"><img src="${pic}" width="600" height="${Math.round(600 * PC.h / PC.w)}" alt="Pneuman: ${esc(m.lead)}" style="display:block;border:0;border-radius:8px;max-width:100%;height:auto"></a>`;
+    if (m.imageOnly) return img;
     return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#23303a">` +
       `<p style="margin:0 0 8px"><b>${esc(m.lead)}</b></p>` +
       `<a href="${link}"><img src="${pic}" width="600" height="${Math.round(600 * PC.h / PC.w)}" alt="Pneuman: ${esc(m.lead)}" style="display:block;border:0;border-radius:8px;max-width:100%;height:auto"></a>` +
@@ -4567,6 +4603,12 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!share) return;
     const m = shareMessage(), text = m.text, html = shareHtml(m, share.card);
     const done = () => shareNote("Copied: the postcard, message and link together. Paste into an email or message; the picture and the link both open the game.");
+    if (onPhone() && m.imageOnly) {
+      // an epic spud on a phone: just the picture, nothing outside it
+      try { await navigator.clipboard.write([new ClipboardItem({ "image/png": shareBlob() })]); shareNote("Picture copied: paste it into a message."); }
+      catch (err) { shareNote(navigator.share ? "Couldn't copy the picture here: use Share… instead." : "Couldn't copy the picture here: press and hold it to save it."); }
+      return;
+    }
     if (onPhone()) {
       const tip = navigator.share ? "To send the picture with it, use Share… instead." : "To send the picture too, press and hold it to save it, then attach it.";
       try { await navigator.clipboard.writeText(text); shareNote(`Message and link copied. A phone can't copy the picture along with them: ${tip}`); }
