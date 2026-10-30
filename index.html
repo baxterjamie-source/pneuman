@@ -47,9 +47,18 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
 .set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
 .set-row select { font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 2px 6px; cursor: pointer; }
+.set-btn { padding: 3px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); justify-self: start; }
+.ctls { width: min(21rem, calc(100vw - 28px)); max-height: 75vh; overflow-y: auto; gap: 6px; }
+.ctls dl { margin: 0; display: grid; gap: 4px; font-size: .82rem; line-height: 1.3; }
+.ctls dt { font-weight: 800; }
+.ctls dd { margin: 0 0 2px; font-weight: 600; }
+.ctls .kk { margin: 0; font-size: .85rem; line-height: 1.7; }
+.ctls kbd { background: #efe2c4; border: 1px solid rgba(35,48,58,.3); }
 .prev { font-family: var(--body); font-size: .75rem; opacity: .65; margin-left: 6px; white-space: nowrap; }
 h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 4vw, 2.5rem); color: var(--paper); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(0,0,0,.18); }
-.sub { color: var(--paper); opacity: .9; font-size: .95rem; }
+/* the title and its tagline share one line with the gear, so the header takes no more height than the title */
+.title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.tagline { color: var(--paper); font-weight: 800; font-style: italic; font-size: clamp(.72rem, 1.6vw, 1rem); opacity: .85; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100vh - 290px); min-height: 260px; border-radius: 16px; overflow: hidden; background: var(--sky); border: 4px solid var(--ink); }
 #cv { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -76,6 +85,29 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .viewbtns button { font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); }
 .viewbtns button:active { box-shadow: 0 1px 0 var(--ink); }
 #arcBtn { background: var(--yellow); }
+/* Re-live it: big and front and centre for a few seconds after a shot, then tucked into the top right corner
+   (above the end-of-level card too) */
+.relive {
+  position: absolute; z-index: 4; left: calc(100% - 10px); top: 10px; transform: translate(-100%, 0);
+  font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); background: var(--yellow); white-space: nowrap;
+  transition: left .45s ease, top .45s ease, transform .45s ease, font-size .45s ease, padding .45s ease;
+}
+.relive:active { transform: translate(-100%, 3px); }
+.relive.big {
+  left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 400; font-size: clamp(1.4rem, 4vw, 2.2rem);
+  padding: 10px 26px; border-width: 4px; border-radius: 16px; box-shadow: 0 6px 0 var(--ink); animation: relive-pulse 1.1s ease-in-out .45s infinite;
+}
+.relive.big:active { transform: translate(-50%, calc(-50% + 3px)); }
+/* Share sits just under Re-live it; its card shows the postcard with the ways to send it */
+.sharebtn { position: absolute; z-index: 4; right: 10px; top: 46px; font-size: .8rem; padding: 3px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); white-space: nowrap; }
+.sharecard { z-index: 6; }
+.card.share { max-width: 38rem; }
+.card.share img { display: block; width: 100%; border: 3px solid var(--ink); border-radius: 10px; }
+.card.share .cardbtns button { padding: 5px 10px; }
+#shareGo { background: var(--yellow); }
+.sharemsg { font-size: .82rem; opacity: .75; overflow-wrap: anywhere; }
+.sharehint { font-size: .85rem; font-weight: 800; color: #2e7d32; }
+@keyframes relive-pulse { 50% { transform: translate(-50%, -50%) scale(1.06); } }
 .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; background: rgba(35,48,58,.45); padding: 10px; overflow-y: auto; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 14px 20px; width: 100%; max-width: 30rem; display: grid; gap: 8px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.05; color: var(--red); }
@@ -120,7 +152,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 
 .tray {
   background: var(--tray); border: 4px solid var(--ink); border-radius: 14px; padding: 7px;
-  display: grid; gap: 7px; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: stretch;
+  display: grid; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: stretch;
 }
 .ctl { display: grid; gap: 3px; align-content: center; background: var(--paper); border: 3px solid var(--ink); border-radius: 10px; padding: 4px 10px 7px; min-width: 0; }
 .row input[type=range] { flex: 1; }
@@ -151,23 +183,16 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .holes { display: flex; gap: 3px; align-items: center; justify-content: space-between; background: var(--wood); border: 2px solid var(--wood-dark); border-radius: 6px; padding: 5px 6px; cursor: pointer; touch-action: none; }
 .holes b { flex: 0 1 9px; min-width: 4px; aspect-ratio: 1; border-radius: 50%; background: var(--wood-dark); }
 .holes b.on { background: #c0c6cc; box-shadow: 0 0 0 2px var(--ink); }
-.keys { margin: 0; color: var(--paper); font-size: .85rem; opacity: .95; }
 .ver { margin: 0; text-align: center; color: var(--paper); opacity: .55; font-size: .62rem; letter-spacing: .04em; }
 kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.18); border-radius: 5px; padding: 0 5px; }
 
-/* narrower: angle, rotation and wheels on one row, pressure and fire under them */
-@media (max-width: 920px) {
-  .tray { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ctl-psi { grid-column: span 2; }
-  .fire { width: auto; }
-}
+/* narrower: angle and rotation on one row, pressure and fire under them */
 @media (max-width: 820px) {
   .tray { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fire, .ctl-psi { grid-column: 1 / -1; }
+  .fire { width: auto; }
 }
-@media (max-width: 820px) { .ctl-wheels { grid-column: 1 / -1; } }
 @media (max-width: 520px) {
-  .sub { display: none; }
   /* the start and level cards fit on a phone: tighter, smaller pictures, and they scroll if they still don't */
   .overlay { padding: 8px; overflow-y: auto; }
   .card { padding: 12px 14px; gap: 7px; font-size: .92rem; }
@@ -192,7 +217,6 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .row { justify-content: space-between; }
   .val { font-size: 1.3rem; }
   .fire { padding: 6px; width: auto; font-size: 1.5rem; }
-  .keys { display: none; }
 }
 /* ?lab: the field canvas fills the window to show the launcher contact sheet */
 body.lab .wrap > :not(.stage) { display: none; }
@@ -204,9 +228,8 @@ body.lab .stage > :not(canvas) { display: none; }
 <body>
 <div class="wrap">
   <header>
-    <h1>Pneuman</h1>
+    <div class="title"><h1>Pneuman</h1><span class="tagline">potatoes, pressure, patience</span></div>
     <div class="hdr-r">
-      <span class="sub">Ten spuds. Pick your rings. Mind the wind.</span>
       <button class="gear" id="gear" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.4 5-.1-3 2-1.6-2-3.5-2.4.9a8 8 0 0 0-2.6-1.5L14.9 2h-4l-.4 2.6a8 8 0 0 0-2.6 1.5l-2.4-.9-2 3.5 2 1.6a8 8 0 0 0 0 3l-2 1.6 2 3.5 2.4-.9a8 8 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a8 8 0 0 0 2.6-1.5l2.4.9 2-3.5Z" fill="none" stroke="#23303a" stroke-width="2.2" stroke-linejoin="round"/></svg>
       </button>
@@ -217,6 +240,21 @@ body.lab .stage > :not(canvas) { display: none; }
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
       <label class="set-row">Animals <input type="checkbox" id="animalsTgl" role="switch" checked></label>
       <label class="set-row">Distance stripes <input type="checkbox" id="stripesTgl" role="switch"></label>
+      <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
+    </div>
+    <!-- the controls that aren't obvious, opened from settings so they don't take room under the field -->
+    <div class="settings ctls" id="ctlsPanel" hidden>
+      <h3>Controls</h3>
+      <dl>
+        <dt>Aim</dt><dd>Drag the launcher: sideways turns it, up and down moves the peg. Or tap the map to point it there.</dd>
+        <dt>Roll</dt><dd>Grab the launcher by its wheels and drag sideways.</dd>
+        <dt>Pump / fire</dt><dd>Tap the hand pump (hold to keep pumping). Tap the blue valve handle to fire.</dd>
+        <dt>Look around</dt><dd>Two fingers on the field, or right-drag / Shift-drag; the mouse wheel zooms.</dd>
+        <dt>Map</dt><dd>⤢ makes it bigger. Pinch it or use the mouse wheel over it to zoom.</dd>
+      </dl>
+      <h3>Keys</h3>
+      <p class="kk"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°)<br><kbd>↑</kbd><kbd>↓</kbd> peg hole<br><kbd>A</kbd><kbd>D</kbd> roll<br><kbd>Space</kbd> pump · <kbd>B</kbd> bleed<br><kbd>Enter</kbd> fire · <kbd>M</kbd> sound</p>
+      <button class="set-btn" id="ctlsClose" type="button">Done</button>
     </div>
   </header>
 
@@ -233,6 +271,8 @@ body.lab .stage > :not(canvas) { display: none; }
       <button id="arcBtn" type="button" hidden>View arc</button>
       <button id="resetView" type="button" hidden>Reset view</button>
     </div>
+    <button class="relive" id="relive" type="button" hidden>⟲ Re-live it!</button>
+    <button class="sharebtn" id="shareBtn" type="button" hidden>📮 Share</button>
     <div class="overlay" id="overlay">
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
@@ -248,6 +288,22 @@ body.lab .stage > :not(canvas) { display: none; }
           <div class="xrow minus"><b>−5</b><span id="xMinus"></span></div>
         </div>
         <div class="cardbtns" id="ovBtns"><button id="ovGo" type="button">Start level 1</button></div>
+      </div>
+    </div>
+    <!-- epic spud: the postcard of a shot, ready to send -->
+    <div class="overlay sharecard" id="shareCard" hidden>
+      <div class="card share" role="dialog" aria-label="Share this shot">
+        <span class="eyebrow">Epic spud</span>
+        <img id="shareImg" alt="A postcard of this shot">
+        <p class="sharemsg" id="shareMsg"></p>
+        <div class="cardbtns">
+          <button id="shareGo" type="button">Share…</button>
+          <button id="shareCopyImg" type="button">Copy picture</button>
+          <button id="shareSave" type="button">Save picture</button>
+          <button id="shareCopy" type="button">Copy message</button>
+          <button id="shareClose" type="button">Close</button>
+        </div>
+        <p class="sharehint" id="shareHint" role="status" hidden></p>
       </div>
     </div>
   </div>
@@ -269,14 +325,6 @@ body.lab .stage > :not(canvas) { display: none; }
         <button class="sq" id="rotR" type="button" aria-label="Turn right half a degree">▶</button>
       </div>
     </div>
-    <div class="ctl ctl-wheels">
-      <div class="ctl-head"><label for="pos">Wheels</label><span class="val" id="posOut">0<small>m</small></span></div>
-      <div class="row">
-        <button class="sq" id="posL" type="button" aria-label="Roll left (hold to keep rolling)">◀</button>
-        <input type="range" id="pos" min="-12" max="12" step="0.1" value="0">
-        <button class="sq" id="posR" type="button" aria-label="Roll right (hold to keep rolling)">▶</button>
-      </div>
-    </div>
     <!-- pressure sits next to Load/Fire: pump, load and fire are the most used -->
     <div class="ctl ctl-psi">
       <div class="ctl-head"><label for="psi">Pressure</label><span class="val" id="psiOut">0<small>PSI</small></span></div>
@@ -289,8 +337,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="keys"><kbd>←</kbd><kbd>→</kbd> rotate (<kbd>Shift</kbd> for 2°) · <kbd>↑</kbd><kbd>↓</kbd> peg hole · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Space</kbd> pump · <kbd>B</kbd> bleed · <kbd>Enter</kbd> fire · <kbd>M</kbd> sound · drag the launcher or tap the map to aim (grab it by the wheels to roll it), drag the field to look around, wheel to zoom</p>
-  <p class="ver">Pneuman v1.15</p>
+  <p class="ver">Pneuman v1.19</p>
 </div>
 
 <script>
@@ -325,7 +372,8 @@ body.lab .stage > :not(canvas) { display: none; }
       props: ["cow", "horse", "chicken", "turkey", "trough", "scarecrow", "junker"] },
     { id: "culdesac", name: "Cul de sac", scene: "culdesac", mix: MIX, z: [18, 78], wind: [6, 12], maxPsi: 120, mapZ: 112,
       targets: { purple: "spinner", blue: "roof" },
-      props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour"] },
+      // (the mower goes last, so its route can steer round everything else)
+      props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour", "upNeighbour", "mower"] },
     // (a level can also set hillOdds, the chance each ground ring goes on the front of one of its hills; Harvest's
     // hills are background scenery now, so nothing goes on them)
     { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118,
@@ -357,7 +405,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const $ = (id) => document.getElementById(id);
   const cv = $("cv");
   let ctx = cv.getContext("2d"); // swapped briefly to draw the start screen's little pictures
-  const psiIn = $("psi"), rotIn = $("rot"), posIn = $("pos");
+  const psiIn = $("psi"), rotIn = $("rot");
   let W = 800, H = 450, dpr = 1;
   function resize() {
     const r = cv.getBoundingClientRect();
@@ -392,8 +440,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const x1 = dx * cy - dz * sy, z1 = dx * sy + dz * cy;
     return [x1, dy * cq + z1 * sq, z1 * cq - dy * sq];
   }
-  function arcCam(v) {
-    const a = S.arc, A = a[0], B = a[a.length - 1];
+  function arcCam(v, a = S.arc) {
+    const A = a[0], B = a[a.length - 1];
     // what must be in frame: the whole arc (apex and landing) and the launcher
     const pts = [...a, [S.lx, 0, 0], [S.lx, 2.6, 0], [S.lx - 1.4, 0, 0], [S.lx + 1.4, 0, 0]];
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, top = 0;
@@ -426,8 +474,10 @@ body.lab .stage > :not(canvas) { display: none; }
     CYhome = hz + F0 * tb;
     // (the camera stays behind the launcher as it rolls side to side)
     let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = S.lx, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
-    const p = S.potato;
-    if (p) {
+    // (Re-live it's first pass follows its replayed spud the same way)
+    const R = S.replay, p = S.potato || (R && R.pass === 0 ? R.ghost : null);
+    if (R && R.landed) k = 0; // hold on the landing for a moment
+    else if (p) {
       // rise with the spud and turn toward it, then look down so the spud rides near the top of the view
       // with the nearest ring low in it; zoom out only when looking down isn't enough
       wantY = CAM.y0 + Math.max(0, p.y) * 0.8;
@@ -442,6 +492,10 @@ body.lab .stage > :not(canvas) { display: none; }
       if (wantZ > 1) { wantZ = 1; wantP = Math.min(CAM.base, Math.atan(room / F0) - e1); }
       else if (wantZ < MIN_ZOOM) { wantZ = MIN_ZOOM; wantP = Math.atan(room / (F0 * MIN_ZOOM)) - e1; }
       k = 5;
+    } else if (R && R.pass > 0) {
+      // Re-live it's second and third passes: from the View arc angles, on the replayed shot's arc
+      const v = arcCam(ARC_VIEWS[R.pass - 1], R.rec.arc);
+      wantP = v.pitch; wantYaw = v.yaw; wantY = v.y; wantX = v.x; wantZpos = v.z; wantZ = v.F / F0; wantCY = H / 2; k = 30;
     } else if (S.arcView != null && S.arc) {
       // looking at the last arc from one of the side angles, aimed at the middle of the screen
       const v = arcCam(ARC_VIEWS[S.arcView]);
@@ -603,6 +657,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // the result of a shot stays up until the next one is fired
   const shotEl = $("shotMsg");
   function shotNote(msg) { shotEl.textContent = msg; shotEl.hidden = !msg; }
+  // the sounds a shot's landing makes are noted in its record, so Re-live it can play them again
+  for (const k of Object.keys(sfx)) { const f = sfx[k]; sfx[k] = (...a) => { if (S.rec && S.rec.capture) S.rec.sounds.push([k, a]); return f(...a); }; }
 
   // screen box a ring and its flag take up from the launcher's view
   function ringBox(x, z, r, onHill) {
@@ -641,7 +697,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
     // ... and out from behind the launcher and its pump
     const lb = P(-1.7, 0, -1), lt = P(1.6, 2.6, 0.6);
-    const blocked = [{ x0: W - mw - 20, x1: 1e4, y0: H - mh - 20, y1: 1e4 }, sockBox(), { x0: lb.x, x1: lt.x, y0: lt.y - 10, y1: 1e4 }];
+    const blocked = [{ x0: W - mw - 20, x1: 1e4, y0: H - mh - 20, y1: 1e4 }, { x0: lb.x, x1: lt.x, y0: lt.y - 10, y1: 1e4 }];
     // fully in view, including below the top edge when a steep camera tilt pushes the far field off the top
     const onScreen = (b) => b.x0 > 6 && b.x1 < W - 6 && b.y0 > 8;
     const rings = [];
@@ -750,6 +806,10 @@ body.lab .stage > :not(canvas) { display: none; }
     dog:       { r: 0.6, h: 0.75, alive: true, animal: true, say: "YIP!", msg: "You spooked the dog!", sound: "yip" },
     // a neighbour in a rocking chair on the porch
     neighbour: { r: 0.7, h: 1.4, alive: true, label: "neighbour", say: "HEY!", msg: "You beaned the neighbour on the porch!", sound: "hey" },
+    // odds: the chance it's there at all in a round. same: drawn and pictured as that kind
+    upNeighbour: { r: 0.7, h: 1.4, alive: true, label: "neighbour", say: "HEY!", msg: "You beaned the neighbour on the porch!", sound: "hey", odds: 2 / 3, same: "neighbour" },
+    // somebody pushing a mower up and down a front yard (see mowPlan); hit, they let go, hop and holler
+    mower:     { r: 0.75, h: 1.75, alive: true, label: "neighbour mowing", say: "WATCH IT!", msg: "You beaned the neighbour mowing the lawn!", sound: "hey", odds: 2 / 3 },
     trough:    { r: 1.3, h: 0.8, label: "water trough", say: "SPLOSH!", msg: "Right in the water trough!", sound: "splosh" },
     scarecrow: { r: 0.8, h: 2.5, label: "scarecrow", say: "OOF!", msg: "You knocked the scarecrow's hat off!", sound: "oof" },
     // anywhere on the car wins the bonus: the windshield breaks (CRASH!), the metal clanks
@@ -824,7 +884,15 @@ body.lab .stage > :not(canvas) { display: none; }
   const shuffle = (a) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   function placeProps(kinds) {
     for (const kind of kinds) {
-      const D = PROPS[kind], spots = S.scene.spots(kind);
+      const D = PROPS[kind];
+      if (D.odds && Math.random() >= D.odds) continue;
+      if (kind === "mower") {
+        // a route round a front yard, worked out by the place; it starts at the route's beginning
+        const plan = S.scene.mowPlan && S.scene.mowPlan();
+        if (plan) S.props.push(newProp(kind, plan.path[0].x, plan.path[0].z, { path: plan.path, house: plan.house }));
+        continue;
+      }
+      const spots = S.scene.spots(kind);
       if (spots) {
         // this place has set spots for it (a driveway, a porch, the curb): the first one that's free
         for (const s of shuffle(spots)) {
@@ -893,7 +961,9 @@ body.lab .stage > :not(canvas) { display: none; }
       const coats = [["#c8913f", "#f3e2c0"], ["#2a2626", "#f1ede6"], ["#7a4a2a", "#e9dcc7"], ["#e8d6b0", "#fff6e6"]];
       [o.coat, o.belly] = coats[Math.floor(Math.random() * coats.length)];
     }
-    if (kind === "neighbour") o.look = NEIGHBOUR_LOOKS[Math.floor(Math.random() * NEIGHBOUR_LOOKS.length)];
+    if (kind === "neighbour" || kind === "upNeighbour" || kind === "mower") o.look = NEIGHBOUR_LOOKS[Math.floor(Math.random() * NEIGHBOUR_LOOKS.length)];
+    // the mower: which point of its route it's heading for, which way it's going along it, and its engine's shake
+    if (kind === "mower") { o.leg = 1; o.dir = 1; o.step = 0; o.view = "side"; o.rest = 0; }
     if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
     return o;
   }
@@ -903,6 +973,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // set a level's place up with fresh targets and props (also used behind the start card, to show the level picked)
   function previewLevel(i) {
     S.lx = 0; S.roll = 0; // back in the middle (the layout below is worked out from there)
+    hideRelive(); S.shots = []; S.rec = null;
     S.level = i; S.scene = sceneFor(LEVELS[i]); S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds());
     S.bird = null; S.feathers = []; S.bits = []; S.pops = []; S.marks = []; S.ripples = []; S.preNote = null; S.bonus = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
@@ -913,6 +984,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function startLevel(i) {
     previewLevel(i);
     S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
+    MAP.zoom = 1; MAP.ox = MAP.oz = 0;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     const L = LEVELS[i];
     note(`${i + 1} · ${L.name} · ${S.wind.kmh ? `wind ${S.wind.kmh} km/h` : "no wind"}${L.maxPsi && L.maxPsi < MAX_PSI ? ` · max ${L.maxPsi} PSI` : ""}`);
@@ -975,6 +1047,10 @@ body.lab .stage > :not(canvas) { display: none; }
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16) };
     S.flightT = 0; S.struck = false;
+    // every shot is recorded: how the launcher was set, the wind, and (as it flies) the flight. Re-live it plays it
+    // back; kept in S.shots for the level, ready for challenges and replays later
+    S.rec = { level: S.level, at: Date.now(), lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, wind: { ...S.wind }, frames: [{ t: 0, x: m.x, y: m.y, z: m.z, rot: 0 }], sounds: [], capture: false };
+    (S.shots = S.shots || []).push(S.rec); hideRelive();
     // a bird strike is pure chance, but never two close together: after one, the next few shots are safe
     if (S.birdCool > 0) S.birdCool--;
     else if (Math.random() < BIRD_STRIKE_CHANCE) planStrike();
@@ -1010,11 +1086,13 @@ body.lab .stage > :not(canvas) { display: none; }
     const b = S.bird, p = S.potato;
     S.birdCool = BIRD_COOLDOWN;
     b.state = "fall"; b.t = 0; b.x = p.x; b.y = p.y; b.z = p.z; b.vx = -b.side * 1.5; b.vy = 2.5; b.vz = 0; b.say = 1.4;
-    // the spud loses a good part of its speed and gets knocked a little sideways
-    p.vx = p.vx * 0.6 + rnd(-2, 2); p.vy *= 0.6; p.vz *= 0.6; S.struck = true;
-    for (let i = 0; i < 12; i++) S.feathers.push({ x: p.x, y: p.y, z: p.z, vx: rnd(-2.5, 2.5), vy: rnd(-0.5, 2.5), vz: rnd(-2.5, 2.5), t: 0, a: rnd(0, 6), c: b.sp.wing });
+    // the spud loses most of its way and drops nearly straight down, knocked a little sideways
+    p.vx = p.vx * 0.15 + rnd(-1.5, 1.5); p.vy = Math.min(p.vy * 0.25, 1); p.vz *= 0.15; S.struck = true;
+    featherBurst(p, b.sp);
     sfx.squawk(b.sp);
+    if (S.rec) { S.rec.strikeT = S.flightT; S.rec.sp = b.sp; }
   }
+  const featherBurst = (p, sp) => { for (let i = 0; i < 12; i++) S.feathers.push({ x: p.x, y: p.y, z: p.z, vx: rnd(-2.5, 2.5), vy: rnd(-0.5, 2.5), vz: rnd(-2.5, 2.5), t: 0, a: rnd(0, 6), c: sp.wing }); };
   function updateBird(dt) {
     for (const f of S.feathers) { f.t += dt; f.vx *= 0.97; f.vz *= 0.97; f.vy = Math.max(-1.2, f.vy - 3 * dt); f.x += f.vx * dt; f.y = Math.max(0.02, f.y + f.vy * dt); f.z += f.vz * dt; f.a += dt * 3; }
     S.feathers = S.feathers.filter((f) => f.t < 6);
@@ -1059,6 +1137,9 @@ body.lab .stage > :not(canvas) { display: none; }
   // wall, window or roof, or the spinner)
   function land(x, z, prop, hit) {
     const y = hit && hit.y != null ? hit.y : S.scene.groundY(x, z);
+    // the record gets the landing spot, and (below) what the landing set off and sounded like
+    const rec = S.rec, pops0 = (S.pops || []).length;
+    if (rec) { rec.frames.push({ t: S.flightT, x, y, z, rot: S.potato ? S.potato.rot : 0 }); rec.capture = true; }
     S.potato = null; S.curArc.push([x, y, z]); S.arc = S.curArc; S.curArc = [];
     // (through a window it's gone inside, a splat target wears its own splat, and the water takes it: no splat)
     const wet = !prop && !hit && S.scene.water(x, z);
@@ -1110,6 +1191,11 @@ body.lab .stage > :not(canvas) { display: none; }
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
     // the valve stays open and the chamber empty until the next spud is loaded and pumped
     S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
+    if (rec) {
+      rec.capture = false; rec.arc = S.arc; rec.prop = prop || null; rec.hit = hit || null; rec.note = shotEl.textContent;
+      rec.pops = (S.pops || []).slice(pops0).map((b) => ({ ...b })); rec.flash = S.rings.filter((r) => r.flash === 1);
+      showRelive();
+    }
     hud();
   }
   // the spud hit something in the place itself
@@ -1134,9 +1220,9 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let i = 0; i < 12; i++) S.bits.push({ kind: "chunk", x: bx, y: by, z: bz, vx: rnd(-2, 2), vy: rnd(0.5, 3), vz: rnd(-2, 2), a: rnd(0, 6), s: rnd(0.07, 0.13), c: pick(["#e9c27a", "#f1d9a0", "#c48a4a"]), t: 0, ph: rnd(0, 6) });
       sfx.splatT();
       if (!t.hit) scoreTarget(t); else shotNote(`Splat on the ${tName(t)}, but it's already scored`);
-    } else if (hit.kind === "mount" || hit.kind === "bale") {
+    } else if (hit.kind === "mount" || hit.kind === "bale" || hit.kind === "trunk") {
       sfx.thunk();
-      const bale = hit.kind === "bale" || hit.target.mk === "bale";
+      const bale = hit.kind === "bale" || (hit.target && hit.target.mk === "bale");
       S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: bale ? "THWUMP!" : "THUNK!", t: 0 });
       shotNote(`${bale ? "Thwump! Into a hay bale" : "Thunk! Off the tree trunk"}${then}`);
     } else if (hit.kind === "window") {
@@ -1155,6 +1241,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // clearing every ring earns +1 for each spud left over
     const spare = S.rings.every((r) => r.hit) ? S.spudsLeft : 0;
     S.phase = "levelEnd";
+    shrinkRelive(); // (into its corner, clear of the card, to watch that last shot again)
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
     const counts = Object.keys(RINGS).map((t) => {
@@ -1249,11 +1336,6 @@ body.lab .stage > :not(canvas) { display: none; }
     $("angOut").innerHTML = `${ang()}<small>°</small>`; $("holeOut").textContent = `hole ${S.hole + 1}/${HOLES.length}`;
     [...$("holes").children].forEach((b, i) => b.classList.toggle("on", i === S.hole));
     $("rotOut").innerHTML = `${Math.abs(S.yaw).toFixed(1).replace(/\.0$/, "")}<small>° ${S.yaw < 0 ? "left" : S.yaw > 0 ? "right" : ""}</small>`; rotIn.value = S.yaw;
-    const [wa, wb] = S.scene ? S.scene.wheels.range : [-12, 12];
-    posIn.min = wa; posIn.max = wb; posIn.value = S.lx;
-    $("posOut").innerHTML = `${Math.abs(S.lx).toFixed(1).replace(/\.0$/, "")}<small>m ${S.lx < -0.05 ? "left" : S.lx > 0.05 ? "right" : ""}</small>`;
-    ["posL", "posR"].forEach((id) => ($(id).disabled = !canAdjust()));
-    posIn.disabled = !canAdjust();
     // "View arc" shows once the last spud has landed and the camera is back at rest; while viewing it names the angle
     const ab = $("arcBtn");
     ab.hidden = !(S.arc && !S.potato && canAdjust());
@@ -1272,6 +1354,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= update =================
   function update(dt) {
+    updateRelive(dt);
     setupCam(dt);
     S.pumpAnim = Math.max(0, S.pumpAnim - dt * 5);
     S.valve += (S.valveTarget - S.valve) * Math.min(1, dt * 14);
@@ -1295,7 +1378,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (switched off for now: the long call sounds like an eagle. A bird strike still squawks)
     S.callT = (S.callT ?? rnd(8, 20)) - dt;
     if (S.callT <= 0) { S.callT = rnd(20, 45); if (AMBIENT_CALLS && actx && !S.muted && $("overlay").hidden) sfx.birdCall(); }
-    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); updateJunker(o, dt); }
+    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); updateJunker(o, dt); if (o.kind === "mower") updateMower(o, dt); }
     updateBird(dt);
     for (const t of S.rings) if (t.form === "spinner") updateSpinner(t, dt);
     updateBits(dt);
@@ -1332,6 +1415,10 @@ body.lab .stage > :not(canvas) { display: none; }
         if (hit) { land(p.x, p.z, hit); break; }
       }
       if (S.potato) { const l = S.curArc[S.curArc.length - 1] || [p.x, p.y, p.z]; if (Math.hypot(p.x - l[0], p.y - l[1], p.z - l[2]) > 0.8) S.curArc.push([p.x, p.y, p.z]); }
+      // the flight, frame by frame, with the bird if one's about
+      const b = S.bird;
+      // (all of the bird, speeds too, so it can carry on falling by itself in the replay)
+      if (S.potato && S.rec) S.rec.frames.push({ t: S.flightT, x: p.x, y: p.y, z: p.z, rot: p.rot, b: b && { ...b } });
     }
     if (S.phase === "settle") { S.timer -= dt; if (S.timer <= 0) { const f = S.after; S.after = null; S.phase = "wait"; f && f(); } }
   }
@@ -1422,7 +1509,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const dist = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z);
     // looking at the last arc from off to one side, the place's houses and trees between the camera and the arc are
     // left out so they don't hide it
-    const arcNear = S.arcView != null && S.arc ? Math.min(...S.arc.map(([x, , z]) => Math.hypot(x - CAM.x, z - CAM.z))) - 3 : 0;
+    const arcPts = S.replay && S.replay.pass > 0 ? S.replay.rec.arc : S.arcView != null ? S.arc : null;
+    const arcNear = arcPts ? Math.min(...arcPts.map(([x, , z]) => Math.hypot(x - CAM.x, z - CAM.z))) - 3 : 0;
     const standing = [
       ...rings.filter((r) => !onBuilding(r) && !r.hill).map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : r.form === "splat" ? drawSplatTarget(r) : drawFlag(r, [r.x, S.scene.groundY(r.x, r.z + r.r), r.z + r.r])) })),
       ...(S.props || []).map((o) => ({ d: dist(o), f: () => drawProp(o) })),
@@ -1437,12 +1525,22 @@ body.lab .stage > :not(canvas) { display: none; }
     // the last shot's path, dotted, appears once it has landed (none while a spud is in the air), over everything
     // so nothing in the place can hide it
     if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
+    // in Re-live it the dotted arc traces out behind the spud as it flies, and stays whole while it holds on the landing
+    const R = S.replay;
+    if (R && (R.ghost || R.landed)) {
+      const fr = R.rec.frames, upto = R.landed ? Infinity : R.t;
+      const pts = fr.filter((f) => f.t <= upto).map((f) => [f.x, f.y, f.z]);
+      if (R.ghost) pts.push([R.ghost.x, R.ghost.y, R.ghost.z]);
+      if (pts.length > 1) drawArc(pts, "rgba(255,255,255,.9)", [2, 7]);
+    }
     for (const b of S.pops || []) { const q = P(b.x, b.y + 1, b.z); if (!q.behind && b.t < 2.2) bubble(q.x, q.y, b.text, (2.2 - b.t) / 0.4); }
     drawStrikeBird();
 
     // potato, its shadow, and an off-screen marker when it flies above the view
-    if (S.potato) {
-      const p = S.potato, sh = P(p.x, 0, p.z), q = P(p.x, p.y, p.z), rr = Math.max(2.5, 0.09 * q.s);
+    // (or Re-live it's replayed spud)
+    const flying = S.potato || (S.replay && S.replay.ghost);
+    if (flying) {
+      const p = flying, sh = P(p.x, 0, p.z), q = P(p.x, p.y, p.z), rr = Math.max(2.5, 0.09 * q.s);
       ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rr * 1.3, rr * 0.45, 0, 0, 7); ctx.fill();
       if (q.y < 6) {
         ctx.fillStyle = "#23303a"; ctx.beginPath(); ctx.moveTo(q.x, 6); ctx.lineTo(q.x - 8, 18); ctx.lineTo(q.x + 8, 18); ctx.fill();
@@ -1450,10 +1548,9 @@ body.lab .stage > :not(canvas) { display: none; }
       } else drawPotato(q.x, q.y, rr, p.rot);
     }
 
-    drawWindsock();
     drawLauncher();
     // the corner map would cover part of the arc, so it steps aside while viewing the arc
-    if (S.arcView == null) drawMinimap();
+    if (S.arcView == null && !(S.replay && S.replay.pass > 0)) drawMinimap();
     if (S.loadMsg > 0) drawLoadFirst();
   }
   // the pasture's ground: plain grass with a few faint lighter and darker patches (the 10 m mowing stripes are a
@@ -2544,6 +2641,16 @@ body.lab .stage > :not(canvas) { display: none; }
     const limbs = Array.from({ length: 6 }, (_, i) => ({ a: -1.1 + i * 0.44 + rnd(-0.1, 0.1), l: rnd(0.28, 0.42), y: rnd(0.38, 0.55) }));
     return { kind, x, z, h: rnd(...K.h) * scale, w: rnd(...K.w) * scale, blobs, limbs, bark: K.bark || "#5a4130", cols: K.cols, shade: rnd(-0.06, 0.06), draw: drawFallTree };
   }
+  // a fall tree's trunk is solid (the spud thunks off it and drops at its foot, on the side it came from); its leafy
+  // crown and limbs aren't. The trunk tapers as drawn, up to where the crown starts
+  function fallTrunkHit(t, p, q) {
+    const top = t.h * 0.58;
+    if (p.y < 0 || p.y > top) return null;
+    const dx = p.x - t.x, dz = p.z - t.z, r = t.w * (0.055 - 0.03 * p.y / top) + 0.08;
+    if (Math.hypot(dx, dz) > r) return null;
+    const bx = q.x - t.x, bz = q.z - t.z, bl = Math.hypot(bx, bz) || 1, out = r + 0.35;
+    return { kind: "trunk", at: [p.x, p.y, p.z], land: [t.x + bx / bl * out, 0, t.z + bz / bl * out] };
+  }
   function drawFallTree(t) {
     const b = P(t.x, 0, t.z);
     if (b.behind) return;
@@ -2591,18 +2698,20 @@ body.lab .stage > :not(canvas) { display: none; }
       const a = deg * Math.PI / 180;
       houses.push(makeHouse(CDS.cx + Math.sin(a) * CDS.rh, CDS.cz + Math.cos(a) * CDS.rh, a + Math.PI, looks[i % looks.length], deg, Math.abs(deg) < 60 || undefined));
     });
-    [[-21, 6], [-21, 32], [21, 0], [21, 28]].forEach(([x, z], i) => houses.push(makeHouse(x, z, x < 0 ? Math.PI / 2 : -Math.PI / 2, looks[(i + 5) % looks.length], null)));
+    // (the left one further up is always the brown one with a porch, for a neighbour to sit on: see upNeighbour)
+    [[-21, 6], [-21, 32], [21, 0], [21, 28]].forEach(([x, z], i) => houses.push(i === 1
+      ? Object.assign(makeHouse(x, z, Math.PI / 2, HOUSE_LOOKS[4], null, true), { upPorch: true })
+      : makeHouse(x, z, x < 0 ? Math.PI / 2 : -Math.PI / 2, looks[(i + 5) % looks.length], null)));
     // driveways from each garage out to the street, and a front walk from each door
     const reach = (sd, lx, from) => { let len = 1; while (len < 40 && !onTarmac(...((p) => [p[0], p[2]])(sd.Wp([lx, 0, from + len])), 0.2)) len += 0.5; return len; };
     const drives = houses.map((h) => {
       const sd = solid(h), gx = (h.gx0 + h.gx1) / 2, len = reach(sd, gx, h.d / 2);
       return { house: h, gx, len, pts: [[gx - 2.8, 0, h.d / 2], [gx + 2.8, 0, h.d / 2], [gx + 2.8, 0, h.d / 2 + len + 0.6], [gx - 2.8, 0, h.d / 2 + len + 0.6]].map(sd.Wp) };
     });
-    const walks = houses.map((h) => {
-      const sd = solid(h), z0 = h.d / 2 + (h.porch ? 2 : 0), len = reach(sd, h.doorX, z0);
-      return [[h.doorX - 0.6, 0, z0], [h.doorX + 0.6, 0, z0], [h.doorX + 0.6, 0, z0 + len + 0.6], [h.doorX - 0.6, 0, z0 + len + 0.6]].map(sd.Wp);
-    });
+    const walkSpans = houses.map((h) => { const z0 = h.d / 2 + (h.porch ? 2 : 0); return { house: h, z0, len: reach(solid(h), h.doorX, z0) }; });
+    const walks = walkSpans.map(({ house: h, z0, len }) => [[h.doorX - 0.6, 0, z0], [h.doorX + 0.6, 0, z0], [h.doorX + 0.6, 0, z0 + len + 0.6], [h.doorX - 0.6, 0, z0 + len + 0.6]].map(solid(h).Wp));
     const inDrive = (dr, x, z, m) => { const h = dr.house, [lx, lz] = carToLocal(h, x, z); return Math.abs(lx - dr.gx) <= 2.8 + m && lz >= h.d / 2 - m && lz <= h.d / 2 + dr.len + 0.6 + m; };
+    const inWalk = (wk, x, z) => { const h = wk.house, [lx, lz] = carToLocal(h, x, z); return Math.abs(lx - h.doorX) <= 0.7 && lz >= wk.z0 - 0.1 && lz <= wk.z0 + wk.len + 0.7; };
     // tall trees between the houses and behind them, in the front yards down the street, and a line of woods beyond
     const clear = (x, z, pad) => !onTarmac(x, z, pad + 2.2) && houses.every((h) => !houseNear(h, x, z, pad)) && drives.every((dr) => !inDrive(dr, x, z, pad));
     const add = (x, z, scale = 1) => { if (clear(x, z, 1.5) && trees.every((t) => Math.hypot(t.x - x, t.z - z) > 5.5)) trees.push(makeFallTree(x, z, scale)); };
@@ -2692,6 +2801,7 @@ body.lab .stage > :not(canvas) { display: none; }
         return true;
       },
       collide(p, q) {
+        for (const t of trees) { const r = fallTrunkHit(t, p, q); if (r) return r; }
         for (const h of houses) { const r = houseHit(h, p, q); if (r) return r; }
         return null;
       },
@@ -2723,12 +2833,113 @@ body.lab .stage > :not(canvas) { display: none; }
           const [x, , z] = solid(h).Wp([h.doorX + (Math.random() < 0.5 ? 1.4 : -1.4), 0, h.d / 2 + 1]);
           return { x, z, y0: 0.35, house: h };
         });
-        // the community mailbox stands on the verge at the end of the bulb, facing in
+        // the community mailbox stands on the verge at the end of the bulb or down the street, its little doors
+        // turned to face the launcher so it's plain what it is (no yaw: placeProps points it at us)
         if (kind === "mailbox") return [-32, -18, 0, 18, 32].map((deg) => {
           const a = deg * Math.PI / 180, r = CDS.rb + 1.4;
-          return { x: CDS.cx + Math.sin(a) * r, z: CDS.cz + Math.cos(a) * r, yaw: a + Math.PI };
-        }).concat([22, 30, 38, 44].flatMap((z) => [-1, 1].map((sx) => ({ x: sx * (CDS.hw + 1.4), z, yaw: -sx * Math.PI / 2 + sx * 0.5 }))))
+          return { x: CDS.cx + Math.sin(a) * r, z: CDS.cz + Math.cos(a) * r };
+        }).concat([22, 30, 38, 44].flatMap((z) => [-1, 1].map((sx) => ({ x: sx * (CDS.hw + 1.4), z }))))
           .filter((s) => !drives.some((dr) => inDrive(dr, s.x, s.z, 0.8)) && inBand(s.x, s.z, BAND.props.mailbox));
+        // another neighbour on the porch of the brown house up the street on the left, nearer the targets
+        if (kind === "upNeighbour") return houses.filter((h) => h.upPorch).map((h) => {
+          const [x, , z] = solid(h).Wp([h.doorX + (Math.random() < 0.5 ? 1.4 : -1.4), 0, h.d / 2 + 1]);
+          return { x, z, y0: 0.35, house: h };
+        });
+        return null;
+      },
+      // somebody mowing a front yard down the street, and the boulevard (the strip of grass between the sidewalk
+      // and the curb) in front of it. The route goes up and down in lanes along the street, mowing only grass, and
+      // never runs through a tree, a house, the other props or the spinner: where a lane is cut by one of them it
+      // mows the pieces separately, and walks from piece to piece the short way round on a grid (crossing the
+      // sidewalk, a front walk or a driveway is fine; mowing them isn't). null if no yard in view will do
+      mowPlan() {
+        const C = 0.45, verge0 = CDS.hw + 0.35, side0 = CDS.hw + 2.2, side1 = CDS.hw + 3.8;
+        const blockers = [
+          ...trees.map((t) => ({ x: t.x, z: t.z, r: 1.3 })),
+          ...S.props.map((o) => ({ x: o.x, z: o.z, r: o.r + 0.6 })),
+          ...S.rings.filter((r) => r.form === "spinner").map((r) => ({ x: r.x, z: r.z, r: 2.7 })),
+        ];
+        for (const h of shuffle(houses.filter((h) => h.bulb == null))) {
+          const s = Math.sign(h.x), xa = verge0 + 0.1, xb = Math.abs(h.x) - h.d / 2 - 0.4;
+          const za = Math.max(h.z - 11, 3), zb = h.z + 11;
+          // the yard's middle has to be in view from the launcher
+          const q = P(s * (xa + xb) / 2, 0, (za + zb) / 2);
+          if (q.behind || q.x < 30 || q.x > W - 30) continue;
+          const walkable = (x, z) => {
+            if (Math.abs(x) < verge0 + 0.15) return false; // (the curb and the street)
+            if (houses.some((hh) => houseNear(hh, x, z, 0.35))) return false;
+            return !blockers.some((b) => Math.hypot(b.x - x, b.z - z) < b.r);
+          };
+          const mowable = (x, z) => {
+            const ax = Math.abs(x);
+            if (ax > side0 - 0.2 && ax < side1 + 0.2) return false; // (the sidewalk)
+            if (drives.some((dr) => inDrive(dr, x, z, 0.25)) || walkSpans.some((wk) => inWalk(wk, x, z))) return false;
+            return walkable(x, z);
+          };
+          // the grid the walks between pieces go on
+          const nx = Math.ceil((xb - xa) / C) + 1, nz = Math.ceil((zb - za) / C) + 1;
+          const cx = (i) => s * (xa + i * C), cz = (j) => za + j * C;
+          const open = Array.from({ length: nx * nz }, (_, k) => walkable(cx(k % nx), cz(Math.floor(k / nx))));
+          // the open grid cell nearest a spot (the spot itself is clear, but its nearest cell may just touch something)
+          const cell = (x, z) => {
+            const fi = (Math.abs(x) - xa) / C, fj = (z - za) / C;
+            let best = -1, bd = Infinity;
+            for (let j = Math.floor(fj) - 1; j <= Math.ceil(fj) + 1; j++) for (let i = Math.floor(fi) - 1; i <= Math.ceil(fi) + 1; i++) {
+              if (i < 0 || j < 0 || i >= nx || j >= nz || !open[j * nx + i]) continue;
+              const d = Math.hypot(i - fi, j - fj); if (d < bd) { bd = d; best = j * nx + i; }
+            }
+            return best;
+          };
+          // shortest way from a to b on the grid (8 neighbours, no cutting corners), or null
+          const route = (a, b) => {
+            const start = cell(a.x, a.z), goal = cell(b.x, b.z);
+            if (start < 0 || goal < 0) return null;
+            const from = new Int32Array(nx * nz).fill(-1); from[start] = start;
+            const queue = [start];
+            for (let qi = 0; qi < queue.length && from[goal] < 0; qi++) {
+              const k = queue[qi], i = k % nx, j = Math.floor(k / nx);
+              for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+                const ii = i + di, jj = j + dj, kk = jj * nx + ii;
+                if (ii < 0 || jj < 0 || ii >= nx || jj >= nz || from[kk] >= 0 || !open[kk]) continue;
+                if (di && dj && (!open[j * nx + ii] || !open[jj * nx + i])) continue;
+                from[kk] = k; queue.push(kk);
+              }
+            }
+            if (from[goal] < 0) return null;
+            const out = [];
+            for (let k = goal; k !== start; k = from[k]) out.push({ x: cx(k % nx), z: cz(Math.floor(k / nx)), mow: false });
+            return out.reverse();
+          };
+          // the lanes: the yard first, from the house out to the sidewalk, then the boulevard
+          const lanes = [];
+          for (let ax = xb - 0.3; ax > side1 + 0.3; ax -= 0.55) lanes.push(ax);
+          for (let ax = side0 - 0.35; ax > verge0 + 0.3; ax -= 0.5) lanes.push(ax);
+          const path = [];
+          let at = null, up = true, mown = 0;
+          for (const ax of lanes) {
+            // the mowable pieces of this lane, at least a metre long
+            const runs = [];
+            let r0 = null;
+            for (let z = za; z <= zb + 1e-6; z += 0.25) {
+              const ok = z <= zb - 1e-6 && mowable(s * ax, z);
+              if (ok && r0 == null) r0 = z;
+              if (!ok && r0 != null) { if (z - 0.25 - r0 >= 1) runs.push([r0, z - 0.25]); r0 = null; }
+            }
+            if (!up) runs.reverse();
+            for (const [a, b] of runs) {
+              const [p0, p1] = up ? [a, b] : [b, a], A = { x: s * ax, z: p0 }, B = { x: s * ax, z: p1 };
+              if (at) {
+                const way = route(at, A);
+                if (!way) continue;
+                path.push(...way);
+              }
+              path.push({ ...A, mow: true }, { ...B, mow: true });
+              mown += Math.abs(p1 - p0); at = B;
+            }
+            up = !up;
+          }
+          if (mown > 40) return { path, house: h };
+        }
         return null;
       },
       // the blue ring can go on the front slope of a roof facing the launcher
@@ -3031,7 +3242,110 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.restore();
     if (up) bubble(b.x + 0.5 * b.s, g.Y(2.0), PROPS.neighbour.say, (2.4 - t) / 0.4);
   }
-  const PROP_DRAW = { dog: drawDog, neighbour: drawNeighbour, leaves: drawLeafPile, mailbox: drawMailbox, trampoline: drawTrampoline };
+  // ---- the neighbour mowing: walks a push mower up and down the lanes of its route (from mowPlan), then back the
+  // other way after a breather. Hit, they let go, hop and holler, and the mower stalls; then on they go ----
+  const MOW_SPEED = 0.85, MOW_WALK = 1.15;
+  function updateMower(o, dt) {
+    if (o.t >= 0) return;
+    if (o.rest > 0) { o.rest -= dt; return; }
+    let left = dt;
+    for (let n = 0; n < 8 && left > 1e-6; n++) {
+      const tgt = o.path[o.leg], prev = o.path[o.leg - o.dir], dx = tgt.x - o.x, dz = tgt.z - o.z, d = Math.hypot(dx, dz);
+      // mowing along a lane, or walking from one piece to the next
+      o.mowing = tgt.mow && prev && prev.mow;
+      const v = o.mowing ? MOW_SPEED : MOW_WALK, s = Math.min(d, v * left);
+      if (d > 1e-6) {
+        o.x += dx / d * s; o.z += dz / d * s; o.step += s * 7;
+        if (Math.abs(dx) > 0.05 * d) o.face = dx > 0 ? 1 : -1;
+        o.view = Math.abs(dz) > Math.abs(dx) * 1.3 ? (dz < 0 ? "front" : "back") : "side";
+      }
+      left -= s / v;
+      if (s < d - 1e-6) break;
+      o.leg += o.dir;
+      // done: a breather, then the same route the other way
+      if (o.leg < 0 || o.leg >= o.path.length) { o.dir = -o.dir; o.leg += 2 * o.dir; o.rest = 4; break; }
+    }
+  }
+  function drawMower(o) {
+    const g = billboard(o), { b, ell, line, poly } = g;
+    if (b.behind || (!o.thumb && (b.x < -60 || b.x > W + 60 || b.y > H + 60))) return;
+    const L = o.look || NEIGHBOUR_LOOKS[0], t = o.t, hit = t >= 0 && t < 2.4, now = performance.now() / 1000, edge = "#2a2420";
+    const moving = !hit && !o.thumb && !(o.rest > 0), sw = moving ? Math.sin(o.step) * 0.11 : 0;
+    const red = "#c8322b", deck = shadeHex(red, -0.2), tyre = "#2b2b2b", steel = "#3a3f45", shoe = "#2a2a2a";
+    if (!o.thumb) groundShadow(o.x, o.z, 0.7, 0.45, 0.18);
+    // the engine shakes while it's running
+    const buzz = hit ? 0 : Math.sin(now * 70) * 0.006;
+    const head = (x, y, face) => {
+      ell(x, y, 0.12, 0.13, L.skin, edge);
+      if (L.hat) { poly([[x - 0.13, y + 0.04], [x + 0.13, y + 0.04], [x + 0.11, y + 0.15], [x - 0.11, y + 0.15]], L.hat); if (face !== "back") line(x - 0.02, y + 0.04, x + (face === "side" ? 0.17 : 0), y + 0.03, 0.03, L.hat); }
+      else if (face === "back") ell(x, y + 0.02, 0.125, 0.12, L.hair);
+      else ell(x, y + 0.08, 0.125, 0.065, L.hair);
+      if (face === "front") for (const sx of [-1, 1]) ell(x + sx * 0.045, y + 0.01, 0.015, 0.018, "#1b1b1b");
+      if (face === "side") ell(x + 0.07, y + 0.01, 0.015, 0.018, "#1b1b1b");
+    };
+    // a few clippings flicking out of the side of the deck
+    const clippings = (x, y) => { if (moving && o.mowing) for (let i = 0; i < 4; i++) { const k = (now * 3 + i / 4 + o.ph) % 1; ell(x + k * 0.35, y + Math.sin(k * Math.PI) * 0.2, 0.025, 0.015, "#6fb048"); } };
+    ctx.save();
+    if (hit) {
+      // let go: the mower sits there stalled, and they hop beside it, arms up, hollering
+      const hop = t < 0.6 ? Math.sin((t / 0.6) * Math.PI) * 0.3 : 0, x = -0.55;
+      mowerSide(0.3);
+      for (const sx of [-1, 1]) { line(x + sx * 0.08, 0.82 + hop, x + sx * 0.11, 0.06 + hop, 0.09, L.pants); ell(x + sx * 0.11, 0.04 + hop, 0.07, 0.035, shoe); }
+      poly([[x - 0.18, 0.8 + hop], [x + 0.18, 0.8 + hop], [x + 0.16, 1.35 + hop], [x - 0.16, 1.35 + hop]], L.shirt, edge);
+      const wave = Math.sin(t * 20) * 0.05;
+      line(x - 0.15, 1.3 + hop, x - 0.32 + wave, 1.72 + hop, 0.06, L.shirt); line(x + 0.15, 1.3 + hop, x + 0.32 - wave, 1.72 + hop, 0.06, L.shirt);
+      head(x, 1.5 + hop, "front");
+    } else if (o.view === "front" || o.view === "back") {
+      const front = o.view === "front", bob = moving ? Math.abs(Math.sin(o.step)) * 0.02 : 0;
+      // end-on: the mower is in front of them coming toward you, ahead of them (mostly hidden) going away
+      const mower = () => {
+        for (const sx of [-1, 1]) ell(sx * 0.3, 0.08, 0.05, 0.08, tyre);
+        poly([[-0.32, 0.05], [0.32, 0.05], [0.29, 0.24 + buzz], [-0.29, 0.24 + buzz]], red, edge);
+        poly([[-0.12, 0.24 + buzz], [0.12, 0.24 + buzz], [0.1, 0.4 + buzz], [-0.1, 0.4 + buzz]], steel, edge);
+        clippings(0.3, 0.1);
+      };
+      if (!front) mower();
+      for (const sx of [-1, 1]) {
+        const lift = moving ? Math.max(0, Math.sin(o.step + (sx > 0 ? Math.PI : 0))) * 0.05 : 0;
+        line(sx * 0.09, 0.84 + bob, sx * 0.1, 0.07 + lift, 0.09, L.pants); ell(sx * 0.1, 0.05 + lift, 0.07, 0.035, shoe);
+      }
+      poly([[-0.18, 0.82 + bob], [0.18, 0.82 + bob], [0.16, 1.36 + bob], [-0.16, 1.36 + bob]], L.shirt, edge);
+      head(0, 1.5 + bob, front ? "front" : "back");
+      // arms down to the handle, and the handle's two bars down to the deck
+      for (const sx of [-1, 1]) line(sx * 0.16, 1.3 + bob, sx * 0.22, 0.98, 0.06, L.shirt);
+      if (front) {
+        for (const sx of [-1, 1]) line(sx * 0.22, 0.96, sx * 0.24, 0.26, 0.03, steel);
+        line(-0.24, 0.97, 0.24, 0.97, 0.035, steel);
+        for (const sx of [-1, 1]) ell(sx * 0.22, 0.98, 0.04, 0.04, L.skin, edge);
+        mower();
+      } else {
+        line(-0.24, 0.97, 0.24, 0.97, 0.035, steel);
+        for (const sx of [-1, 1]) ell(sx * 0.22, 0.98, 0.04, 0.04, L.skin, edge);
+      }
+    } else {
+      // side-on: pushing it the way they walk
+      const x = -0.34, bob = moving ? Math.abs(Math.sin(o.step)) * 0.02 : 0;
+      line(x - sw * 0.3, 0.84 + bob, x - sw * 1.6, 0.07, 0.09, shadeHex(L.pants, -0.15)); ell(x - sw * 1.6 + 0.04, 0.05, 0.07, 0.035, shoe);
+      mowerSide(0.32);
+      line(x + sw * 0.3, 0.84 + bob, x + sw * 1.6, 0.07, 0.09, L.pants); ell(x + sw * 1.6 + 0.04, 0.05, 0.07, 0.035, shoe);
+      poly([[x - 0.14, 0.82 + bob], [x + 0.14, 0.82 + bob], [x + 0.17, 1.35 + bob], [x - 0.09, 1.36 + bob]], L.shirt, edge);
+      head(x + 0.06, 1.5 + bob, "side");
+      line(x + 0.06, 1.3 + bob, -0.1, 0.98, 0.06, L.shirt); ell(-0.1, 0.98, 0.04, 0.04, L.skin, edge);
+    }
+    ctx.restore();
+    if (hit) bubble(b.x, g.Y(2.2), PROPS.mower.say, (2.4 - t) / 0.4);
+    // the mower seen side-on, its deck centred at x (the handle reaches back toward the person)
+    function mowerSide(x) {
+      ell(x - 0.24, 0.09, 0.09, 0.09, tyre); ell(x + 0.24, 0.09, 0.09, 0.09, tyre);
+      poly([[x - 0.32, 0.1], [x + 0.32, 0.1], [x + 0.3, 0.27 + buzz], [x - 0.28, 0.29 + buzz]], red, edge);
+      poly([[x - 0.32, 0.1], [x + 0.32, 0.1], [x + 0.32, 0.14], [x - 0.32, 0.14]], deck);
+      poly([[x - 0.1, 0.28 + buzz], [x + 0.14, 0.27 + buzz], [x + 0.12, 0.44 + buzz], [x - 0.08, 0.45 + buzz]], steel, edge);
+      for (const wx of [x - 0.24, x + 0.24]) ell(wx, 0.09, 0.035, 0.035, "#9aa0a6");
+      line(x - 0.26, 0.28, x - 0.42, 0.98, 0.035, steel);
+      clippings(x + 0.3, 0.12);
+    }
+  }
+  const PROP_DRAW = { dog: drawDog, neighbour: drawNeighbour, upNeighbour: drawNeighbour, leaves: drawLeafPile, mailbox: drawMailbox, trampoline: drawTrampoline, mower: drawMower };
 
   // ---- flying bits: leaves from the pile, letters from the mailbox, glass from a window ----
   function updateBits(dt) {
@@ -3637,6 +3951,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // turn as it rolls, and when it swivels (front and back pairs the opposite way). The far pair goes behind the
     // base board, the near pair in front of it
     const WR = 0.135, WW = 0.11;
+    const PX = -0.85, PZ = -0.3; // where the hand pump stands, on its shelf off the base's left side
     const wheel = (wx, wz, edgeZ) => {
       const circ = (z, r) => Array.from({ length: 18 }, (_, i) => { const a = (i / 18) * Math.PI * 2; return [wx + Math.cos(a) * r, WR + Math.sin(a) * r, z]; });
       const z0 = wz - WW / 2, z1 = wz + WW / 2, nearZ = L(wx, WR, z0).s > L(wx, WR, z1).s ? z0 : z1, farZ = nearZ === z0 ? z1 : z0;
@@ -3655,6 +3970,9 @@ body.lab .stage > :not(canvas) { display: none; }
     box(-0.55, 0.55, 0, 0.13, -0.62, 0.45, "#d9a061", "#a86f35", "#b77a3c");
     for (const sx of [-0.18, 0.18]) seg([sx, 0.131, -0.62], [sx, 0.131, 0.45], 0.008, "#a86f35");
     for (const [a, b] of [[[-0.55, 0.13, -0.62], [0.55, 0.13, -0.62]], [[-0.55, 0.13, -0.62], [-0.55, 0.13, 0.45]], [[0.55, 0.13, -0.62], [0.55, 0.13, 0.45]], [[-0.55, 0.13, 0.45], [0.55, 0.13, 0.45]]]) seg(a, b, 0.022, "#8a5a2b", "round");
+    // the pump's shelf: a short board bolted under the base's left edge and sticking out to carry the hand pump
+    box(PX - 0.17, -0.5, 0.03, 0.11, PZ - 0.16, PZ + 0.14, "#d9a061", "#a86f35", "#b77a3c");
+    for (const bz of [PZ - 0.09, PZ + 0.08]) { const q = L(-0.52, 0.132, bz); ctx.fillStyle = "#3a4248"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.2, 0.012 * q.s), 0, 7); ctx.fill(); }
     for (const wx of [-0.38, 0.38]) wheel(wx, -0.7, -0.62);
 
     // loading: a hand pushes the spud down the barrel with a wooden tamper
@@ -3716,13 +4034,22 @@ body.lab .stage > :not(canvas) { display: none; }
     seg(lv0, lv1, 0.1, "#1f4f9e", "round");
     seg(lv0, lv1, 0.075, "#2f6fd0", "round");
     { const q = L(...lv0); ctx.fillStyle = "#c0c6cc"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(2, 0.04 * q.s), 0, 7); ctx.fill(); }
-    // bike pump beside the stand, on the left so the corner map doesn't cover it
-    const PX = -0.85;
-    const pb = L(PX, 0, -0.3), pt = L(PX, 0.55, -0.3), lift = (1 - S.pumpAnim) * 0.18;
-    const ph = L(PX, 0.6 + lift, -0.3);
+    // bike pump beside the stand, on the left so the corner map doesn't cover it. It stands on its shelf (drawn with
+    // the base board), against a short wooden upright screwed to the shelf, held to it by two steel pipe clamps
+    const PY = 0.11;
+    box(PX - 0.06, PX + 0.06, PY, PY + 0.5, PZ + 0.06, PZ + 0.13, "#e0ae74", "#a86f35", "#c98d4b");
+    seg([PX - 0.08, PY + 0.005, PZ], [PX + 0.08, PY + 0.005, PZ], 0.05, "#2e3840", "round"); // its foot plate
+    const pb = L(PX, PY, PZ), pt = L(PX, PY + 0.55, PZ), lift = (1 - S.pumpAnim) * 0.18;
+    const ph = L(PX, PY + 0.6 + lift, PZ);
     ctx.strokeStyle = "#2f7fd6"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(4.5, 0.105 * pb.s); ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
-    ctx.strokeStyle = "#a7b0b8"; ctx.lineWidth = Math.max(2.2, 0.03 * pb.s); ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(ph.x, ph.y); ctx.stroke();
-    const hl = L(PX - 0.1, 0.6 + lift, -0.3), hr = L(PX + 0.1, 0.6 + lift, -0.3);
+    // the clamps: steel bands round the barrel, with a bolt at each side into the upright
+    for (const cy of [PY + 0.12, PY + 0.4]) {
+      seg([PX - 0.066, cy, PZ], [PX + 0.066, cy, PZ], 0.03, "#5c666e");
+      seg([PX - 0.066, cy + 0.008, PZ], [PX + 0.066, cy + 0.008, PZ], 0.01, "#c9d2d9");
+      for (const sx of [-1, 1]) { const q = L(PX + sx * 0.075, cy, PZ + 0.02); ctx.fillStyle = "#2e3840"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.3, 0.016 * q.s), 0, 7); ctx.fill(); }
+    }
+    ctx.strokeStyle = "#a7b0b8"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2.2, 0.03 * pb.s); ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(ph.x, ph.y); ctx.stroke();
+    const hl = L(PX - 0.1, PY + 0.6 + lift, PZ), hr = L(PX + 0.1, PY + 0.6 + lift, PZ);
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = Math.max(4.5, 0.06 * pb.s); ctx.beginPath(); ctx.moveTo(hl.x, hl.y); ctx.lineTo(hr.x, hr.y); ctx.stroke();
     const hose = L(-0.44, BASE.y, BASE.z);
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pb.x, pb.y - 4); ctx.quadraticCurveTo((pb.x + hose.x) / 2, pb.y + 10, hose.x, hose.y); ctx.stroke();
@@ -3772,78 +4099,60 @@ body.lab .stage > :not(canvas) { display: none; }
     if (t < 1.0 && tip > TOTAL - 0.04) { const q = L(...ax(tip - 0.02)); drawPotato(q.x, q.y, Math.max(3, 0.055 * q.s), -1.2); }
   }
 
-  // the windsock stands downrange on the right, out of the way of the rings
-  const SOCK_Z = 16, SOCK_H = 4;
-  // placed from the home view, so it stays put in the world while the camera follows a shot
-  function sockX() { return 0.82 * (W / 2) * ((SOCK_Z - CAM.z0) * Math.cos(CAM.base) + CAM.y0 * Math.sin(CAM.base)) / F0; }
-  const ARROW_UP = 46; // the wind arrow floats this many px above the sock
-  function sockBox() {
-    const x = sockX(), b = P(x, 0, SOCK_Z), t = P(x, SOCK_H, SOCK_Z), len = 2 * b.s;
-    return { x0: b.x - len - 8, x1: b.x + len + 8, y0: t.y - ARROW_UP - 30, y1: b.y + 6 };
-  }
-  // the direction the sock and arrow show: eases to each new wind and wobbles a few degrees in gusts
+  // the direction the wind arrow shows: eases to each new wind and wobbles a few degrees in gusts
   function windShown(t) { return (S.windShow ?? 0) + Math.sin(t * 0.9) * 0.05 + Math.sin(t * 2.3 + 1) * 0.025; }
-  function drawWindsock() {
-    const sx = sockX(), base = P(sx, 0, SOCK_Z), top = P(sx, SOCK_H, SOCK_Z);
-    if (base.behind || top.behind) return;
-    ctx.strokeStyle = "#7d868e"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2, 0.08 * base.s);
-    ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.stroke();
-    ctx.fillStyle = "#4a535b"; ctx.beginPath(); ctx.arc(top.x, top.y, Math.max(2, 0.08 * top.s), 0, 7); ctx.fill();
-
-    const w = S.wind, ms = Math.hypot(w.x, w.z), k = Math.min(1, ms / 5.5), t = performance.now() / 1000;
-    const dir = windShown(t);
-    // above the sock when there's room, otherwise beside the top of the pole
-    if (top.y - ARROW_UP >= 24) drawWindArrow(top.x, top.y - ARROW_UP, dir, w.kmh);
-    else drawWindArrow(top.x - 40, Math.max(24, top.y - 6), dir, w.kmh);
-    // with no wind the sock hangs down beside the pole, limp and crumpled
-    const ux = ms ? Math.sin(dir) : 1, uz = ms ? Math.cos(dir) : 0;
-    const droop = (1 - k) * 1.42 + 0.06, len = 1.7 * (0.68 + 0.32 * k), N = 10;
-    const pt = (a) => {
-      const limp = 1 - k;
-      return [
-        sx + 0.12 * ux + ux * Math.cos(droop) * a * len + Math.sin(a * 11 + 1) * 0.07 * limp * a,
-        SOCK_H - 0.05 - Math.sin(droop) * a * len + Math.sin(t * 9 - a * 7) * 0.06 * k * a,
-        SOCK_Z + 0.12 * uz + uz * Math.cos(droop) * a * len + Math.cos(a * 9) * 0.07 * limp * a,
-      ];
-    };
-    // a limp sock is pinched and narrower; a full one keeps its cone
-    const rad = (a) => 0.26 * (1 - 0.55 * a) * (0.55 + 0.45 * k) * (1 + Math.sin(a * 13) * 0.18 * (1 - k));
-    const pts = Array.from({ length: N + 1 }, (_, i) => { const a = i / N, q = P(...pt(a)); return { ...q, r: rad(a) * q.s }; });
-    for (let i = 0; i < N; i++) {
-      const A = pts[i], B = pts[i + 1], dx = B.x - A.x, dy = B.y - A.y, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
-      ctx.fillStyle = Math.floor(i / 2) % 2 ? "#ffffff" : "#ff6a2a";
-      ctx.strokeStyle = "rgba(90,40,20,.45)"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(A.x + nx * A.r, A.y + ny * A.r); ctx.lineTo(B.x + nx * B.r, B.y + ny * B.r); ctx.lineTo(B.x - nx * B.r, B.y - ny * B.r); ctx.lineTo(A.x - nx * A.r, A.y - ny * A.r); ctx.closePath(); ctx.fill(); ctx.stroke();
-    }
-    // the open mouth on its hoop
-    const m = pts[0], m2 = pts[1], ang = Math.atan2(m2.y - m.y, m2.x - m.x);
-    ctx.strokeStyle = "#4a535b"; ctx.lineWidth = Math.max(1.5, 0.03 * m.s); ctx.fillStyle = "#b8441a";
-    ctx.beginPath(); ctx.ellipse(m.x, m.y, Math.max(1.5, m.r * 0.35), m.r, ang, 0, 7); ctx.fill(); ctx.stroke();
-  }
-
-  // a faint top-down arrow floating over the sock: pointing up means blowing away from you; km/h under it
+  // the wind lives on the corner map (the windsock is gone, to free up the field): a small top-down arrow in the
+  // map's top left, pointing up means blowing away from you, with the km/h under it
   function drawWindArrow(x, y, dir, kmh) {
-    const r = 15;
+    const r = 9;
     ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(255,250,240,.85)"; ctx.strokeStyle = "rgba(35,48,58,.35)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, r + 3, 0, 7); ctx.fill(); ctx.stroke();
     if (kmh) {
       ctx.translate(x, y); ctx.rotate(dir);
-      ctx.strokeStyle = "rgba(35,48,58,.55)"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
       ctx.beginPath(); ctx.moveTo(0, r * 0.85); ctx.lineTo(0, -r * 0.8); ctx.moveTo(-r * 0.45, -r * 0.3); ctx.lineTo(0, -r * 0.85); ctx.lineTo(r * 0.45, -r * 0.3); ctx.stroke();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    ctx.font = "800 11px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(35,48,58,.6)"; ctx.fillText(kmh ? `${kmh} km/h` : "calm", x, y + r + 8);
+    ctx.font = "800 9px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillStyle = "#23303a"; ctx.fillText(kmh ? `${kmh} km/h` : "calm", x, y + r + 5);
     ctx.restore();
   }
 
-  // top-down map in the corner: the main aiming aid for left/right and distance
+  // top-down map in the corner: the main aiming aid for left/right and distance.
+  // ⤢ makes it bigger (and back); pinch or the mouse wheel zooms it (1×–4×) about the fingers or pointer, which
+  // also pans it, and + / − buttons show while it's big. A new level puts the zoom back
+  const MAP = { big: false, zoom: 1, ox: 0, oz: 0 };
+  const MAP_ZOOM_MAX = 4;
   // where the map sits and its scale; shared by drawing and by touching it to aim
   function mapGeom() {
-    const mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3), x0 = W - mw - 10, y0 = H - mh - 10;
-    const zmax = lvl().mapZ || lvl().z[1] + 15, sc = (mh - 26) / zmax;
-    return { mw, mh, x0, y0, zmax, sc, MX: (x) => x0 + mw / 2 + x * sc, MY: (z) => y0 + mh - 14 - z * sc };
+    let mw, mh;
+    // big: most of the field's height, but not so wide it covers the launcher in the middle
+    if (MAP.big) { mh = Math.min(H - 20, 480); mw = Math.min(W * 0.4, mh * 0.85); }
+    else { mw = Math.min(150, W * 0.26); mh = Math.min(190, H * 0.5, mw * 1.3); }
+    const x0 = W - mw - 10, y0 = H - mh - 10, by = y0 + mh - 14;
+    const zmax = lvl().mapZ || lvl().z[1] + 15, sc0 = (mh - 26) / zmax, sc = sc0 * MAP.zoom;
+    // zoomed in, it can pan over the area the whole map shows, no further
+    const hx = Math.max(0, (mw / 2) / sc0 - (mw / 2) / sc);
+    MAP.ox = Math.max(-hx, Math.min(hx, MAP.ox));
+    MAP.oz = Math.max(0, Math.min(zmax - (mh - 26) / sc, MAP.oz));
+    return {
+      mw, mh, x0, y0, zmax, sc,
+      MX: (x) => x0 + mw / 2 + (x - MAP.ox) * sc, MY: (z) => by - (z - MAP.oz) * sc,
+      WX: (px) => (px - x0 - mw / 2) / sc + MAP.ox, WZ: (py) => (by - py) / sc + MAP.oz,
+    };
+  }
+  // the map's little buttons: ⤢ in its bottom right (clear of Re-live it, up in the field's top right corner, when
+  // the map is big), and + / − stacked above it while it's big
+  function mapBtns() {
+    const g = mapGeom(), s = 22, x = g.x0 + g.mw - s - 5, y = g.y0 + g.mh - s - 5, b = [{ id: "big", x, y, s }];
+    if (MAP.big) b.push({ id: "out", x, y: y - 28, s }, { id: "in", x, y: y - 54, s });
+    return b;
+  }
+  function mapBtnAt({ x, y }) {
+    if (!onMap({ x, y })) return null;
+    const b = mapBtns().find((b) => x >= b.x - 4 && x <= b.x + b.s + 4 && y >= b.y - 3 && y <= b.y + b.s + 3);
+    return b ? b.id : null;
   }
   function drawMinimap() {
     const { mw, mh, x0, y0, zmax, sc, MX, MY } = mapGeom();
@@ -3871,6 +4180,17 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.setLineDash([3, 3]); ctx.strokeStyle = "#e8452c"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(MX(S.lx), MY(0)); ctx.lineTo(MX(S.lx + Math.sin(yw) * zmax), MY(Math.cos(yw) * zmax)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = "#8a5a2b"; ctx.fillRect(MX(S.lx) - 4, MY(0) - 3, 8, 6);
+    // the wind, top left
+    // (in from the corner a little, so the km/h under it sits clear of the map's edge)
+    drawWindArrow(x0 + 28, y0 + 22, windShown(performance.now() / 1000), S.wind.kmh);
+    if (MAP.zoom > 1.01) { ctx.font = "800 9px Nunito, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "bottom"; ctx.fillStyle = "rgba(35,48,58,.6)"; ctx.fillText(`${MAP.zoom.toFixed(1)}×`, x0 + 6, y0 + mh - 3); }
+    // its buttons
+    for (const b of mapBtns()) {
+      ctx.fillStyle = "rgba(255,250,240,.92)"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.s, b.s, 5) : ctx.rect(b.x, b.y, b.s, b.s); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#23303a"; ctx.font = "800 15px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(b.id === "big" ? (MAP.big ? "⤡" : "⤢") : b.id === "in" ? "+" : "−", b.x + b.s / 2, b.y + b.s / 2 + 1);
+    }
     ctx.restore();
   }
 
@@ -3901,16 +4221,198 @@ body.lab .stage > :not(canvas) { display: none; }
   $("angUp").addEventListener("click", () => { audio(); setHole(S.hole + 1); });
   $("angDown").addEventListener("click", () => { audio(); setHole(S.hole - 1); });
   rotIn.addEventListener("input", () => setYaw(Number(rotIn.value)));
-  // the wheel buttons: a tap rolls it a little, holding keeps it rolling
-  for (const [id, dir] of [["posL", -1], ["posR", 1]]) {
-    const b = $(id);
-    b.addEventListener("pointerdown", (e) => { e.preventDefault(); if (!canAdjust()) return; audio(); rollTo(S.lx + dir * 0.2); S.roll = dir; b.classList.add("down"); });
-    for (const ev of ["pointerup", "pointerleave", "pointercancel"]) b.addEventListener(ev, () => { S.roll = 0; b.classList.remove("down"); });
-  }
-  posIn.addEventListener("input", () => { if (canAdjust()) rollTo(Number(posIn.value)); });
   $("rotL").addEventListener("click", () => setYaw(S.yaw - 0.5));
   $("rotR").addEventListener("click", () => setYaw(S.yaw + 0.5));
   $("fire").addEventListener("click", () => { audio(); action(); });
+
+  // ================= re-live it =================
+  // after each shot a big Re-live it! button pops up front and centre for 5 s, then shrinks to the top right corner
+  // (sooner if the player touches anything), where it stays until the next shot. It plays the shot back three times
+  // at 1.5× speed: from the launcher (following the spud as it flew), then from the two View arc angles. The spud,
+  // and any bird it met, follow the recorded flight; the launcher shows how it was set; whatever it hit reacts and
+  // sounds again. Nothing scores. Pressing it while it plays (or Escape) stops it
+  const RELIVE_SPEED = 1.5, RELIVE_LEAD = 0.5, RELIVE_HOLD = 1.3, RELIVE_BIG_MS = 5000;
+  const RELIVE_PASSES = ["Launcher", ...ARC_VIEWS.map((v) => v.name)], RELIVE_LABEL = "⟲ Re-live it!";
+  const reliveBtn = $("relive");
+  let reliveTimer = 0;
+  function showRelive() {
+    reliveBtn.textContent = RELIVE_LABEL; reliveBtn.hidden = false; reliveBtn.classList.add("big"); shareBtn.hidden = false;
+    clearTimeout(reliveTimer); reliveTimer = setTimeout(shrinkRelive, RELIVE_BIG_MS);
+  }
+  function shrinkRelive() { clearTimeout(reliveTimer); reliveBtn.classList.remove("big"); }
+  function hideRelive() { if (S.replay) stopRelive(); shrinkRelive(); reliveBtn.hidden = true; shareBtn.hidden = true; closeShare(); }
+  function startRelive() {
+    const rec = S.rec;
+    if (!rec || !rec.arc || S.replay || S.potato) return;
+    audio(); shrinkRelive();
+    // what to put back afterwards
+    const saved = { phase: S.phase, lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, valveTarget: S.valveTarget, arc: S.arc, bird: S.bird, overlay: $("overlay").hidden };
+    S.replay = { rec, pass: 0, saved };
+    S.phase = "replay"; S.arc = null; S.arcView = null; S.view = null; $("overlay").hidden = true; $("resetView").hidden = true;
+    S.lx = rec.lx; S.yaw = rec.yaw; S.hole = rec.hole;
+    beginPass(); hud();
+  }
+  function beginPass() {
+    const R = S.replay;
+    R.t = -RELIVE_LEAD; R.i = 0; R.fired = R.landed = R.struck = false; R.ghost = null; R.hold = 0;
+    // loaded and pumped, valve closed, as it was a moment before the shot
+    S.psi = R.rec.psi; S.valveTarget = 0; S.valve = 0; S.bird = null; S.feathers = [];
+    if (R.pass === 0) camHome();
+    else {
+      // straight to the arc angle
+      const v = arcCam(ARC_VIEWS[R.pass - 1], R.rec.arc);
+      Object.assign(CAM, { x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch, zoom: v.F / F0 }); CY = H / 2; setupCam(0);
+    }
+    reliveBtn.textContent = `■ ${R.pass + 1}/${RELIVE_PASSES.length} · ${RELIVE_PASSES[R.pass]}`;
+  }
+  function stopRelive() {
+    const R = S.replay; if (!R) return;
+    const s = R.saved;
+    S.replay = null;
+    Object.assign(S, { phase: s.phase, lx: s.lx, yaw: s.yaw, hole: s.hole, psi: s.psi, valveTarget: s.valveTarget, valve: s.valveTarget, arc: s.arc, bird: s.bird, arcView: null, view: null });
+    $("overlay").hidden = s.overlay;
+    reliveBtn.textContent = RELIVE_LABEL; hud();
+  }
+  function updateRelive(dt) {
+    const R = S.replay; if (!R) return;
+    const rec = R.rec, fr = rec.frames, end = fr[fr.length - 1].t;
+    if (R.landed) {
+      // hold on the landing; a struck bird gets to finish falling and sit dazed a moment first (up to 5 s)
+      R.hold += dt;
+      const b = S.bird, birdBusy = b && (b.state === "fall" || (b.state === "ground" && b.t < 1.2));
+      if (R.hold >= RELIVE_HOLD && (!birdBusy || R.hold >= 5)) { if (++R.pass >= RELIVE_PASSES.length) stopRelive(); else beginPass(); }
+      return;
+    }
+    // a short beat before it fires, then the flight at 1.5×
+    R.t += R.t < 0 ? dt : dt * RELIVE_SPEED;
+    if (R.t < 0) return;
+    if (!R.fired) { R.fired = true; S.valveTarget = 1; S.puff = 1; S.psi = 0; sfx.fire(); }
+    if (R.t >= end) {
+      // down: what it hit reacts and sounds again
+      const L = fr[fr.length - 1], lastBird = fr.length > 1 && fr[fr.length - 2].b;
+      // (a bird stays, as it was when the spud came down, and the game carries it on from there)
+      R.landed = true; R.ghost = null; S.bird = lastBird ? { ...lastBird } : null;
+      if (rec.prop) rec.prop.t = 0;
+      if (rec.hit && rec.hit.kind === "spinner") rec.hit.target.spin = (rec.hit.target.spin || 0) + 16;
+      for (const b of rec.pops) S.pops.push({ ...b, t: 0 });
+      for (const r of rec.flash) r.flash = 1;
+      for (const [k, a] of rec.sounds) sfx[k](...a);
+      if (!rec.sounds.length) sfx.splat();
+      R.ghost = null; R.landAt = L;
+      return;
+    }
+    while (R.i < fr.length - 2 && fr[R.i + 1].t <= R.t) R.i++;
+    const a = fr[R.i], b = fr[R.i + 1], k = Math.max(0, Math.min(1, (R.t - a.t) / ((b.t - a.t) || 1)));
+    R.ghost = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, rot: a.rot + (b.rot - a.rot) * k };
+    S.bird = a.b ? { ...a.b } : null;
+    if (rec.strikeT != null && !R.struck && R.t >= rec.strikeT) { R.struck = true; S.feathers = []; featherBurst(R.ghost, rec.sp); sfx.squawk(rec.sp); }
+  }
+  reliveBtn.addEventListener("click", (e) => { e.stopPropagation(); if (S.replay) stopRelive(); else startRelive(); });
+  // touching anything else shrinks it out of the way
+  document.addEventListener("pointerdown", (e) => { if (e.target !== reliveBtn) shrinkRelive(); }, true);
+
+  // ================= epic spud: share a shot =================
+  // a Share button sits under Re-live it whenever it does (any shot can be shared, a bird strike as much as a
+  // bullseye). It makes a postcard of the shot: the side view just after it landed, with the whole dotted arc and
+  // whatever it hit reacting, between a band with the title and place and one with "Check out my epic spud!" and the
+  // link. The link opens the game on that level. On a phone Share… opens the share sheet (Messages, email, …) with
+  // the picture and the message; on a computer the picture can be copied (to paste into an email) or saved, and the
+  // message copied. The postcard is a building block for challenges, which will add the exact round to the link
+  const SHARE_URL = "https://baxterjamie-source.github.io/pneuman/", SHARE_LINE = "Check out my epic spud!";
+  const shareLink = (rec) => `${SHARE_URL}?level=${LEVELS[rec.level].id}`;
+  const shareText = (rec) => `${SHARE_LINE} 🥔 Play Pneuman: ${shareLink(rec)}`;
+  const PC = { w: 1200, h: 630, band: 90 }; // (the usual size for a link preview picture)
+  // the game's own drawing of the shot, from the side, just after it landed, framed as a postcard
+  function postcard(rec) {
+    const gw = PC.w, gh = PC.h - PC.band * 2, off = document.createElement("canvas");
+    off.width = gw; off.height = gh;
+    // draw into the picture as the shot was: the launcher as it was set, the arc whole, and what it hit reacting
+    const keep = { ctx, W, H, dpr, CY, cam: { ...CAM }, propT: rec.prop ? rec.prop.t : null,
+      s: { arc: S.arc, arcView: S.arcView, view: S.view, pops: S.pops, lx: S.lx, yaw: S.yaw, hole: S.hole, angDisp: S.angDisp, replay: S.replay, bird: S.bird, loadMsg: S.loadMsg } };
+    ctx = off.getContext("2d"); W = gw; H = gh; dpr = 1;
+    Object.assign(S, { replay: null, arc: rec.arc, arcView: 1, view: null, lx: rec.lx, yaw: rec.yaw, hole: rec.hole, angDisp: HOLES[rec.hole], bird: null, loadMsg: 0, pops: rec.pops.map((b) => ({ ...b, t: 0.5 })) });
+    if (rec.prop) rec.prop.t = 0.5;
+    try {
+      setupCam(0);
+      const v = arcCam(ARC_VIEWS[1], rec.arc);
+      Object.assign(CAM, { x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch, zoom: v.F / F0 }); CY = H / 2; setupCam(0);
+      draw();
+    } finally {
+      ({ ctx, W, H, dpr, CY } = keep); Object.assign(CAM, keep.cam); Object.assign(S, keep.s);
+      if (rec.prop) rec.prop.t = keep.propT;
+      setupCam(0);
+    }
+    const card = document.createElement("canvas"); card.width = PC.w; card.height = PC.h;
+    const c = card.getContext("2d"), mid = PC.band / 2, foot = PC.h - PC.band / 2, pad = 34;
+    c.drawImage(off, 0, PC.band);
+    c.fillStyle = "#23303a"; c.fillRect(0, 0, PC.w, PC.band); c.fillRect(0, PC.h - PC.band, PC.w, PC.band);
+    c.fillStyle = "#ffcf33"; c.fillRect(0, PC.band - 4, PC.w, 4); c.fillRect(0, PC.h - PC.band, PC.w, 4);
+    c.textBaseline = "middle";
+    // top: the title, the tagline, and the place
+    c.textAlign = "left"; c.fillStyle = "#fffaf0"; c.font = '400 54px "Lilita One", "Arial Rounded MT Bold", sans-serif';
+    c.fillText("Pneuman", pad, mid + 2);
+    const tw = c.measureText("Pneuman").width;
+    c.font = 'italic 800 25px Nunito, "Segoe UI", sans-serif'; c.globalAlpha = 0.85; c.fillText("potatoes, pressure, patience", pad + tw + 18, mid + 7); c.globalAlpha = 1;
+    c.textAlign = "right"; c.fillStyle = "#ffcf33"; c.font = '800 26px Nunito, "Segoe UI", sans-serif';
+    c.fillText(`${rec.level + 1} · ${LEVELS[rec.level].name}`, PC.w - pad, mid + 4);
+    // bottom: the line, and where to play
+    c.textAlign = "left"; c.fillStyle = "#ffcf33"; c.font = '400 46px "Lilita One", "Arial Rounded MT Bold", sans-serif';
+    c.fillText(SHARE_LINE, pad, foot + 4);
+    c.textAlign = "right"; c.fillStyle = "#fffaf0"; c.font = '800 22px Nunito, "Segoe UI", sans-serif';
+    c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4);
+    return card;
+  }
+  const shareBtn = $("shareBtn"), shareCard = $("shareCard"), shareHint = $("shareHint");
+  let share = null; // { rec, card, blob }
+  const shareNote = (msg) => { shareHint.textContent = msg; shareHint.hidden = !msg; };
+  const shareBlob = () => share.blob ? Promise.resolve(share.blob) : new Promise((ok) => share.card.toBlob((b) => ok((share.blob = b)), "image/png"));
+  const shareFile = (b) => new File([b], "pneuman-epic-spud.png", { type: "image/png" });
+  function openShare() {
+    const rec = S.rec;
+    if (!rec || !rec.arc || S.potato) return;
+    if (S.replay) stopRelive();
+    audio(); shrinkRelive();
+    const card = postcard(rec);
+    share = { rec, card, blob: null }; shareBlob();
+    $("shareImg").src = card.toDataURL("image/png");
+    $("shareMsg").textContent = shareText(rec);
+    // the share sheet where there is one (phones, mostly); copying a picture where the browser allows it
+    $("shareGo").hidden = !navigator.share;
+    $("shareCopyImg").hidden = !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
+    shareNote(""); shareCard.hidden = false;
+    setTimeout(() => ($("shareGo").hidden ? $("shareSave") : $("shareGo")).focus({ preventScroll: true }), 30);
+  }
+  function closeShare() { shareCard.hidden = true; share = null; }
+  shareBtn.addEventListener("click", (e) => { e.stopPropagation(); openShare(); });
+  $("shareGo").addEventListener("click", async () => {
+    if (!share) return;
+    const text = shareText(share.rec), file = shareFile(await shareBlob());
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ title: "Pneuman", text, files: [file] });
+      else await navigator.share({ title: "Pneuman", text });
+      closeShare();
+    } catch (err) {
+      if (err && err.name !== "AbortError") shareNote("Sharing didn't open here. Save or copy the picture and copy the message instead.");
+    }
+  });
+  $("shareCopyImg").addEventListener("click", async () => {
+    if (!share) return;
+    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": shareBlob() })]); shareNote("Picture copied: paste it into an email or message, with the message below."); }
+    catch (err) { shareNote("Couldn't copy the picture here. Save it instead."); }
+  });
+  $("shareSave").addEventListener("click", async () => {
+    if (!share) return;
+    const url = URL.createObjectURL(await shareBlob()), a = document.createElement("a");
+    a.href = url; a.download = "pneuman-epic-spud.png"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    shareNote("Picture saved. Attach it to a text or email with the message.");
+  });
+  $("shareCopy").addEventListener("click", async () => {
+    if (!share) return;
+    try { await navigator.clipboard.writeText(shareText(share.rec)); shareNote("Message copied, link and all."); }
+    catch (err) { shareNote("Couldn't copy here. Select the message above and copy it."); }
+  });
+  $("shareClose").addEventListener("click", closeShare);
 
   // settings: a gear in the header opens a small panel
   const gear = $("gear"), settings = $("settings"), soundTgl = $("soundTgl");
@@ -3941,8 +4443,16 @@ body.lab .stage > :not(canvas) { display: none; }
     try { localStorage.setItem("pneuman-stripes", S.stripes ? "1" : "0"); } catch (e) {}
   });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
-  gear.addEventListener("click", (e) => { e.stopPropagation(); showSettings(settings.hidden); });
-  document.addEventListener("click", (e) => { if (!settings.hidden && !settings.contains(e.target)) showSettings(false); });
+  gear.addEventListener("click", (e) => { e.stopPropagation(); showCtls(false); showSettings(settings.hidden); });
+  document.addEventListener("click", (e) => {
+    if (!settings.hidden && !settings.contains(e.target)) showSettings(false);
+    if (!ctls.hidden && !ctls.contains(e.target)) showCtls(false);
+  });
+  // Controls (in settings): what the keys do and the touch tricks that aren't obvious
+  const ctls = $("ctlsPanel");
+  function showCtls(open) { ctls.hidden = !open; }
+  $("ctlsBtn").addEventListener("click", (e) => { e.stopPropagation(); showSettings(false); showCtls(true); $("ctlsClose").focus(); });
+  $("ctlsClose").addEventListener("click", () => { showCtls(false); gear.focus(); });
 
   // a drag that starts on the launcher aims it: sideways turns it, up/down moves the pin between peg holes.
   // a drag anywhere else moves the view (e.g. to follow the last arc); two fingers also pinch-zoom a little,
@@ -3951,7 +4461,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const pts = new Map();
   let drag = null, look = null;
-  const canLook = () => !S.potato && $("overlay").hidden && S.arcView == null;
+  const canLook = () => !S.potato && !S.replay && $("overlay").hidden && S.arcView == null;
   const local = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const touchSnap = () => {
     const a = [...pts.values()], m = { x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length };
@@ -3987,14 +4497,28 @@ body.lab .stage > :not(canvas) { display: none; }
     return onLauncher({ x, y }) && y >= top.y - 6 && x >= l.x - 14 && x <= r.x + 14;
   }
   // the corner map is its own control, like the launcher: touch or drag on it to aim the launcher at that spot
-  let mapAim = false, pumpHeldByScene = false;
+  // (mapAim remembers the heading it started from, so a second finger can put it back and pinch the map instead)
+  let mapAim = null, mapPinch = null, pumpHeldByScene = false;
   function onMap({ x, y }) {
     const g = mapGeom();
     return S.arcView == null && g.mh >= 60 && x >= g.x0 && x <= g.x0 + g.mw && y >= g.y0 && y <= g.y0 + g.mh;
   }
+  // (from wherever the launcher has rolled to)
   function aimAtMap({ x, y }) {
-    const g = mapGeom(), wx = (x - g.x0 - g.mw / 2) / g.sc, wz = (g.y0 + g.mh - 14 - y) / g.sc;
+    const g = mapGeom(), wx = g.WX(x) - S.lx, wz = g.WZ(y);
     if (wz > 1) setYaw(Math.atan2(wx, wz) * 180 / Math.PI);
+  }
+  // zoom the map to z, keeping the spot that was under screen point a under screen point b
+  function zoomMapAt(a, b, z) {
+    const g = mapGeom(), wx = g.WX(a.x), wz = g.WZ(a.y);
+    MAP.zoom = clamp(z, 1, MAP_ZOOM_MAX);
+    const g2 = mapGeom();
+    MAP.ox += wx - g2.WX(b.x); MAP.oz += wz - g2.WZ(b.y);
+  }
+  function pressMapBtn(id) {
+    const g = mapGeom(), c = { x: g.x0 + g.mw / 2, y: g.y0 + g.mh / 2 };
+    if (id === "big") MAP.big = !MAP.big;
+    else zoomMapAt(c, c, MAP.zoom * (id === "in" ? 1.5 : 1 / 1.5));
   }
   cv.addEventListener("contextmenu", (e) => e.preventDefault());
   cv.addEventListener("pointerdown", (e) => {
@@ -4002,9 +4526,16 @@ body.lab .stage > :not(canvas) { display: none; }
     const p = local(e);
     pts.set(e.pointerId, p);
     if (pts.size === 2) {
-      // a second finger turns an aim into a look: put the launcher back where the first finger found it
-      if (drag) { if (drag.roll) rollTo(drag.lx); else { setYaw(drag.yaw); setHole(drag.hole); } drag = null; }
-      if (canLook()) look = touchSnap();
+      // a second finger on the map pinches it: put the launcher back where the first finger found it
+      if (mapAim) { setYaw(mapAim.yaw); mapAim = null; mapPinch = touchSnap(); }
+      else if (!mapPinch) {
+        // a second finger turns an aim into a look: put the launcher back where the first finger found it
+        if (drag) { if (drag.roll) rollTo(drag.lx); else { setYaw(drag.yaw); setHole(drag.hole); } drag = null; }
+        if (canLook()) look = touchSnap();
+      }
+    } else if (pts.size === 1 && e.button === 0 && $("overlay").hidden && mapBtnAt(p)) {
+      // the map's own buttons: bigger / smaller, zoom in / out
+      pressMapBtn(mapBtnAt(p));
     } else if (pts.size === 1 && e.button === 0 && S.phase === "aim" && S.loaded && inBox(hitParts.valve, p)) {
       // tapping the blue valve handle fires, once a spud is loaded
       audio(); action();
@@ -4013,23 +4544,28 @@ body.lab .stage > :not(canvas) { display: none; }
       pumpDown(e); pumpHeldByScene = true;
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onMap(p)) {
       // touching the map swings the launcher to point at that spot
-      mapAim = true; aimAtMap(p);
+      mapAim = { yaw: S.yaw }; aimAtMap(p);
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onWheels(p)) {
       // grabbed low, by the wheels: dragging sideways rolls it (the spot under the finger stays under it)
       drag = { roll: true, x: e.clientX, lx: S.lx, s: P(S.lx, 0, -1.15).s };
     } else if (pts.size === 1 && e.button === 0 && canAdjust() && onLauncher(p)) {
       drag = { x: e.clientX, y: e.clientY, yaw: S.yaw, hole: S.hole };
     } else if (pts.size === 1 && canLook()) look = touchSnap();
-    if (drag || look || mapAim) cv.classList.add("dragging");
+    if (drag || look || mapAim || mapPinch) cv.classList.add("dragging");
   });
   cv.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) {
       // hovering with a mouse: show which part of the scene does what
-      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? "crosshair" : onWheels(p) ? "ew-resize" : onLauncher(p) ? "move" : ""; }
+      if (e.pointerType === "mouse") { const p = local(e); cv.style.cursor = mapBtnAt(p) ? "pointer" : !canAdjust() ? "" : (S.loaded && inBox(hitParts.valve, p)) || inBox(hitParts.pump, p) ? "pointer" : onMap(p) ? "crosshair" : onWheels(p) ? "ew-resize" : onLauncher(p) ? "move" : ""; }
       return;
     }
     pts.set(e.pointerId, local(e));
-    if (look && canLook()) {
+    if (mapPinch) {
+      // pinching the map zooms it; moving the fingers (or the one left) pans it
+      const now = touchSnap();
+      zoomMapAt(mapPinch.m, now.m, mapPinch.d && now.d ? MAP.zoom * now.d / mapPinch.d : MAP.zoom);
+      mapPinch = now;
+    } else if (look && canLook()) {
       const now = touchSnap();
       if (!S.view) { if (Math.hypot(now.m.x - look.m.x, now.m.y - look.m.y) < 4 && Math.abs(now.d - look.d) < 4) return; startLook(); }
       const z = look.d && now.d ? clamp(S.view.zoom * now.d / look.d, ZOOM_MIN, ZOOM_MAX) : S.view.zoom;
@@ -4046,10 +4582,14 @@ body.lab .stage > :not(canvas) { display: none; }
     if (pumpHeldByScene) { pumpHeldByScene = false; pumpUp(); }
     // lifting one of two fingers carries on moving the view with the other
     if (look && pts.size) look = touchSnap();
-    if (!pts.size) { drag = null; look = null; mapAim = false; cv.classList.remove("dragging"); }
+    if (mapPinch && pts.size) mapPinch = touchSnap();
+    if (!pts.size) { drag = null; look = null; mapAim = null; mapPinch = null; cv.classList.remove("dragging"); }
   };
   cv.addEventListener("pointerup", endPointer); cv.addEventListener("pointercancel", endPointer);
   cv.addEventListener("wheel", (e) => {
+    // over the map, the wheel zooms the map
+    const mp = local(e);
+    if ($("overlay").hidden && onMap(mp)) { e.preventDefault(); zoomMapAt(mp, mp, MAP.zoom * Math.exp(-e.deltaY * 0.0015)); return; }
     if (!canLook()) return;
     e.preventDefault(); startLook();
     const p = local(e);
@@ -4067,7 +4607,10 @@ body.lab .stage > :not(canvas) { display: none; }
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !settings.hidden) { showSettings(false); gear.focus(); return; }
-    if (settings.contains(e.target)) return;
+    if (e.key === "Escape" && !ctls.hidden) { showCtls(false); gear.focus(); return; }
+    if (e.key === "Escape" && S.replay) { stopRelive(); return; }
+    if (!shareCard.hidden) { if (e.key === "Escape") closeShare(); return; }
+    if (settings.contains(e.target) || ctls.contains(e.target)) return;
     if (!$("overlay").hidden) {
       if (e.key === "Enter" && document.activeElement?.tagName !== "BUTTON") { e.preventDefault(); $("ovGo").click(); }
       return;
@@ -4099,7 +4642,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, fencePanels, planStrike, startLevel, P, layoutOnce, ringBox, hitParts, buffers, sfx, thumb: (k) => thumb(k), view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, MAP, fencePanels, planStrike, startLevel, P, layoutOnce, ringBox, hitParts, buffers, sfx, thumb: (k) => thumb(k), view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { S.scene = sceneFor(LEVELS[lv]); let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
@@ -4168,7 +4711,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // fit the thing to the picture: measure it on screen, then scale and centre it
     // the part to show, in metres: [left, bottom, right, top]
     const box = { cow: [-0.55, 0.88, 0.55, 1.78], horse: [-0.45, 1.42, 0.45, 2.42], junker: [-3.1, 0, 3.1, 1.6], leaves: [-1.7, 0, 1.7, 1.0], mailbox: [-0.75, 0, 0.75, 1.75],
-      trampoline: [-2.5, 0, 2.5, 2.8], dog: [-0.7, 0, 0.75, 0.85], neighbour: [-0.42, 0, 0.42, 1.3], pumpkins: [-1.3, 0, 1.3, 1.45],
+      trampoline: [-2.5, 0, 2.5, 2.8], dog: [-0.7, 0, 0.75, 0.85], neighbour: [-0.42, 0, 0.42, 1.3], mower: [-0.62, -0.02, 0.72, 1.68], pumpkins: [-1.3, 0, 1.3, 1.45],
       tractor: [-2.3, 0, 2.3, 2.4], sheep: [-0.85, 0, 0.85, 1.05], farmer: [-0.5, -0.68, 0.5, 1.0] }[kind] || [-(o.r + 0.6), 0, o.r + 0.6, o.h + 0.15];
     const fit = (zz) => { const a = P(box[0], box[1], zz), b = P(box[2], box[3], zz); return { a, b, k: Math.min(w * 0.9 / (b.x - a.x), h * 0.86 / (a.y - b.y)) }; };
     // bring it close enough to the camera to fill the picture by itself, so outlines keep their normal thickness
@@ -4198,21 +4741,23 @@ body.lab .stage > :not(canvas) { display: none; }
   // the start card's +5 and −5 pictures for a level (each drawn once, then kept)
   const thumbs = {};
   function extrasFor(L) {
-    const kinds = [...new Set(L.props)], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : thumb(k));
+    const kinds = [...new Set(L.props.map((k) => PROPS[k].same || k))], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : thumb(k));
     const pic = (k) => `<img src="${get(k)}" alt="${k === "window" ? "a house window" : PROPS[k].label || k}" title="${k === "window" ? "a house window" : PROPS[k].label || k}">`;
     $("xPlus").innerHTML = kinds.filter((k) => !PROPS[k].alive).map(pic).join("");
     $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : [])].map(pic).join("");
   }
 
   // ================= go =================
-  previewLevel(0);
+  // a shared link (?level=culdesac) opens on that level's start card, ready to play
+  const linked = Math.max(0, LEVELS.findIndex((L) => L.id === new URLSearchParams(location.search).get("level")));
+  previewLevel(linked);
   if (new URLSearchParams(location.search).has("lab")) {
     document.body.classList.add("lab"); $("overlay").hidden = true;
     cv.addEventListener("click", labClick);
     (function labFrame() { drawLab(); requestAnimationFrame(labFrame); })();
     return;
   }
-  S.phase = "title"; showStart(0);
+  S.phase = "title"; showStart(linked);
   let last = performance.now();
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
