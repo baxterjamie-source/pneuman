@@ -109,6 +109,8 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 #shareGo { background: var(--yellow); }
 .sharemsg { font-size: .82rem; opacity: .75; overflow-wrap: anywhere; }
 .sharemsg a { color: var(--blue); }
+.sharename { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: .85rem; }
+.sharename input { flex: 1; min-width: 0; font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; padding: 4px 8px; background: #fff; color: var(--ink); }
 .sharehint { font-size: .85rem; font-weight: 800; color: #2e7d32; }
 @keyframes relive-pulse { 50% { transform: translate(-50%, -50%) scale(1.06); } }
 .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; background: rgba(35,48,58,.45); padding: 10px; overflow-y: auto; }
@@ -301,10 +303,10 @@ body.lab .stage > :not(canvas) { display: none; }
         <span class="eyebrow">Epic spud</span>
         <a id="shareImgLink" target="_blank" rel="noopener"><img id="shareImg" alt="A postcard of this shot"></a>
         <p class="sharemsg" id="shareMsg"></p>
+        <label class="sharename" id="shareNameRow" hidden>Your name <input id="shareName" maxlength="20" placeholder="What should your friends see?" autocomplete="nickname"></label>
         <div class="cardbtns">
           <button id="shareGo" type="button">Share…</button>
           <button id="shareCopyImg" type="button">Copy picture</button>
-          <button id="shareSave" type="button">Save picture</button>
           <button id="shareCopy" type="button">Copy message</button>
           <button id="shareClose" type="button">Close</button>
         </div>
@@ -342,7 +344,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.23</p>
+  <p class="ver">Pneuman v1.25</p>
 </div>
 
 <script>
@@ -652,6 +654,21 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= helpers =================
   const rnd = (a, b) => a + Math.random() * (b - a);
+  // ---- seeded rounds (for challenges) ----
+  // every round has a seed. Setting it up (the place's scenery, the targets, the props), each shot's wind and each
+  // shot's bird strike all draw their random numbers from it, so the same seed gives the same round anywhere: the
+  // code keeps calling Math.random, and withSeed swaps in a seeded generator (mulberry32) while it runs. Things that
+  // only look different (falling leaves, splats) and the animals' wandering stay ordinary random
+  const mulberry32 = (a) => () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  // a separate stream for each use of the seed (k): the layout, shot 3's wind, shot 3's bird…
+  const seedFor = (seed, k) => (Math.imul(seed ^ 0x5bd1e995, 0x9E3779B1) ^ Math.imul(k + 1, 0x85EBCA6B)) >>> 0;
+  function withSeed(seed, fn) {
+    const real = Math.random;
+    Math.random = mulberry32(seed);
+    try { return fn(); } finally { Math.random = real; }
+  }
+  const newSeed = () => Math.floor(Math.random() * 2147483647);
+  const SEED = { layout: 0, wind: 100, bird: 200 };
   const ang = () => HOLES[S.hole];
   const lvl = () => LEVELS[S.level];
   // the gauge's dial always reads to 120; a level can stop the pump lower
@@ -791,7 +808,9 @@ body.lab .stage > :not(canvas) { display: none; }
     if (Math.abs(dx) >= 0.1) parts.push(`${Math.abs(dx).toFixed(1)} m ${dx < 0 ? "left" : "right"}`);
     return `${parts.join(", ")} of the ${tName(n)}`;
   }
-  function rollWind() {
+  // each shot's wind comes from the round's seed (shot 1, 2, … each its own stream), so a challenge blows the same
+  function rollWind() { withSeed(seedFor(S.seed, SEED.wind + (SPUDS - (S.spudsLeft ?? SPUDS))), rollWindNow); }
+  function rollWindNow() {
     const [a, b] = lvl().wind;
     if (b === 0) { S.wind = { x: 0, z: 0, kmh: 0 }; return; }
     // a level keeps one prevailing direction; each shot wobbles a little
@@ -977,19 +996,36 @@ body.lab .stage > :not(canvas) { display: none; }
   // little marks a dog leaves on the lawn (a puddle that spreads, a small pile)
   function addMark(kind, x, z) { (S.marks = S.marks || []).push({ kind, x, z, t: 0 }); if (S.marks.length > 14) S.marks.shift(); }
 
-  // set a level's place up with fresh targets and props (also used behind the start card, to show the level picked)
-  function previewLevel(i) {
+  // set a level's place up with fresh targets and props (also used behind the start card, to show the level picked).
+  // round: a challenge's { seed, w, h } to set up exactly that round; otherwise a new seed and this screen. The
+  // targets are kept on screen and clear of the corner map, so the layout depends on the field's size: a challenge
+  // is laid out for the challenger's field size, whatever this one is
+  function previewLevel(i, round = null) {
     S.lx = 0; S.roll = 0; // back in the middle (the layout below is worked out from there)
     hideRelive(); S.shots = []; S.rec = null;
-    S.level = i; S.scene = sceneFor(LEVELS[i]); S.rings = layoutRings(LEVELS[i]); S.props = []; placeProps(propKinds());
+    S.level = i; S.seed = round ? round.seed : newSeed();
+    S.layoutView = round ? { w: round.w, h: round.h } : { w: Math.round(W), h: Math.round(H) };
+    const keep = { W, H };
+    W = S.layoutView.w; H = S.layoutView.h;
+    try {
+      withSeed(seedFor(S.seed, SEED.layout), () => {
+        // (the place is built afresh too, so its houses, trees, barn and hills are the round's)
+        const L = LEVELS[i];
+        S.scene = built[L.scene] = SCENE_BUILD[L.scene]();
+        S.rings = layoutRings(L); S.props = []; placeProps(propKinds());
+      });
+    } finally { ({ W, H } = keep); camHome(); }
+    S.birdCool = 0;
     S.bird = null; S.feathers = []; S.bits = []; S.pops = []; S.marks = []; S.ripples = []; S.preNote = null; S.bonus = 0;
     S.arc = null; S.curArc = []; S.splats = []; S.potato = null; S.windDir = null; S.windShow = null; S.psi = 0; S.loaded = false; S.valveTarget = 1;
     S.yaw = 0; S.hole = 6; S.angDisp = ang(); // each level starts with the launcher straight ahead at 40°
     S.scene.reset();
     hud();
   }
-  function startLevel(i) {
-    previewLevel(i);
+  // round: a challenge to play (see previewLevel); anything else leaves challenge mode
+  function startLevel(i, round = null) {
+    if (!round) leaveChallenge();
+    previewLevel(i, round);
     S.spudsLeft = SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
     MAP.zoom = 1; MAP.ox = MAP.oz = 0; MAP.pin = null;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
@@ -1059,8 +1095,11 @@ body.lab .stage > :not(canvas) { display: none; }
     S.rec = { level: S.level, at: Date.now(), lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, wind: { ...S.wind }, frames: [{ t: 0, x: m.x, y: m.y, z: m.z, rot: 0 }], sounds: [], capture: false, pre: sceneState() };
     (S.shots = S.shots || []).push(S.rec); hideRelive();
     // a bird strike is pure chance, but never two close together: after one, the next few shots are safe
-    if (S.birdCool > 0) S.birdCool--;
-    else if (Math.random() < BIRD_STRIKE_CHANCE) planStrike();
+    // (from the round's seed, shot by shot, so a challenge has the same birds)
+    withSeed(seedFor(S.seed, SEED.bird + (SPUDS - S.spudsLeft)), () => {
+      if (S.birdCool > 0) S.birdCool--;
+      else if (Math.random() < BIRD_STRIKE_CHANCE) planStrike();
+    });
     S.curArc = [[m.x, m.y, m.z]]; S.spudsLeft--; S.phase = "flight"; shotNote(""); resetView();
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
@@ -1086,7 +1125,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (top < 6) return; // too low a shot for a bird to be up there
     const tHit = Math.min(t * 0.85, apexT * rnd(0.75, 1.1)), at = path.find((q) => q[0] >= tHit) || path[path.length - 1];
     const sp = SPECIES[Math.floor(Math.random() * SPECIES.length)], side = Math.random() < 0.5 ? 1 : -1, v = 11;
-    S.bird = { state: "in", sp, side, tHit, t: 0, x: at[1] + side * v * tHit, y: at[2] + rnd(0, 2), z: at[3] + rnd(-4, 4), vx: -side * v, vy: 0, vz: 0, say: 0 };
+    // (knock: how far the strike shoves the spud sideways, settled now so it comes from the seed)
+    S.bird = { state: "in", sp, side, tHit, t: 0, x: at[1] + side * v * tHit, y: at[2] + rnd(0, 2), z: at[3] + rnd(-4, 4), vx: -side * v, vy: 0, vz: 0, say: 0, knock: rnd(-1.5, 1.5) };
     S.bird.vy = (at[2] - S.bird.y) / tHit; S.bird.vz = (at[3] - S.bird.z) / tHit;
   }
   function birdStrike() {
@@ -1094,7 +1134,7 @@ body.lab .stage > :not(canvas) { display: none; }
     S.birdCool = BIRD_COOLDOWN;
     b.state = "fall"; b.t = 0; b.x = p.x; b.y = p.y; b.z = p.z; b.vx = -b.side * 1.5; b.vy = 2.5; b.vz = 0; b.say = 1.4;
     // the spud loses most of its way and drops nearly straight down, knocked a little sideways
-    p.vx = p.vx * 0.15 + rnd(-1.5, 1.5); p.vy = Math.min(p.vy * 0.25, 1); p.vz *= 0.15; S.struck = true;
+    p.vx = p.vx * 0.15 + (b.knock ?? 0); p.vy = Math.min(p.vy * 0.25, 1); p.vz *= 0.15; S.struck = true;
     featherBurst(p, b.sp);
     sfx.squawk(b.sp);
     if (S.rec) { S.rec.strikeT = S.flightT; S.rec.sp = b.sp; }
@@ -1275,8 +1315,20 @@ body.lab .stage > :not(canvas) { display: none; }
     const tot = S.score + S.bonus + spare, prev = getBest(L), isBest = prev == null || tot > prev;
     if (isBest) setBest(L, tot);
     const body = isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`;
-    const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
-    showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
+    if (S.challenge) {
+      // a challenge: both scores, and send yours back on the same round (no Replay: it was one try)
+      const c = S.challenge;
+      chSave(c, { score: tot });
+      showCard(`Pneuman Challenge · ${L.name}`, verdict(tot, c.score, c.name), `You ${tot}, ${c.name || "your friend"} ${c.score}.`, counts,
+        `<button id="ovGo" type="button">Challenge back</button><button id="ovPick" type="button">Play Pneuman</button>`,
+        () => openShare({ score: tot, vs: { name: c.name, score: c.score } }));
+      $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score } }); // (the card stays up behind it)
+    } else {
+      const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">Challenge a friend</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
+      showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
+      // this round, sent to a friend with the score to beat
+      $("ovChal").onclick = () => openShare({ score: tot });
+    }
     $("ovPick").onclick = () => { audio(); showStart(S.level); };
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || []);
   }
@@ -1321,6 +1373,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // +5 / −5 pictures for the level picked. Picking one sets it up behind the card; Play starts it
   let startPick = 0;
   function showStart(sel = startPick) {
+    leaveChallenge();
     startPick = sel;
     if (S.level !== sel || S.phase !== "title") { S.phase = "title"; previewLevel(sel); }
     showCard("Pneumatic potato launcher", "Pneuman", "Load, pump, aim and fire. Ten spuds per level; each target scores once. Pick a place:",
@@ -4373,10 +4426,10 @@ body.lab .stage > :not(canvas) { display: none; }
   // message copied. The postcard is a building block for challenges, which will add the exact round to the link
   const SHARE_URL = "https://baxterjamie-source.github.io/pneuman/", SHARE_LINE = "Check out my epic spud!";
   const shareLink = (rec) => `${SHARE_URL}?level=${LEVELS[rec.level].id}`;
-  const shareText = (rec) => `${SHARE_LINE} 🥔 Play Pneuman: ${shareLink(rec)}`;
   const PC = { w: 1200, h: 630, band: 90 }; // (the usual size for a link preview picture)
-  // the game's own drawing of the shot, from the side, just after it landed, framed as a postcard
-  function postcard(rec) {
+  // the game's own drawing of the shot, from the side, just after it landed, framed as a postcard. line: what the
+  // bottom band says ("Check out my epic spud!", or for a challenge "Beat my 47!")
+  function postcard(rec, line = SHARE_LINE) {
     const gw = PC.w, gh = PC.h - PC.band * 2, off = document.createElement("canvas");
     off.width = gw; off.height = gh;
     // draw into the picture as the shot was: the launcher as it was set, the arc whole, and what it hit reacting
@@ -4410,69 +4463,89 @@ body.lab .stage > :not(canvas) { display: none; }
     c.fillText(`${rec.level + 1} · ${LEVELS[rec.level].name}`, PC.w - pad, mid + 4);
     // bottom: the line, and where to play
     c.textAlign = "left"; c.fillStyle = "#ffcf33"; c.font = '400 46px "Lilita One", "Arial Rounded MT Bold", sans-serif';
-    c.fillText(SHARE_LINE, pad, foot + 4);
+    c.fillText(line, pad, foot + 4);
     c.textAlign = "right"; c.fillStyle = "#fffaf0"; c.font = '800 22px Nunito, "Segoe UI", sans-serif';
     c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4);
     return card;
   }
   const shareBtn = $("shareBtn"), shareCard = $("shareCard"), shareHint = $("shareHint");
-  let share = null; // { rec, card, blob }
+  let share = null; // { rec, card, blob, challenge }
   const shareNote = (msg) => { shareHint.textContent = msg; shareHint.hidden = !msg; };
   const shareBlob = () => share.blob ? Promise.resolve(share.blob) : new Promise((ok) => share.card.toBlob((b) => ok((share.blob = b)), "image/png"));
-  const shareFile = (b) => new File([b], "pneuman-epic-spud.png", { type: "image/png" });
-  function openShare() {
+  const shareFile = (b) => new File([b], share && share.challenge ? "pneuman-challenge.png" : "pneuman-epic-spud.png", { type: "image/png" });
+  // the player's name for challenges, asked for once (in the share card) and kept on this device
+  const playerName = () => { try { return localStorage.getItem("pneuman-name") || ""; } catch (e) { return ""; } };
+  const setPlayerName = (n) => { try { localStorage.setItem("pneuman-name", n); } catch (e) {} };
+  // what's being sent: an epic spud (this shot, and a link to its level), or a challenge (this round, with the
+  // score to beat, and a link that rebuilds the round). lead: the words before the link
+  function shareMessage() {
+    const s = share;
+    if (!s.challenge) {
+      const link = shareLink(s.rec);
+      return { link, lead: `${SHARE_LINE} 🥔`, tail: "Play Pneuman:", text: `${SHARE_LINE} 🥔 Play Pneuman: ${link}` };
+    }
+    const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim());
+    const lead = c.vs
+      ? `I scored ${c.score} on your ${place} round${c.vs.name ? `, ${c.vs.name}` : ""} (you had ${c.vs.score}). Your turn: beat my ${c.score}! 🥔`
+      : `Pneuman Challenge: beat my ${c.score} on ${place}! Same targets, same wind, one try. 🥔`;
+    return { link, lead, tail: "Take the challenge:", text: `${lead} ${link}` };
+  }
+  // the preview's picture and address are live links to the game, as they'll be in the message
+  function showShareMessage() {
+    const m = shareMessage();
+    $("shareImgLink").href = m.link;
+    $("shareMsg").innerHTML = `${esc(m.lead)} ${esc(m.tail)} <a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.link)}</a>`;
+  }
+  // challenge: { score, vs } to send this round as a challenge (vs: the challenge being answered, for challenge back)
+  function openShare(challenge = null) {
     const rec = S.rec;
     if (!rec || !rec.arc || S.potato) return;
     if (S.replay) stopRelive();
     audio(); shrinkRelive();
-    const card = postcard(rec);
-    share = { rec, card, blob: null }; shareBlob();
+    const card = postcard(rec, challenge ? `Beat my ${challenge.score}!` : SHARE_LINE);
+    share = { rec, card, blob: null, challenge }; shareBlob();
     $("shareImg").src = card.toDataURL("image/png");
-    // the preview's picture and address are live links to the game, as they'll be in the message
-    const link = shareLink(rec);
-    $("shareImgLink").href = link;
-    $("shareMsg").innerHTML = `${esc(SHARE_LINE)} 🥔 Play Pneuman: <a href="${esc(link)}" target="_blank" rel="noopener">${esc(link)}</a>`;
+    shareCard.querySelector(".eyebrow").textContent = challenge ? (challenge.vs ? "Challenge back" : "Pneuman Challenge") : "Epic spud";
+    // a challenge says who it's from: the name is asked for here the first time, and remembered
+    $("shareNameRow").hidden = !challenge; $("shareName").value = playerName();
+    showShareMessage();
     // the share sheet where there is one (phones, mostly); copying a picture where the browser allows it
     $("shareGo").hidden = !navigator.share;
+    // (on a phone it's the way to send the picture and the message together, so it says so)
+    $("shareGo").textContent = onPhone() ? "Share picture + message…" : "Share…";
     $("shareCopyImg").hidden = !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
-    shareNote(""); shareCard.hidden = false;
-    setTimeout(() => ($("shareGo").hidden ? $("shareSave") : $("shareGo")).focus({ preventScroll: true }), 30);
+    shareNote(challenge && !playerName() ? "Add your name, so your friends know who's challenging them." : ""); shareCard.hidden = false;
+    setTimeout(() => (challenge && !playerName() ? $("shareName") : $("shareGo").hidden ? $("shareCopy") : $("shareGo")).focus({ preventScroll: true }), 30);
   }
+  $("shareName").addEventListener("input", () => { setPlayerName($("shareName").value.trim().slice(0, 20)); if (share) showShareMessage(); shareNote(""); });
   function closeShare() { shareCard.hidden = true; share = null; }
   shareBtn.addEventListener("click", (e) => { e.stopPropagation(); openShare(); });
   $("shareGo").addEventListener("click", async () => {
     if (!share) return;
-    const text = shareText(share.rec), file = shareFile(await shareBlob());
+    const text = shareMessage().text, file = shareFile(await shareBlob());
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ title: "Pneuman", text, files: [file] });
       else await navigator.share({ title: "Pneuman", text });
       closeShare();
     } catch (err) {
-      if (err && err.name !== "AbortError") shareNote("Sharing didn't open here. Save or copy the picture and copy the message instead.");
+      if (err && err.name !== "AbortError") shareNote("Sharing didn't open here. Copy the message instead (and press and hold the picture to save it).");
     }
   });
   $("shareCopyImg").addEventListener("click", async () => {
     if (!share) return;
     try { await navigator.clipboard.write([new ClipboardItem({ "image/png": shareBlob() })]); shareNote("Picture copied: paste it into an email or message, with the message below."); }
-    catch (err) { shareNote("Couldn't copy the picture here. Save it instead."); }
-  });
-  $("shareSave").addEventListener("click", async () => {
-    if (!share) return;
-    const url = URL.createObjectURL(await shareBlob()), a = document.createElement("a");
-    a.href = url; a.download = "pneuman-epic-spud.png"; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    shareNote("Picture saved. Attach it to a text or email with the message.");
+    catch (err) { shareNote("Couldn't copy the picture here. Right-click it (or press and hold) to save it instead."); }
   });
   // Copy message copies it all as one piece: the line, the postcard and the address, with the picture and the
   // address both live links to the game on that level, so it pastes into an email (or a chat that takes formatted
   // text) ready to send. Where only plain text can be pasted, the message with its link goes instead
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  function shareHtml(rec, card) {
-    const link = esc(shareLink(rec)), pic = card.toDataURL("image/jpeg", 0.86);
+  function shareHtml(m, card) {
+    const link = esc(m.link), pic = card.toDataURL("image/jpeg", 0.86);
     return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#23303a">` +
-      `<p style="margin:0 0 8px"><b>${esc(SHARE_LINE)}</b> 🥔</p>` +
-      `<a href="${link}"><img src="${pic}" width="600" height="${Math.round(600 * PC.h / PC.w)}" alt="${esc(SHARE_LINE)} Play Pneuman" style="display:block;border:0;border-radius:8px;max-width:100%;height:auto"></a>` +
-      `<p style="margin:8px 0 0">Play Pneuman: <a href="${link}">${link}</a></p></div>`;
+      `<p style="margin:0 0 8px"><b>${esc(m.lead)}</b></p>` +
+      `<a href="${link}"><img src="${pic}" width="600" height="${Math.round(600 * PC.h / PC.w)}" alt="Pneuman: ${esc(m.lead)}" style="display:block;border:0;border-radius:8px;max-width:100%;height:auto"></a>` +
+      `<p style="margin:8px 0 0">${esc(m.tail)} <a href="${link}">${link}</a></p></div>`;
   }
   // the old way, where the clipboard API isn't allowed: put the piece on the page out of sight, select it and copy
   function copyBySelecting(html) {
@@ -4487,20 +4560,89 @@ body.lab .stage > :not(canvas) { display: none; }
     sel.removeAllRanges(); box.remove();
     return ok;
   }
+  // a phone (touch only): its clipboard can't carry a picture and words together (apps paste just the words), so
+  // there Copy message copies the message and link, and Share… is the way to send the picture with them
+  const onPhone = () => matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
   $("shareCopy").addEventListener("click", async () => {
     if (!share) return;
-    const text = shareText(share.rec), html = shareHtml(share.rec, share.card);
+    const m = shareMessage(), text = m.text, html = shareHtml(m, share.card);
     const done = () => shareNote("Copied: the postcard, message and link together. Paste into an email or message; the picture and the link both open the game.");
+    if (onPhone()) {
+      const tip = navigator.share ? "To send the picture with it, use Share… instead." : "To send the picture too, press and hold it to save it, then attach it.";
+      try { await navigator.clipboard.writeText(text); shareNote(`Message and link copied. A phone can't copy the picture along with them: ${tip}`); }
+      catch (err) { shareNote(copyBySelecting(esc(text)) ? `Message and link copied. ${tip}` : "Couldn't copy here. Select the message above and copy it."); }
+      return;
+    }
     try {
       if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) throw new Error("no clipboard API");
       await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
       done();
     } catch (err) {
       if (copyBySelecting(html)) done();
-      else shareNote("Couldn't copy here. Save the picture, and select the message above and copy it.");
+      else shareNote("Couldn't copy here. Select the message above and copy it.");
     }
   });
   $("shareClose").addEventListener("click", closeShare);
+
+  // ================= challenges (the light version: everything travels in the link) =================
+  // at the end of a round, Challenge a friend sends this round: the link carries the level, the round's seed, the
+  // field size it was laid out for, the Animals setting, the score to beat, the sender's name and the game version
+  // (…/pneuman/?level=harvest&seed=48213&w=988&h=470&a=1&score=47&name=Jamie&v=1.24). Opening it rebuilds exactly
+  // that round (same scenery, targets, props, wind and bird strikes; the animals start in the same places but wander
+  // their own way) and shows a challenge card. One try: the round is marked as played on this device when Play is
+  // pressed, so reopening the link says so. At the end both scores show, and Challenge back sends the same round
+  // with your score. No server: the score in the link could be edited, and the challenger only hears how it went
+  // if you challenge back. (Firebase later: see DESIGN.md)
+  const GAME_V = ((document.querySelector(".ver") || {}).textContent || "").replace(/^.*v/, "").trim();
+  function challengeLink(score, name) {
+    const p = new URLSearchParams({ level: lvl().id, seed: String(S.seed), w: String(S.layoutView.w), h: String(S.layoutView.h), a: S.animals ? "1" : "0", score: String(score) });
+    if (name) p.set("name", name);
+    p.set("v", GAME_V);
+    return `${SHARE_URL}?${p}`;
+  }
+  // a challenge in this page's address, or null
+  function readChallenge() {
+    const q = new URLSearchParams(location.search), level = LEVELS.findIndex((L) => L.id === q.get("level"));
+    const seed = Number(q.get("seed")), score = Number(q.get("score")), w = Number(q.get("w")), h = Number(q.get("h"));
+    if (level < 0 || !q.has("seed") || !q.has("score") || !Number.isFinite(seed) || !Number.isFinite(score) || !(w >= 100 && w <= 4000) || !(h >= 100 && h <= 4000)) return null;
+    return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "" };
+  }
+  // one try: what this device knows of a challenge (null, { started }, or { score })
+  const chKey = (c) => `pneuman-ch:${LEVELS[c.level].id}:${c.seed}:${c.name}:${c.score}`;
+  const chMine = (c) => { try { return JSON.parse(localStorage.getItem(chKey(c)) || "null"); } catch (e) { return null; } };
+  const chSave = (c, v) => { try { localStorage.setItem(chKey(c), JSON.stringify(v)); } catch (e) {} };
+  // a challenge is played with the challenger's Animals setting (it changes the round); the player's own comes back after
+  function useChallengeAnimals(c) {
+    if (S.ownAnimals == null) S.ownAnimals = S.animals;
+    S.animals = c.animals; animalsTgl.checked = c.animals; animalsTgl.disabled = true;
+  }
+  function leaveChallenge() {
+    if (!S.challenge) return;
+    S.challenge = null;
+    if (S.ownAnimals != null) { S.animals = S.ownAnimals; S.ownAnimals = null; }
+    animalsTgl.checked = S.animals; animalsTgl.disabled = false;
+    // (and the address goes back to a plain level link, so a reload doesn't bring the challenge back)
+    try { history.replaceState(null, "", `${location.pathname}?level=${lvl().id}`); } catch (e) {}
+  }
+  const verdict = (mine, theirs, name) => mine > theirs ? "You win!" : mine < theirs ? `${name || "Your friend"} wins` : "A tie!";
+  function showChallenge(c) {
+    S.challenge = c; useChallengeAnimals(c);
+    S.phase = "title"; previewLevel(c.level, c);
+    const L = LEVELS[c.level], who = c.name || "A friend", mine = chMine(c);
+    const old = c.v && c.v !== GAME_V ? ` (Sent from Pneuman v${c.v}; this is v${GAME_V}, so the round may differ a little.)` : "";
+    const plain = () => { leaveChallenge(); showStart(c.level); };
+    if (!mine) {
+      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name}. Same targets, same wind, one try. Your turn!${old}`, "",
+        `<button id="ovGo" type="button">Play ${L.name}</button><button id="ovPick" type="button">Just play Pneuman</button>`,
+        () => { chSave(c, { started: Date.now() }); startLevel(c.level, c); });
+      $("ovPick").onclick = () => { audio(); plain(); };
+    } else {
+      const body = mine.score == null
+        ? `You started ${who}'s ${L.name} challenge (${c.score} to beat) but didn't finish it. It was one try only.`
+        : `You scored ${mine.score} against ${who}'s ${c.score} on ${L.name}. ${verdict(mine.score, c.score, c.name)}`;
+      showCard("Pneuman Challenge", "You've had your go", body, "", `<button id="ovGo" type="button">Play Pneuman</button>`, plain);
+    }
+  }
 
   // settings: a gear in the header opens a small panel
   const gear = $("gear"), settings = $("settings"), soundTgl = $("soundTgl");
@@ -4865,7 +5007,10 @@ body.lab .stage > :not(canvas) { display: none; }
     (function labFrame() { drawLab(); requestAnimationFrame(labFrame); })();
     return;
   }
-  S.phase = "title"; showStart(linked);
+  // a challenge link opens on its challenge card; anything else on the start card
+  const challenge = readChallenge();
+  S.phase = "title";
+  if (challenge) showChallenge(challenge); else showStart(linked);
   let last = performance.now();
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
