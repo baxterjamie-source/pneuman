@@ -354,7 +354,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.26</p>
+  <p class="ver">Pneuman v1.27</p>
 </div>
 
 <script>
@@ -4449,6 +4449,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // message copied. The postcard is a building block for challenges, which will add the exact round to the link
   const SHARE_URL = "https://baxterjamie-source.github.io/pneuman/", SHARE_LINE = "Check out my epic spud!";
   const shareLink = (rec) => `${SHARE_URL}?level=${LEVELS[rec.level].id}`;
+  const SHORT_URL = SHARE_URL.replace(/^https:\/\//, "").replace(/\/$/, ""); // (baxterjamie-source.github.io/pneuman)
   const PC = { w: 1200, h: 630, band: 90 }; // (the usual size for a link preview picture)
   // the game's own drawing of the shot, from the side, just after it landed, framed as a postcard. line: what the
   // bottom band says ("Check out my epic spud!", or for a challenge "Beat my 47!"); more: what it says on the right
@@ -4500,7 +4501,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const shareBtn = $("shareBtn"), shareCard = $("shareCard"), shareHint = $("shareHint");
   let share = null; // { rec, card, blob, challenge }
   const shareNote = (msg) => { shareHint.textContent = msg; shareHint.hidden = !msg; };
-  const shareBlob = () => share.blob ? Promise.resolve(share.blob) : new Promise((ok) => share.card.toBlob((b) => ok((share.blob = b)), "image/png"));
+  // (kept on the share it was made for, even if the card has closed by the time it's ready)
+  const shareBlob = () => { const s = share; return s.blob ? Promise.resolve(s.blob) : new Promise((ok) => s.card.toBlob((b) => ok((s.blob = b)), "image/png")); };
   const shareFile = (b) => new File([b], share && share.challenge ? "pneuman-challenge.png" : "pneuman-epic-spud.png", { type: "image/png" });
   // the player's name for challenges, asked for once (in the share card) and kept on this device
   const playerName = () => { try { return localStorage.getItem("pneuman-name") || ""; } catch (e) { return ""; } };
@@ -4510,10 +4512,12 @@ body.lab .stage > :not(canvas) { display: none; }
   function shareMessage() {
     const s = share;
     if (!s.challenge) {
-      // an epic spud is just the picture, nothing outside it: where it can be clicked (an email) it's the link; text
-      // is only the fallback where a picture can't be sent or pasted
-      const link = shareLink(s.rec);
-      return { link, imageOnly: true, lead: SHARE_LINE, tail: "", text: link };
+      // an epic spud is just the picture on a computer, where it can be the link (in an email). On a phone a picture
+      // can't be tapped through, so it goes with a short line carrying the game's address (tappable in Messages,
+      // Messenger, WhatsApp…): the shortest form, landing on the start card
+      const link = shareLink(s.rec), caption = `🥔 Play Pneuman: ${SHORT_URL}`;
+      return onPhone() ? { link, phoneCaption: true, lead: SHARE_LINE, tail: "", text: caption }
+        : { link, imageOnly: true, lead: SHARE_LINE, tail: "", text: link };
     }
     const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim());
     const lead = c.vs
@@ -4525,8 +4529,11 @@ body.lab .stage > :not(canvas) { display: none; }
   function showShareMessage() {
     const m = shareMessage();
     $("shareImgLink").href = m.link;
+    // (what's said here is what goes, on this device)
     $("shareMsg").innerHTML = m.imageOnly
       ? `Just the picture goes. Pasted into an email, clicking it opens Pneuman on ${esc(LEVELS[share.rec.level].name)}.`
+      : m.phoneCaption
+      ? `The picture goes with: <b>${esc(m.text)}</b>`
       : `${esc(m.lead)} ${esc(m.tail)} <a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.link)}</a>`;
   }
   // challenge: { score, vs } to send this round as a challenge (vs: the challenge being answered, for challenge back)
@@ -4544,8 +4551,9 @@ body.lab .stage > :not(canvas) { display: none; }
     showShareMessage();
     // the share sheet where there is one (phones, mostly); copying a picture where the browser allows it
     $("shareGo").hidden = !navigator.share;
-    // (on a phone it's the way to send the picture and the message together, so it says so)
-    $("shareGo").textContent = onPhone() ? "Share picture + message…" : "Share…";
+    // (it says what goes: an epic spud is just the picture; a challenge on a phone is the picture and its message,
+    // and Share… is the way to send both there)
+    $("shareGo").textContent = onPhone() ? "Share picture + message…" : challenge ? "Share…" : "Share picture…";
     $("shareCopyImg").hidden = !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
     shareNote(challenge && !playerName() ? "Add your name, so your friends know who's challenging them." : ""); shareCard.hidden = false;
     setTimeout(() => (challenge && !playerName() ? $("shareName") : $("shareGo").hidden ? $("shareCopy") : $("shareGo")).focus({ preventScroll: true }), 30);
@@ -4603,12 +4611,6 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!share) return;
     const m = shareMessage(), text = m.text, html = shareHtml(m, share.card);
     const done = () => shareNote("Copied: the postcard, message and link together. Paste into an email or message; the picture and the link both open the game.");
-    if (onPhone() && m.imageOnly) {
-      // an epic spud on a phone: just the picture, nothing outside it
-      try { await navigator.clipboard.write([new ClipboardItem({ "image/png": shareBlob() })]); shareNote("Picture copied: paste it into a message."); }
-      catch (err) { shareNote(navigator.share ? "Couldn't copy the picture here: use Share… instead." : "Couldn't copy the picture here: press and hold it to save it."); }
-      return;
-    }
     if (onPhone()) {
       const tip = navigator.share ? "To send the picture with it, use Share… instead." : "To send the picture too, press and hold it to save it, then attach it.";
       try { await navigator.clipboard.writeText(text); shareNote(`Message and link copied. A phone can't copy the picture along with them: ${tip}`); }
