@@ -133,7 +133,8 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .xrow.plus b { color: #2e9b3a; }
 .xrow.minus b { color: var(--red); }
 .xrow span { display: flex; gap: 0; flex-wrap: wrap; }
-.xrow img { width: 56px; height: 44px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+.xrow img { width: 56px; height: 44px; }
+.xrow .xmore { align-self: center; font-weight: 800; font-size: .8rem; color: #2e9b3a; margin: 0 4px 0 -4px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
 /* start card: one card per level, its number big and faint behind its name */
 /* one row that scrolls sideways as more levels come; on the start card the Play button sits right under it */
 .levels { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
@@ -355,7 +356,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.29</p>
+  <p class="ver">Pneuman v1.35</p>
 </div>
 
 <script>
@@ -376,7 +377,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const deg = (d) => d * Math.PI / 180;
   const BAND = {
     rings: { red: deg(22), blue: deg(30), purple: deg(38.7), yellow: deg(38.7) },
-    props: { trough: deg(25), scarecrow: deg(25), junker: deg(30), leaves: deg(28), mailbox: deg(30), trampoline: deg(30), pumpkins: deg(26), tractor: deg(30) }, animals: deg(30),
+    props: { trough: deg(25), scarecrow: deg(25), junker: deg(30), leaves: deg(28), mailbox: deg(30), trampoline: deg(30), pumpkins: deg(26), tractor: deg(30), fisher: deg(28) }, animals: deg(30),
     wander: deg(33),
   };
   const inBand = (x, z, max) => Math.abs(Math.atan2(x, Math.max(1, z))) <= max;
@@ -397,9 +398,16 @@ body.lab .stage > :not(canvas) { display: none; }
     { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118,
       targets: { yellow: "splat", purple: "splat" },
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
+    // the family lake, from the dock (the place first; its own targets and props are still to come: for now plain
+    // rings on the water)
+    { id: "lake", name: "Lake", scene: "lake", mix: MIX, z: [20, 65], wind: [3, 10], mapZ: 125,
+      // the 2 and 25 are rings of floats on the water (the 25 up on the cottage's or the left boathouse's roof half
+      // the time); the 5 and 10 are spinners on anchored rafts
+      targets: { purple: "spinner", blue: "spinner" }, roofOdds: { red: 0.5 },
+      props: ["fisher", "loons", "loon", "fish", "seadoo"] },
   ];
   // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
-  const COMING_SOON = ["Lake", "Golf", "Reservoir", "Winery", "Downtown", "Logging"];
+  const COMING_SOON = ["Golf", "Reservoir", "Winery", "Downtown", "Logging"];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
   const G = 9.81, K = 0.0026, MUZZLE = 4.1, MAX_PSI = 120;
@@ -489,7 +497,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const th = Math.atan2(CAM.y0, -CAM.z0), tb = Math.tan(CAM.base);
     // zoomed so the launcher sits near the bottom and the horizon near the top. On a tall phone field the width
     // allows more zoom than before, so the extra height goes to the field rather than to sky
-    F0 = Math.min(W * 3, H * 2.4);
+    // (a place can ask for a wider view: the lake, framed like its photo, takes in more sky and shore)
+    F0 = Math.min(W * 3, H * 2.4) * ((S.scene && S.scene.view) || 1);
     const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
     CYhome = hz + F0 * tb;
     // (the camera stays behind the launcher as it rolls side to side)
@@ -650,7 +659,11 @@ body.lab .stage > :not(canvas) { display: none; }
     clang: () => sample("clang") || (tone(820, 790, 0.6, 0.22, "square"), tone(1240, 1210, 0.7, 0.14, "triangle"), noise(0.06, 3200, 0.3)),
     boing: () => sample("trampoline") || (tone(150, 520, 0.3, 0.35), tone(520, 260, 0.35, 0.22, "sine", 0.28)),
     yip: () => sample("dog") || [0, 0.16].forEach((d) => tone(1150, 700, 0.09, 0.2, "square", d)),
+    // the Sea-Doo going by: a rising, then falling, engine whine
+    seadoo: () => (tone(150, 260, 1.6, 0.05, "sawtooth"), tone(260, 140, 1.8, 0.04, "sawtooth", 1.5)),
     hey: () => sample("hey") || (tone(320, 250, 0.35, 0.28, "sawtooth"), tone(240, 190, 0.3, 0.18, "sawtooth", 0.05)),
+    // the loon's wail: a rising, wavering call (a recording named loon.mp3 takes over once it's in sounds/)
+    loon: () => sample("loon") || (tone(620, 980, 0.5, 0.2, "sine"), tone(980, 900, 0.55, 0.17, "sine", 0.5), tone(900, 1180, 0.6, 0.14, "sine", 1.05)),
     // harvest's: a splat on a target board, a pumpkin bursting, the tractor's clang and cough, the sheep, the farmer
     splatT: () => sample("splat") || (noise(0.28, 420, 0.65, 120), tone(120, 55, 0.16, 0.5, "triangle")),
     squelch: () => sample("pumpkin") || (noise(0.35, 650, 0.5, 140), tone(210, 80, 0.2, 0.3, "triangle")),
@@ -718,6 +731,8 @@ body.lab .stage > :not(canvas) { display: none; }
       else if (r < 0.92) { plan.barn = "wall"; plan.barnType = "purple"; }
     }
     if (plan.barnType && plan.hill[plan.barnType] !== undefined) plan.hill[plan.barnType] = false;
+    // a level's roofOdds: the chance each colour goes up on a roof this round (the lake's 25 on the cottage or a boathouse)
+    plan.roof = Object.fromEntries(Object.entries(L.roofOdds || {}).map(([t, p]) => [t, Math.random() < p]));
     for (let i = 0; i < 40; i++) {
       const r = layoutOnce(L, plan);
       const bad = r.reduce((n, a, j) => n + r.filter((b, k) => k > j && overlaps(a.box, b.box)).length, 0);
@@ -739,7 +754,7 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const [type, count] of Object.entries(L.mix)) {
       // how this colour shows up here: flat on the ground (a ring), on a house roof, or as a spinner on its frame
       const onBarn = plan.barnType === type ? plan.barn : null;
-      const form = onBarn === "roof" ? "roof" : onBarn === "wallring" ? "wallring" : (L.targets || {})[type] || "ring";
+      const form = onBarn === "roof" || (plan.roof && plan.roof[type]) ? "roof" : onBarn === "wallring" ? "wallring" : (L.targets || {})[type] || "ring";
       // what holds a splat target up: its usual tree or bale, or the barn's broad side
       const mk = form === "splat" ? (onBarn === "wall" ? "barn" : SPLAT[type].mount) : null;
       for (let i = 0; i < count; i++) {
@@ -861,6 +876,16 @@ body.lab .stage > :not(canvas) { display: none; }
     pumpkins:  { r: 1.2, h: 1.35, label: "pumpkin pile", say: "SPLUNCH!", msg: "Smashed a pumpkin!", sound: "squelch" },
     // anywhere on the tractor wins the bonus (it clangs and coughs a puff of smoke)
     tractor:   { r: 2.3, h: 2.4, label: "tractor", say: "CLANG!", msg: "Clang! Right on the old tractor!", sound: "chug" },
+    // the lake: a fisher in a tin boat (the boat is +5; the fisher is −5 and goes overboard: see land), the loons on
+    // their nesting platform and the mate swimming round it, a fish that now and then jumps (only hittable in the air),
+    // and the boathouses (+5 each, the place's own buildings; here for their name and start-card picture)
+    fisher:    { r: 2.3, h: 1.6, label: "fishing boat", say: "CLANK!", msg: "Clank! Right on the fishing boat!", sound: "clank" },
+    loons:     { r: 1.5, h: 1.0, alive: true, animal: true, label: "loon", say: "OO-OOO-OOO!", msg: "You upset the nesting loon!", sound: "loon" },
+    loon:      { r: 0.75, h: 0.6, alive: true, animal: true, label: "loon", say: "OO-OOO-OOO!", msg: "You bonked a loon!", sound: "loon", same: "loons" },
+    fish:      { r: 0.6, h: 0.5, alive: true, animal: true, label: "fish", say: "SPLOOSH!", msg: "You smacked a jumping fish!", sound: "splosh" },
+    boathouse: { r: 3.4, h: 4.5, label: "boathouse", say: "THUNK!", msg: "Right on the boathouse!", sound: "thunk" },
+    // the Sea-Doo: four fast passes across the lake in a level; a hit is worth +15 (big: once per level)
+    seadoo:    { r: 1.4, h: 1.4, label: "Sea-Doo", say: "WHOA!", msg: "Nailed the Sea-Doo!", sound: "clank", big: 15 },
   };
   // a level's props, less the animals when they're switched off. A kind listed twice is placed twice
   const propKinds = () => lvl().props.filter((k) => S.animals || !PROPS[k].animal);
@@ -1001,6 +1026,16 @@ body.lab .stage > :not(canvas) { display: none; }
     if (kind === "neighbour" || kind === "upNeighbour" || kind === "mower") o.look = NEIGHBOUR_LOOKS[Math.floor(Math.random() * NEIGHBOUR_LOOKS.length)];
     // the mower: which point of its route it's heading for, which way it's going along it, and its engine's shake
     if (kind === "mower") { o.leg = 1; o.dir = 1; o.step = 0; o.view = "side"; o.rest = 0; }
+    // the lake's: the fishing boat drifts round where it's placed, broadside-ish to you, in a colour of its own; the
+    // fish waits under water to jump
+    if (kind === "fisher") {
+      Object.assign(o, { x0: x, z0: z, age: rnd(0, 100), out: null, yaw0: Math.atan2(-x, CAM.z0 - z) + rnd(1.2, 1.9) * (Math.random() < 0.5 ? 1 : -1), look: pick(NEIGHBOUR_LOOKS) });
+      [o.hull, o.inside] = pick([[["#c45a46", "#b4503e"], "#8f4234"], [["#e0b23a", "#d3a632"], "#a8842a"], [["#4f7fb8", "#4674ab"], "#3a608f"]]);
+      o.yaw = o.yaw0;
+    }
+    if (kind === "fish") Object.assign(o, { y0: -50, jump: null, next: rnd(2, 6) });
+    if (kind === "seadoo") Object.assign(o, { y0: -50, left: 4, wait: rnd(8, 18), run: null, trail: [], look: pick(NEIGHBOUR_LOOKS) });
+    if (kind === "loon") Object.assign(o, { a: 0, dive: 0, face: 1 });
     if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
     return o;
   }
@@ -1166,12 +1201,16 @@ body.lab .stage > :not(canvas) { display: none; }
   function sceneState() {
     const st = [];
     for (const r of S.rings) st.push([r, { hit: r.hit, marks: r.marks }]);
-    for (const o of S.props || []) st.push([o, { scattered: o.scattered, h: o.h, open: o.open, smash: o.smash, smashed: o.smashed }]);
+    for (const o of S.props || []) st.push([o, { scattered: o.scattered, h: o.h, open: o.open, smash: o.smash, smashed: o.smashed, out: o.out, dive: o.dive }]);
+    // the lake's moving things: where they are and what they're up to (the Sea-Doo's run and wake, the fish's jump)
+    for (const o of movers()) st.push([o, { x: o.x, z: o.z, y0: o.y0, yaw: o.yaw, face: o.face, tilt: o.tilt, age: o.age, a: o.a, run: o.run, left: o.left, wait: o.wait, trail: o.trail, jump: o.jump, next: o.next }]);
     for (const h of S.scene.houses || []) for (const wn of h.windows || []) st.push([wn, { broken: wn.broken }]);
     st.push([S, { splats: S.splats }]);
     return st.map(([obj, v]) => [obj, structuredClone(v)]);
   }
   function applyState(st) { for (const [obj, v] of st) Object.assign(obj, structuredClone(v)); }
+  // the props that move by themselves on the lake (the fishing boat, the swimming loon, the fish, the Sea-Doo)
+  const movers = () => (S.props || []).filter((o) => LAKE_UPDATE[o.kind]);
   const featherBurst = (p, sp) => { for (let i = 0; i < 12; i++) S.feathers.push({ x: p.x, y: p.y, z: p.z, vx: rnd(-2.5, 2.5), vy: rnd(-0.5, 2.5), vz: rnd(-2.5, 2.5), t: 0, a: rnd(0, 6), c: sp.wing }); };
   function updateBird(dt) {
     for (const f of S.feathers) { f.t += dt; f.vx *= 0.97; f.vz *= 0.97; f.vy = Math.max(-1.2, f.vy - 3 * dt); f.x += f.vx * dt; f.y = Math.max(0.02, f.y + f.vy * dt); f.z += f.vz * dt; f.a += dt * 3; }
@@ -1234,6 +1273,21 @@ body.lab .stage > :not(canvas) { display: none; }
       // the car's bodywork: a metal clank, and the bonus all the same
       prop.t = 0; prop.say = "CLANK!"; sfx.clank();
       award(prop, "Clank! Right on the junker!", "CLANK!");
+    } else if (prop && prop.kind === "fisher") {
+      // the fishing boat: the boat itself is +5 (once); the fisher is −5 every time, and goes over the side
+      prop.t = 0;
+      if (prop.zone === "fisher") {
+        prop.say = "SPLASH!"; sfx.splosh(); sfx.hey(); prop.out = { t: 0 };
+        (S.ripples = S.ripples || []).push({ x: prop.x, z: prop.z, t: 0 });
+        penalize("fisher", "You knocked the fisher out of the boat! SPLASH!");
+      } else { prop.say = "CLANK!"; sfx.clank(); award(prop); }
+    } else if (prop && prop.kind === "seadoo") {
+      // the Sea-Doo: +15, once per level. The rider goes in the lake, climbs back on, and putters off very slowly
+      const r = prop.run, dunk = r && !r.out;
+      prop.t = 0; prop.say = PROPS.seadoo.say; sfx.clank();
+      if (dunk) { r.out = { t: 0 }; sfx.splosh(); sfx.hey(); (S.ripples = S.ripples || []).push({ x: prop.x, z: prop.z - 1, t: 0 }); }
+      if (prop.scored) shotNote(`Bonk! The Sea-Doo again${dunk ? ", and in goes the rider" : ""} (bonus already won)`);
+      else { prop.scored = true; S.bonus += PROPS.seadoo.big; (S.bonusItems = S.bonusItems || []).push("Sea-Doo"); shotNote(`${PROPS.seadoo.msg} WHOA! Rider overboard! +${PROPS.seadoo.big} bonus!`); }
     } else if (prop && prop.kind === "trampoline" && prop.zone === "net") {
       prop.t = 0; prop.say = "FWUMP"; sfx.thunk();
       shotNote("Caught in the trampoline's net. The bonus is for dropping in onto the mat.");
@@ -1245,6 +1299,9 @@ body.lab .stage > :not(canvas) { display: none; }
       if (prop.kind === "mailbox") burstMail(prop);
       if (prop.kind === "pumpkins") smashPumpkin(prop, x, z);
       if (prop.kind === "tractor") puffSmoke(prop);
+      // (the swimming loon dives and comes up again a little later; the fish is knocked back into the lake)
+      if (prop.kind === "loon") prop.dive = 3.5;
+      if (prop.kind === "fish") { prop.jump = null; prop.y0 = -50; prop.next = rnd(4, 8); (S.ripples = S.ripples || []).push({ x: prop.x, z: prop.z, t: 0 }); }
       if (D.alive) penalize(D.label || prop.kind, `${D.msg} ${D.say}`);
       else award(prop);
     } else if (fresh) scoreTarget(fresh);
@@ -1252,7 +1309,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // into the run: a splash and ripples, nothing won or lost
       sfx.splosh(); (S.ripples = S.ripples || []).push({ x, z, t: 0 });
       const miss = missNote(x, z);
-      shotNote(`Splash! Into the run${miss ? ` · ${miss}` : ""}`);
+      shotNote(`Splash! Into the ${S.scene.waterName || "run"}${miss ? ` · ${miss}` : ""}`);
     } else {
       sfx.splat();
       if (inside.length) shotNote(`In the ${tName(inside[0])}, but it's already scored`);
@@ -1293,7 +1350,12 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!t.hit) scoreTarget(t); else { sfx.thunk(); shotNote(`On the ${tName(t)}, but it's already scored`); }
     } else if (hit.kind === "roof") {
       if (hit.ring && !hit.ring.hit) scoreTarget(hit.ring);
+      else if (hit.house && hit.house.boathouse) boathouseBonus(hit);
       else { sfx.thunk(); shotNote(hit.ring ? `On the ${tName(hit.ring)}, but it's already scored` : `Up on the roof${then}`); }
+    } else if (hit.house && hit.house.boathouse) {
+      // a boathouse, anywhere (its little gable window breaks, but it's the boathouse's bonus all the same)
+      if (hit.kind === "window") { breakWindow(hit); sfx.glass(); }
+      boathouseBonus(hit);
     } else if (hit.kind === "board") {
       // splat! the spud mashes onto the face; it scores once
       const t = hit.target;
@@ -1315,6 +1377,14 @@ body.lab .stage > :not(canvas) { display: none; }
       sfx.thunk(); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "THUNK!", t: 0 });
       shotNote(hit.house && hit.house.barn ? `Well, you hit the broad side of a barn${then}` : `Thunk! Off the side of a house${then}`);
     }
+  }
+  // a boathouse on the lake: anywhere on it wins its +5, once for each of them
+  function boathouseBonus(hit) {
+    const h = hit.house;
+    sfx.thunk(); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: PROPS.boathouse.say, t: 0 });
+    if (h.scored) { shotNote(`Thunk! The ${h.name} again (bonus already won)`); return; }
+    h.scored = true; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(h.name);
+    shotNote(`Right on the ${h.name}! THUNK! +5 bonus!`);
   }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
   const maxScore = () => S.rings.reduce((a, r) => a + r.pts, 0);
@@ -1477,7 +1547,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // (switched off for now: the long call sounds like an eagle. A bird strike still squawks)
     S.callT = (S.callT ?? rnd(8, 20)) - dt;
     if (S.callT <= 0) { S.callT = rnd(20, 45); if (AMBIENT_CALLS && actx && !S.muted && $("overlay").hidden) sfx.birdCall(); }
-    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); updateJunker(o, dt); if (o.kind === "mower") updateMower(o, dt); }
+    // (in Re-live it's flight the lake's moving things follow the recording instead)
+    const lakeLive = !S.replay || S.replay.landed;
+    for (const o of S.props || []) { if (o.t >= 0) { o.t += dt; if (o.t > 3) o.t = -1; } updateWander(o, dt); updateJunker(o, dt); if (o.kind === "mower") updateMower(o, dt); if (lakeLive && LAKE_UPDATE[o.kind]) LAKE_UPDATE[o.kind](o, dt); }
     updateBird(dt);
     for (const t of S.rings) if (t.form === "spinner") updateSpinner(t, dt);
     updateBits(dt);
@@ -1509,7 +1581,7 @@ body.lab .stage > :not(canvas) { display: none; }
         const sh = S.scene.collide(p, prev);
         if (sh) { land(sh.land[0], sh.land[2], null, { ...sh, y: sh.land[1] }); break; }
         // a spud coming down into an animal or an object stops there (the junker, trampoline and tractor check their actual shape)
-        const hit = (S.props || []).find((o) => (o.kind === "junker" ? carHit(o, p) : o.kind === "trampoline" ? (o.zone = trampHit(o, p, prev)) : o.kind === "tractor" ? (o.zone = tractorHit(o, p)) : p.y < o.y0 + o.h && p.y > o.y0 - 0.2 && Math.hypot(p.x - o.x, p.z - o.z) < o.r));
+        const hit = (S.props || []).find((o) => (o.kind === "junker" ? carHit(o, p) : o.kind === "fisher" ? (o.zone = fisherHit(o, p)) : o.kind === "trampoline" ? (o.zone = trampHit(o, p, prev)) : o.kind === "tractor" ? (o.zone = tractorHit(o, p)) : p.y < o.y0 + o.h && p.y > o.y0 - 0.2 && Math.hypot(p.x - o.x, p.z - o.z) < o.r));
         if (hit && hit.kind === "trampoline" && hit.zone === "mat" && Math.abs(p.vy) > 3) { bounce(hit, p); continue; }
         if (hit) { land(p.x, p.z, hit); break; }
       }
@@ -1517,7 +1589,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // the flight, frame by frame, with the bird if one's about
       const b = S.bird;
       // (all of the bird, speeds too, so it can carry on falling by itself in the replay)
-      if (S.potato && S.rec) S.rec.frames.push({ t: S.flightT, x: p.x, y: p.y, z: p.z, rot: p.rot, b: b && { ...b } });
+      // (and where the lake's moving things were, so the Sea-Doo is where the spud meets it)
+      if (S.potato && S.rec) S.rec.frames.push({ t: S.flightT, x: p.x, y: p.y, z: p.z, rot: p.rot, b: b && { ...b }, m: movers().map((o) => [o.x, o.z, o.y0, o.yaw, o.face, o.tilt]) });
     }
     if (S.phase === "settle") { S.timer -= dt; if (S.timer <= 0) { const f = S.after; S.after = null; S.phase = "wait"; f && f(); } }
   }
@@ -2398,13 +2471,14 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.fillStyle = `rgba(30,70,25,${alpha})`;
     if (pathClip(pts)) ctx.fill();
   }
+  // (y0: how high its foot stands, on an island's mound say)
   function drawTree(t) {
-    const b = P(t.x, 0, t.z);
+    const y0 = t.y0 || 0, b = P(t.x, y0, t.z);
     if (b.behind) return;
     // trees right next to the camera fade out so they don't block the view
     const near = Math.hypot(t.x - CAM.x, t.z - CAM.z);
     if (near < 18) return;
-    const u = b.s, w = t.w * u, x = b.x, y = b.y, h = Math.max(1, y - P(t.x, t.h, t.z).y);
+    const u = b.s, w = t.w * u, x = b.x, y = b.y, h = Math.max(1, y - P(t.x, y0 + t.h, t.z).y);
     if (x + w < 0 || x - w > W || y - h > H || y < -10) return;
     ctx.save(); if (near < 40) ctx.globalAlpha = (near - 18) / 22;
     const trunk = (top, tw, color = "#6b4a2b") => { ctx.fillStyle = haze(color, t.x, t.z); ctx.fillRect(x - tw / 2, y - top, tw, top); };
@@ -2447,6 +2521,18 @@ body.lab .stage > :not(canvas) { display: none; }
         trunk(h * 0.12, w * 0.1);
         tiers(h * 0.08, "#2c6440", 5, 0.6);
         break;
+      case "wpine": {
+        // a white pine: a tall straight trunk, and its needles in big soft clumps out to either side, layered from
+        // a third of the way up to the top (dense: a stand of them is a solid wall of green)
+        trunk(h * 0.95, Math.max(1, w * 0.06), "#5a4636");
+        // (flat, layered sprays, dark blue-green, each with a thin lighter top edge)
+        const tufts = t.tufts || (t.tufts = Array.from({ length: 8 }, (_, i) => ({ y: 0.32 + i * 0.09 + rnd(-0.025, 0.025), x: (i % 2 ? 1 : -1) * rnd(0.06, 0.24), rx: rnd(0.3, 0.5) * (1 - i * 0.06), ry: rnd(0.04, 0.06), c: pick(["#24472c", "#2a4f30", "#1f4128", "#2f5634"]) })));
+        for (const f of tufts) {
+          ctx.fillStyle = C(f.c); ctx.beginPath(); ctx.ellipse(x + f.x * w, y - f.y * h, f.rx * w, f.ry * h, 0, 0, 7); ctx.fill();
+          ctx.fillStyle = C("#3a6640"); ctx.beginPath(); ctx.ellipse(x + f.x * w, y - f.y * h - f.ry * h * 0.45, f.rx * w * 0.8, f.ry * h * 0.35, 0, Math.PI, 0); ctx.fill();
+        }
+        break;
+      }
     }
     ctx.restore();
   }
@@ -2458,9 +2544,10 @@ body.lab .stage > :not(canvas) { display: none; }
   const SUN_L = (() => { const v = [Math.sin(SUN.az), 0.8, Math.cos(SUN.az)], l = Math.hypot(...v); return v.map((c) => c / l); })();
   // a solid thing in its own frame (x to its right, y up, z toward its front), standing at o.x, o.z, turned by o.yaw.
   // face() draws a face only if it faces the camera, lit by the sun and hazed with distance
+  // (o.y0 raises the whole thing: a cottage up on its island, a boathouse on its cribs)
   function solid(o) {
-    const c = Math.cos(o.yaw), s = Math.sin(o.yaw);
-    const Wp = ([lx, ly, lz]) => [o.x + lx * c + lz * s, ly, o.z - lx * s + lz * c];
+    const c = Math.cos(o.yaw), s = Math.sin(o.yaw), y0 = o.y0 || 0;
+    const Wp = ([lx, ly, lz]) => [o.x + lx * c + lz * s, ly + y0, o.z - lx * s + lz * c];
     const nW = ([nx, ny, nz]) => [nx * c + nz * s, ny, -nx * s + nz * c];
     const hz = (col) => (col[0] === "#" || col.startsWith("rgb(") ? haze(col, o.x, o.z) : col);
     const facing = (pts, n) => {
@@ -2523,7 +2610,7 @@ body.lab .stage > :not(canvas) { display: none; }
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
-  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest() };
+  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake() };
   const sceneFor = (L) => built[L.scene] || (built[L.scene] = SCENE_BUILD[L.scene]());
 
   // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
@@ -2616,6 +2703,9 @@ body.lab .stage > :not(canvas) { display: none; }
     if (c0.behind && Math.hypot(h.x - CAM.x, h.z - CAM.z) > 25) return;
     if (c0.x < -W * 1.5 || c0.x > W * 2.5) return;
     const sd = solid(h), L = h.look, u = sd.u, { w, d, hw, hr, ov, k, gw, gh, gd, gx0, gx1 } = h, hx = w / 2, hzz = d / 2;
+    // a boathouse's timber deck at the waterline, or a cottage's piers, under its floor
+    if (h.deck) box3(sd, [-hx - 0.35, -(h.y0 || 0), -hzz - 0.35], [hx + 0.35, 0, hzz + 0.35], "#5f564c");
+    if (h.piers) for (const px of [-hx + 0.4, 0, hx - 0.4]) for (const pz of [-hzz + 0.4, hzz - 0.4]) box3(sd, [px - 0.2, -(h.y0 || 0) - 0.3, pz - 0.2], [px + 0.2, 0, pz + 0.2], "#8f8a82");
     const body = () => {
       const f = box3(sd, [-hx, 0, -hzz], [hx, hw, hzz], L.wall, { noTop: true });
       // the gable ends, up to the ridge
@@ -2623,12 +2713,26 @@ body.lab .stage > :not(canvas) { display: none; }
       sd.face([[hx, hw, hzz], [hx, hw, -hzz], [hx, hr, 0]], L.wall, [1, 0, 0]);
       // siding lines, a band between the floors, and corner boards
       if (f.front) {
-        if (u > 5) for (let y = 0.4; y < hw; y += 0.45) sd.line([-hx, y, hzz + 0.01], [hx, y, hzz + 0.01], "rgba(0,0,0,.06)", 1);
-        sd.line([-hx, 3.05, hzz + 0.02], [hx, 3.05, hzz + 0.02], L.trim, 0.12 * u);
+        // (a cabin or boathouse has board-and-batten up and down, and no band between floors: it has one)
+        if (h.cabin) { if (u > 4) for (let x = -hx + 0.5; x < hx; x += 0.5) sd.line([x, 0, hzz + 0.01], [x, hw, hzz + 0.01], "rgba(0,0,0,.12)", 1); }
+        else {
+          if (u > 5) for (let y = 0.4; y < hw; y += 0.45) sd.line([-hx, y, hzz + 0.01], [hx, y, hzz + 0.01], "rgba(0,0,0,.06)", 1);
+          sd.line([-hx, 3.05, hzz + 0.02], [hx, 3.05, hzz + 0.02], L.trim, 0.12 * u);
+        }
         for (const sx of [-1, 1]) sd.line([sx * hx, 0, hzz + 0.02], [sx * hx, hw, hzz + 0.02], L.trim, 0.16 * u);
       }
       for (const wn of h.windows) if (f[{ front: "front", L: "left", R: "right" }[wn.face]]) drawWindow(h, sd, wn);
-      if (f.front) {
+      const bf = h.boatFace || "front";
+      if (h.boatDoor && f[{ front: "front", L: "left", R: "right" }[bf]]) {
+        // a boathouse: a wide door down to the water for the boat (a dark opening, or a door of planks), in a trim
+        // frame, on whichever wall faces the water
+        const b = h.boatDoor / 2, col = h.boatDoorColor || "#1d2328";
+        sd.decal(wallRect(h, bf, -b - 0.18, b + 0.18, 0, 2.55), L.trim);
+        sd.decal(wallRect(h, bf, -b, b, 0, 2.4), col);
+        // (a plank door shows its planks)
+        if (h.boatDoorColor) for (let x = -b + 0.3; x < b; x += 0.3) { const r = wallRect(h, bf, x, x, 0, 2.4); sd.line(r[0], r[3], "rgba(0,0,0,.25)", 1); }
+      }
+      if (f.front && !h.noDoor && !(h.boatDoor && bf === "front")) {
         sd.decal(wallRect(h, "front", h.doorX - 0.65, h.doorX + 0.65, 0, 2.45), L.trim);
         sd.decal(wallRect(h, "front", h.doorX - 0.5, h.doorX + 0.5, 0, 2.3), h.door);
       }
@@ -2643,9 +2747,9 @@ body.lab .stage > :not(canvas) { display: none; }
         if (ring) drawRoofRing(h, sd, ring);
       }
       roofEdges(sd, h, RX, RZ, ey, front, back, L.trim, 0.1 * u);
-      // a brick chimney at the far end of the ridge
+      // a brick chimney at the far end of the ridge (a cabin's is stone, if it has one; a boathouse has none)
       const cx = -h.gs * (hx - 1.3);
-      box3(sd, [cx - 0.45, hr - 0.3, -1.6], [cx + 0.45, hr + 1.1, -0.7], "#8e4a36");
+      if (!h.cabin || h.chimney) box3(sd, [cx - 0.45, hr - 0.3, -1.6], [cx + 0.45, hr + 1.1, -0.7], h.cabin ? "#8f8a82" : "#8e4a36");
       // a porch over the front door, then the shrubs along the front
       if (h.porch && f.front) {
         const x0 = h.doorX - 2.3, x1 = h.doorX + 2.3, z1 = hzz + 2;
@@ -2673,7 +2777,8 @@ body.lab .stage > :not(canvas) { display: none; }
       sd.face([[xb, gh - 0.15, hzz + 0.3], [xa, gh - 0.15, hzz + 0.3], [xa, gr, zc], [xb, gr, zc]], L.roof, [0, Rf / Math.hypot(Rf, rise), rise / Math.hypot(Rf, rise)]);
       sd.face([[xa, gh - 0.15, z0 - 0.3], [xb, gh - 0.15, z0 - 0.3], [xb, gr, zc], [xa, gr, zc]], L.roof, [0, Rb / Math.hypot(Rb, rise), -rise / Math.hypot(Rb, rise)]);
     };
-    // the garage and the house are drawn farther one first
+    // the garage and the house are drawn farther one first (a cabin has no garage)
+    if (!gw) { body(); return; }
     const gc = sd.Wp([(gx0 + gx1) / 2, 0, hzz - gd / 2]);
     if (Math.hypot(gc[0] - CAM.x, gc[2] - CAM.z) > Math.hypot(h.x - CAM.x, h.z - CAM.z)) { garage(); body(); } else { body(); garage(); }
   }
@@ -2687,9 +2792,10 @@ body.lab .stage > :not(canvas) { display: none; }
   // has the spud (now at p, a moment ago at q) hit the house, and where: a roof (maybe its ring), a window, or a wall.
   // at: where it hit; land: where it comes to rest (on the roof, or at the foot of the wall)
   function houseHit(h, p, q) {
-    const c = Math.cos(h.yaw), s = Math.sin(h.yaw);
-    const toL = (pt) => { const dx = pt.x - h.x, dz = pt.z - h.z; return [dx * c - dz * s, pt.y, dx * s + dz * c]; };
-    const Wl = (lx, ly, lz) => [h.x + lx * c + lz * s, ly, h.z - lx * s + lz * c];
+    // (in the house's own frame, from its raised floor if it stands up off the ground)
+    const c = Math.cos(h.yaw), s = Math.sin(h.yaw), y0 = h.y0 || 0;
+    const toL = (pt) => { const dx = pt.x - h.x, dz = pt.z - h.z; return [dx * c - dz * s, pt.y - y0, dx * s + dz * c]; };
+    const Wl = (lx, ly, lz) => [h.x + lx * c + lz * s, ly + y0, h.z - lx * s + lz * c];
     const [bx, by, bz] = toL(p), hx = h.w / 2, hz = h.d / 2, RX = hx + h.ov, RZ = hz + h.ov;
     if (by > h.hr + 0.5 || bx < Math.min(-RX, h.gx0) - 1 || bx > Math.max(RX, h.gx1) + 1 || Math.abs(bz) > RZ + 1) return null;
     const [ax, ay, az] = toL(q), roofY = (z) => h.hr - h.k * Math.abs(z);
@@ -3103,7 +3209,12 @@ body.lab .stage > :not(canvas) { display: none; }
   function drawSpinner(t) {
     if (P(t.x, 0, t.z).behind) return;
     const sd = solid(t), R = RINGS[t.type], u = sd.u, { rad, cy, px } = SPIN, wood = "#8a5a30", steel = "#1e2a33";
-    groundShadow(t.x, t.z, 0.9, 2.0, 0.16);
+    if (S.scene.floats) {
+      // on the lake it stands on a small anchored raft: a plank deck at the waterline on blue barrels
+      for (const bx of [-1.7, 1.7]) box3(sd, [bx - 0.45, -0.3, -1.2], [bx + 0.45, 0.02, 1.2], "#2f5f8f");
+      box3(sd, [-2.4, 0.02, -1.35], [2.4, 0.2, 1.35], "#9b7a52", { top: "#b8956a" });
+      for (let x = -2.1; x < 2.4; x += 0.42) sd.line([x, 0.205, -1.35], [x, 0.205, 1.35], "rgba(70,50,30,.35)", 1);
+    } else groundShadow(t.x, t.z, 0.9, 2.0, 0.16);
     // the A-frame legs each side, and the feet rails
     for (const sx of [-1, 1]) {
       sd.line([sx * px, 0, -0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u); sd.line([sx * px, 0, 0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u);
@@ -3749,6 +3860,641 @@ body.lab .stage > :not(canvas) { display: none; }
     };
   }
 
+  // ---- the lake: the view from the family dock, from a photo (images/2026-10-30 12.31.27.jpg), in summer ----
+  // the launcher stands at the end of the dock, looking out over the water. To the left a big island of tall white
+  // pines with a brown boathouse (red roof) at its front corner and a Canadian flag; farther off to the right a
+  // smaller island with its own little boathouse and a red-roofed cottage; a forested far shore all round (a
+  // turquoise boathouse off to the left); granite boulders along the shore to the right; the tin boat tied up beside
+  // the dock; leafy branches hanging over the top of the view. Laid out by bearing and distance from the launcher,
+  // squeezed a little from the photo's wide angle so it fits the game's narrower view
+  const LAKE = { water: ["#8ab8d8", "#4f86bb", "#2f6098"], land: "#5f8a3e", rock: "#a89a8c", sand: "#c9b48a", dock: [-1.15, 1.15] };
+  const atBearing = (deg, dist) => [Math.sin(deg * Math.PI / 180) * dist, Math.cos(deg * Math.PI / 180) * dist];
+  // is x, z inside a polygon on the ground ([[x, 0, z], …])?
+  function inPoly(poly, x, z) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, , zi] = poly[i], [xj, , zj] = poly[j];
+      if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  // an island: a ragged lens-shaped outline (a wobbly ellipse, wider than it is deep) that mounds up to h in the
+  // middle. grow (m) pushes the outline out evenly (for its rocky rim); y(x, z) is the ground's height on it
+  function makeIsle(cx, cz, rx, rz, h) {
+    const n = 26, k = Array.from({ length: n }, (_, i) => 1 + Math.sin(i * 1.7 + rnd(0, 6)) * 0.08 + rnd(-0.07, 0.07));
+    const outline = (grow = 0) => k.map((f, i) => { const a = (i / n) * Math.PI * 2; return [cx + Math.cos(a) * (rx * f + grow), 0, cz + Math.sin(a) * (rz * f + grow)]; });
+    const y = (x, z) => { const s = ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2; return s < 1 ? h * (1 - s) : 0; };
+    return { cx, cz, rx, rz, h, k, n, outline, y, poly: outline(0), trees: [] };
+  }
+  // the island's mound as one solid shape (its outline on screen at several heights), shaded darker at the foot, then
+  // its trees on it, far to near, so the stand of pines is a solid wall of green
+  function drawIsle(s) {
+    const qs = [];
+    for (let j = 0; j <= 8; j++) {
+      const f = j / 8, y = f * s.h, sc = Math.sqrt(1 - f);
+      for (let i = 0; i < s.n; i++) {
+        const a = (i / s.n) * Math.PI * 2, q = P(s.cx + Math.cos(a) * s.rx * s.k[i] * sc, y, s.cz + Math.sin(a) * s.rz * s.k[i] * sc);
+        if (q.behind) return;
+        qs.push(q);
+      }
+    }
+    qs.sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x), lower = [], upper = [];
+    for (const q of qs) { while (lower.length > 1 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop(); lower.push(q); }
+    for (let i = qs.length - 1; i >= 0; i--) { const q = qs[i]; while (upper.length > 1 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop(); upper.push(q); }
+    const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+    const top = P(s.cx, s.h, s.cz).y, foot = P(s.cx, 0, s.cz - s.rz).y, g = ctx.createLinearGradient(0, top, 0, foot);
+    g.addColorStop(0, haze("#2f5230", s.cx, s.cz)); g.addColorStop(1, haze("#55703a", s.cx, s.cz));
+    ctx.beginPath(); hull.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+    const d = (t) => Math.hypot(t.x - CAM.x, t.z - CAM.z);
+    for (const t of s.trees.slice().sort((a, b) => d(b) - d(a))) drawTree(t);
+  }
+  // a one-storey building in the house kit's terms (so it draws, thunks and breaks like a house): a boathouse or a
+  // cottage. It faces the launcher, turned by turn. o can also give: y0 (standing up off the ground), deck (a
+  // timber deck under it at the waterline), piers, boatDoor (its width) on boatFace with boatDoorColor (planks),
+  // noDoor (no front door)
+  function makeCabin(x, z, o) {
+    return { x, z, yaw: Math.atan2(-x, CAM.z0 - z) + (o.turn || 0), w: o.w, d: o.d, hw: o.hw, hr: o.hr, ov: 0.35, k: (o.hr - o.hw) / (o.d / 2),
+      look: o.look, bulb: null, porch: false, gs: 1, gw: 0, gh: 0, gd: 0, gx0: 0, gx1: 0, door: o.door || "#3a2a20", doorX: o.doorX || 0,
+      windows: o.windows || [], shrubs: [], cabin: true, chimney: !!o.chimney, boathouse: !!o.boathouse,
+      y0: o.y0 || 0, deck: !!o.deck, piers: !!o.piers, boatDoor: o.boatDoor || 0, boatFace: o.boatFace, boatDoorColor: o.boatDoorColor, noDoor: !!o.noDoor };
+  }
+  // the boathouses as in the photo: dark charcoal-brown boards with white corner trim and rusty red roofs; the
+  // cottage a warmer brown under a bright red roof
+  const BOATHOUSE_LOOK = { wall: "#3f3833", trim: "#efebe3", roof: "#b5452e", shut: null };
+  const CABIN_LOOK = { wall: "#5a3e2e", trim: "#efe9de", roof: "#c0302a", shut: null };
+  // a flag on a tall pole, waving: the Maple Leaf
+  function drawFlagPole(f) {
+    const b = P(f.x, f.y0 || 0, f.z), top = P(f.x, (f.y0 || 0) + f.h, f.z);
+    if (b.behind || top.behind) return;
+    ctx.strokeStyle = haze("#d8d8d2", f.x, f.z); ctx.lineWidth = Math.max(1, 0.12 * b.s); ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    const u = top.s, fw = 1.9 * u, fh = 0.95 * u, t = performance.now() / 1000;
+    // three bands, red-white-red, rippling in the breeze
+    const wave = (x) => Math.sin(t * 4 + x * 3) * 0.08 * fh * x;
+    const band = (a, b2, color) => {
+      ctx.fillStyle = haze(color, f.x, f.z); ctx.beginPath();
+      for (let i = 0; i <= 6; i++) { const x = a + (b2 - a) * (i / 6); ctx.lineTo(top.x + x * fw, top.y + wave(x)); }
+      for (let i = 6; i >= 0; i--) { const x = a + (b2 - a) * (i / 6); ctx.lineTo(top.x + x * fw, top.y + fh + wave(x)); }
+      ctx.closePath(); ctx.fill();
+    };
+    band(0, 0.27, "#d52b1e"); band(0.25, 0.75, "#ffffff"); band(0.73, 1, "#d52b1e");
+    // the leaf, a small red star of points in the middle
+    const cx = top.x + 0.5 * fw, cy = top.y + 0.5 * fh + wave(0.5), r = 0.26 * fh;
+    if (r > 1.2) {
+      ctx.fillStyle = haze("#d52b1e", f.x, f.z); ctx.beginPath();
+      for (let i = 0; i < 11; i++) { const a = -Math.PI / 2 + (i / 11) * Math.PI * 2, rr = i % 2 ? r * 0.45 : r; ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  // the tin boat tied up beside the dock: pale green-blue aluminium, wooden seats, a small outboard at the stern.
+  // Its bow points back toward the shore, like in the photo
+  function drawTinBoat(o) {
+    const sd = solid(o), u = sd.u;
+    if (P(o.x, 0, o.z).behind) return;
+    const len = 2.1, gun = (z) => (z > len - 0.6 ? 0.72 * Math.sqrt(Math.max(0, (len - z) / 0.6)) : 0.72), top = 0.42;
+    const zs = Array.from({ length: 13 }, (_, i) => -len + (i / 12) * 2 * len);
+    const rim = [...zs.map((z) => [gun(z), top, z]), ...zs.slice().reverse().map((z) => [-gun(z), top, z])];
+    const wl = rim.map(([x, , z]) => [x * 0.82, 0, z * 0.97]);
+    // the hull: its outside from the waterline up to the gunwale, all round (o.hull and o.inside can paint it
+    // another colour: the fisher's boat)
+    const hull = o.hull || ["#8fbab2", "#86b2aa"];
+    for (let i = 0; i < rim.length; i++) {
+      const j = (i + 1) % rim.length;
+      sd.decal([wl[i], wl[j], rim[j], rim[i]], hull[i % 2]);
+    }
+    // inside, the seats across it, the gunwale's rail
+    sd.decal(rim, o.inside || "#6f978f");
+    for (const z of [-1.2, 0.05, 1.15]) sd.decal([[-gun(z) + 0.05, top - 0.06, z - 0.16], [gun(z) - 0.05, top - 0.06, z - 0.16], [gun(z) - 0.05, top - 0.06, z + 0.16], [-gun(z) + 0.05, top - 0.06, z + 0.16]], "#8a6a46");
+    sd.decal(rim, null, "#cfe3de", Math.max(1, 0.05 * u));
+    // the outboard clamped on the transom: its leg down into the water, the clamp, and the rounded white cowling
+    // (like a helmet) with its dark band underneath
+    sd.line([0, top - 0.05, -len + 0.02], [0, top - 0.05, -len - 0.2], "#6d7276", 0.06 * u);
+    // two wooden oars: one along a gunwale, one lying across the seats
+    const oar = (a, b) => {
+      sd.line(a, b, "#a9895e", Math.max(1, 0.045 * u));
+      const d = [b[0] - a[0], b[2] - a[2]], l = Math.hypot(...d), ux = d[0] / l, uz = d[1] / l, bw = 0.09;
+      const p0 = [a[0] - uz * bw, a[1], a[2] + ux * bw], p1 = [a[0] + uz * bw, a[1], a[2] - ux * bw];
+      sd.decal([p0, p1, [p1[0] + ux * 0.5, a[1], p1[2] + uz * 0.5], [p0[0] + ux * 0.5, a[1], p0[2] + uz * 0.5]], "#b8996c", "#8a6c46", 1);
+    };
+    oar([-0.5, top + 0.02, -1.55], [-0.52, top + 0.02, 1.0]);
+    if (!o.hull) oar([0.25, top, -1.35], [0.6, top + 0.03, 0.75]);
+    const m = sd.at([0, top + 0.16, -len - 0.06]), s = m.s;
+    if (!m.behind) {
+      ctx.fillStyle = "#33383d"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(m.x - 0.19 * s, m.y + 0.02 * s, 0.38 * s, 0.12 * s, 0.04 * s) : ctx.rect(m.x - 0.19 * s, m.y + 0.02 * s, 0.38 * s, 0.12 * s); ctx.fill();
+      ctx.fillStyle = "#e8ebeb"; ctx.beginPath(); ctx.ellipse(m.x, m.y + 0.03 * s, 0.2 * s, 0.19 * s, 0, Math.PI, 0); ctx.lineTo(m.x + 0.2 * s, m.y + 0.05 * s); ctx.lineTo(m.x - 0.2 * s, m.y + 0.05 * s); ctx.fill();
+      ctx.strokeStyle = "rgba(60,66,72,.5)"; ctx.lineWidth = Math.max(1, 0.015 * s); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.beginPath(); ctx.ellipse(m.x - 0.07 * s, m.y - 0.08 * s, 0.07 * s, 0.035 * s, -0.4, 0, 7); ctx.fill();
+    }
+    // the rope to the dock (the boat at the dock only)
+    if (!o.hull) sd.line([0.55, top, len - 0.7], [1.0, 0.02, len - 0.3], "#e8e2d4", Math.max(1, 0.025 * u));
+  }
+
+  // ---- the lake's creatures and the fisher ----
+  // the fishing boat: a tin boat in a colour of its own, drifting slowly round where it was put, the fisher sitting
+  // at the stern by the motor with a rod out, casting now and then. The boat is +5 (once); the fisher is −5 every time
+  // and goes over the side: a splash, then swimming beside the boat, then hauling back in, and fishing again
+  const FISHER_SEAT = [0, 0.3, -1.25];
+  function fisherHit(o, p) {
+    const c = Math.cos(o.yaw), s = Math.sin(o.yaw), dx = p.x - o.x, dz = p.z - o.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+    if (!o.out && Math.hypot(lx - FISHER_SEAT[0], lz - FISHER_SEAT[2]) < 0.45 && p.y > 0.3 && p.y < 1.45) return "fisher";
+    if (Math.abs(lx) < 0.78 && Math.abs(lz) < 2.15 && p.y < 0.55 && p.y > -0.2) return "boat";
+    return null;
+  }
+  // the Sea-Doo's wake: older bits fade out (after dt), and a new one goes down behind it every half metre it moves
+  function seadooWake(o, dt) {
+    if (dt) o.trail = o.trail.filter((w) => (w.t += dt) < 2.4);
+    const r = o.run, last = o.trail[o.trail.length - 1], dir = o.face || 1;
+    if (r && r.v > 0.5 && (!last || Math.hypot(last.x + dir * 1.3 - o.x, last.z - o.z) > 0.5)) o.trail.push({ x: o.x - dir * 1.3, z: o.z, t: 0, big: r.v > 6 });
+  }
+  const LAKE_UPDATE = {
+    fisher(o, dt) {
+      o.age += dt;
+      // a slow drift and swing round where it was put
+      o.x = o.x0 + Math.sin(o.age * 0.05) * 2.2; o.z = o.z0 + Math.sin(o.age * 0.037 + 1) * 1.4; o.yaw = o.yaw0 + Math.sin(o.age * 0.06) * 0.35;
+      if (o.out && (o.out.t += dt) > 7.5) o.out = null;
+    },
+    // the swimming loon circles its nesting platform; hit, it dives, and comes up again a few seconds later
+    loon(o, dt) {
+      const nest = o.home; if (!nest) return;
+      if (o.dive > 0) { o.dive -= dt; o.y0 = o.dive > 0.4 ? -50 : 0; }
+      o.a += dt * 0.11;
+      const nx = nest.x + Math.cos(o.a) * 4.2, nz = nest.z + Math.sin(o.a) * 2.8;
+      o.face = nx > o.x ? 1 : -1; o.x = nx; o.z = nz;
+    },
+    // the fish waits under water, then jumps somewhere near a target: a 1.1 s arc, a metre and a bit up. Only while
+    // it's in the air can a spud hit it
+    fish(o, dt) {
+      if (o.jump) {
+        const j = o.jump; j.t += dt;
+        const f = j.t / 1.1;
+        if (f >= 1) { o.jump = null; o.y0 = -50; o.next = rnd(5, 12); (S.ripples = S.ripples || []).push({ x: o.x, z: o.z, t: 0 }); return; }
+        o.x = j.x + j.dx * f; o.z = j.z + j.dz * f; o.y0 = Math.sin(Math.PI * f) * 1.3 - 0.2; o.tilt = Math.cos(Math.PI * f);
+        return;
+      }
+      if ((o.next -= dt) > 0) return;
+      const ring = pick(S.rings.filter((r) => r.form !== "roof") .concat(S.rings.length ? [] : [{ x: 0, z: 40, r: 6 }]));
+      for (let i = 0; i < 20; i++) {
+        const a = rnd(0, Math.PI * 2), d = (ring ? ring.r : 6) + rnd(1, 6), x = (ring ? ring.x : 0) + Math.cos(a) * d, z = (ring ? ring.z : 40) + Math.sin(a) * d;
+        if (!S.scene.water(x, z)) continue;
+        const h = rnd(0, Math.PI * 2);
+        o.jump = { t: 0, x, z, dx: Math.cos(h) * 1.8, dz: Math.sin(h) * 1.8 }; o.face = Math.cos(h) > 0 ? 1 : -1; o.x = x; o.z = z;
+        (S.ripples = S.ripples || []).push({ x, z, t: 0 });
+        return;
+      }
+      o.next = 2;
+    },
+    // the Sea-Doo: out of sight between runs; four runs a level, each straight across the lake at full tilt, leaving
+    // a wake. Knocked off, the rider swims a bit, climbs back on, and putters off the rest of the way, very slowly
+    seadoo(o, dt) {
+      seadooWake(o, dt);
+      const r = o.run;
+      if (!r) {
+        if (o.left <= 0 || (o.wait -= dt) > 0) return;
+        for (let i = 0; i < 20; i++) {
+          const z = rnd(26, 62), half = (z - CAM.z0) * 0.75 + 10, dir = Math.random() < 0.5 ? 1 : -1;
+          if (![-1, -0.6, -0.3, 0, 0.3, 0.6, 1].every((f) => S.scene.water(f * half, z))) continue;
+          o.run = { z, end: half * dir, dir, v: 13, out: null, shame: false };
+          Object.assign(o, { x: -half * dir, z, y0: 0, face: dir }); o.left--; sfx.seadoo();
+          return;
+        }
+        o.wait = 3; return;
+      }
+      if (r.out) {
+        // stalled while the rider's in the water; back on board at 4.5 s, and off again in shame
+        r.out.t += dt; r.v = Math.max(0, r.v - dt * 25);
+        if (r.out.t > 4.5 && !r.shame) { r.shame = true; o.t = 0; o.say = "sorry…"; }
+        if (r.shame) r.v = 2;
+      }
+      const x0 = o.x; o.x += r.dir * r.v * dt; o.z = r.z + (r.shame || r.out ? 0 : Math.sin(o.x * 0.08) * 1.5);
+      seadooWake(o, 0);
+      if ((o.x - r.end) * r.dir > 0 && (x0 - r.end) * r.dir <= 0) Object.assign(o, { run: null, y0: -50, x: -250, z: 45, wait: rnd(12, 25) });
+    },
+  };
+  // a person in the boat (or in the water beside it): the fisher
+  function drawFisher(o) {
+    drawTinBoat(o);
+    const sd = solid(o), L = o.look || NEIGHBOUR_LOOKS[0], t = performance.now() / 1000, edge = "#2a2420", out = o.out;
+    if (!out || out.t > 6.2) {
+      // sitting at the stern with a rod out over the side; every so often a cast
+      const [x, , z] = sd.Wp(FISHER_SEAT), g = billboard({ x, z, y0: 0.3, face: Math.sin(o.yaw) > 0 ? -1 : 1 }), { ell, line, poly, X, Y, b } = g;
+      if (b.behind) return;
+      const cast = (t * 0.09 + o.ph) % 1, swing = cast < 0.06 ? Math.sin((cast / 0.06) * Math.PI) * 0.9 : 0;
+      poly([[-0.2, 0.15], [0.2, 0.15], [0.17, 0.7], [-0.17, 0.7]], L.shirt, edge);
+      ell(0, 0.86, 0.12, 0.13, L.skin, edge);
+      // a floppy fishing hat
+      ell(0, 0.95, 0.2, 0.05, "#8a8a5a"); ell(0, 1.0, 0.11, 0.07, "#9a9a68");
+      ell(0.045, 0.86, 0.015, 0.018, "#1b1b1b");
+      const tip = [1.6 - swing * 1.4, 1.75 + swing * 0.5];
+      line(0.15, 0.5, tip[0], tip[1], 0.03, "#3a3a3a"); ell(0.17, 0.5, 0.05, 0.05, L.skin, edge);
+      // the line, curving down to the water, with a red-and-white bobber
+      ctx.strokeStyle = "rgba(240,240,240,.7)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(tip[0]), Y(tip[1])); ctx.quadraticCurveTo(X(tip[0] + 0.5), Y(1.0), X(tip[0] + 0.7), Y(-0.28)); ctx.stroke();
+      ell(tip[0] + 0.7, -0.24 + Math.sin(t * 2 + o.ph) * 0.02, 0.05, 0.05, "#e8452c");
+    } else {
+      // over the side: a head and splashing arms in the water beside the boat, then hauling back in over the gunwale
+      const climb = out.t > 4.5 ? (out.t - 4.5) / 1.7 : 0, [x, , z] = sd.Wp([1.15 - climb * 0.7, 0, FISHER_SEAT[2] + 0.2]);
+      const g = billboard({ x, z, y0: -0.25 + climb * 0.7, face: 1 }), { ell, line } = g;
+      if (g.b.behind) return;
+      const flail = Math.sin(t * 9) * 0.15;
+      if (out.t < 0.5) { const s = out.t / 0.5; for (let i = 0; i < 6; i++) ell(Math.cos(i) * 0.5 * s, 0.25 + Math.sin(i * 1.7) * 0.3 * s, 0.06, 0.06, "rgba(220,240,255,.85)"); }
+      line(-0.15, 0.35, -0.4, 0.55 + flail, 0.06, L.shirt); line(0.15, 0.35, 0.4, 0.55 - flail, 0.06, L.shirt);
+      ell(0, 0.42, 0.12, 0.13, L.skin, edge);
+      ell(0, 0.2, 0.32, 0.08, "rgba(220,240,255,.5)");
+    }
+    if (o.t >= 0 && o.t < 2.2) { const q = sd.at([0, 2.0, FISHER_SEAT[2]]); bubble(q.x, q.y, o.say || PROPS.fisher.say, (2.2 - o.t) / 0.4); }
+  }
+  // a loon, side on: a black head with a red eye and a dagger bill, a white-striped necklace, a black back with white
+  // checks, low in the water. sit: on the nest (higher, not swimming)
+  function drawLoonBird(g, sit) {
+    const { ell, line, poly } = g, k = "#16191c";
+    if (!sit) ell(0, 0.0, 0.5, 0.06, "rgba(220,240,255,.45)");
+    ell(0, 0.12, 0.42, 0.14, k);
+    ctx.fillStyle = "#e9eef0";
+    for (let i = 0; i < 7; i++) for (let j = 0; j < 2; j++) ell(-0.3 + i * 0.08 + j * 0.04, 0.16 + j * 0.05, 0.012, 0.01, "#e9eef0");
+    line(0.28, 0.2, 0.38, 0.42, 0.09, k);
+    for (const y of [0.3, 0.33]) line(0.33, y, 0.36, y + 0.01, 0.025, "#e9eef0");
+    ell(0.42, 0.46, 0.08, 0.065, k);
+    ell(0.45, 0.48, 0.015, 0.015, "#c62a1e");
+    poly([[0.49, 0.47], [0.64, 0.44], [0.49, 0.43]], "#2a2e32");
+  }
+  function drawLoonsNest(o) {
+    const g0 = P(o.x, 0, o.z); if (g0.behind) return;
+    const sd = solid({ x: o.x, z: o.z, yaw: Math.atan2(-o.x, CAM.z0 - o.z) });
+    // the floating nesting platform: a frame of logs at the waterline round a mound of sedge and grass
+    for (const [a, b] of [[[-1.2, 0, -1.2], [1.2, 0.18, -1.0]], [[-1.2, 0, 1.0], [1.2, 0.18, 1.2]], [[-1.2, 0, -1.2], [-1.0, 0.18, 1.2]], [[1.0, 0, -1.2], [1.2, 0.18, 1.2]]]) box3(sd, a, b, "#7a5a3a");
+    const m = sd.at([0, 0.25, 0]);
+    ctx.fillStyle = haze("#6f8f3e", o.x, o.z); ctx.beginPath(); ctx.ellipse(m.x, m.y, 1.0 * m.s, 0.35 * m.s, 0, Math.PI, 0); ctx.lineTo(m.x + 1.0 * m.s, m.y + 0.1 * m.s); ctx.lineTo(m.x - 1.0 * m.s, m.y + 0.1 * m.s); ctx.fill();
+    ctx.strokeStyle = haze("#5a7a32", o.x, o.z); ctx.lineWidth = Math.max(1, 0.03 * m.s);
+    for (let i = 0; i < 9; i++) { const x = m.x + (i - 4) * 0.2 * m.s; ctx.beginPath(); ctx.moveTo(x, m.y - 0.15 * m.s); ctx.lineTo(x + Math.sin(i) * 0.08 * m.s, m.y - 0.45 * m.s); ctx.stroke(); }
+    // the loon sitting on its nest
+    drawLoonBird(billboard({ x: o.x, z: o.z, y0: 0.32, face: o.face || 1 }), true);
+    if (o.t >= 0 && o.t < 2.2) bubble(m.x, m.y - 1.4 * m.s, PROPS.loons.say, (2.2 - o.t) / 0.4);
+  }
+  function drawLoon(o) {
+    const g = billboard({ x: o.x, z: o.z, y0: 0, face: o.face || 1 });
+    if (g.b.behind) return;
+    // diving: just rings on the water where it went down
+    if (o.dive > 0.4) { ctx.strokeStyle = "rgba(235,245,255,.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(g.b.x, g.b.y, 0.5 * g.u * (1 + (3.5 - o.dive) * 0.3), 0.15 * g.u, 0, 0, 7); ctx.stroke(); }
+    else drawLoonBird(g, false);
+    if (o.t >= 0 && o.t < 2.2) bubble(g.b.x, g.Y(1.2), PROPS.loon.say, (2.2 - o.t) / 0.4);
+  }
+  // the fish, mid-leap: a silvery body curving with the arc, a dark back, a forked tail
+  function drawFish(o) {
+    const g = billboard({ x: o.x, z: o.z, y0: o.thumb ? 0.4 : o.y0, face: o.face || 1 });
+    if (o.thumb || o.jump) {
+      if (g.b.behind) return;
+      ctx.save(); ctx.translate(g.b.x, g.b.y); ctx.rotate(-(o.tilt || 0.3) * 0.7 * (o.face || 1)); ctx.translate(-g.b.x, -g.b.y);
+      g.ell(0, 0.12, 0.3, 0.1, "#b9c6b0", "#4a5a44"); g.ell(0.02, 0.16, 0.24, 0.045, "#4f6a48");
+      g.poly([[-0.28, 0.12], [-0.46, 0.24], [-0.42, 0.12], [-0.46, 0.0]], "#5f7a56");
+      g.ell(0.2, 0.14, 0.02, 0.02, "#1b1b1b");
+      ctx.restore();
+    }
+    if (o.t >= 0 && o.t < 2.2) bubble(g.b.x, g.Y(1.2), PROPS.fish.say, (2.2 - o.t) / 0.4);
+  }
+  // the Sea-Doo, side on: its wake spreading behind on the water, a white and yellow hull, spray off the stern at
+  // speed, a rider in an orange life jacket (in the lake beside it once knocked off, head hung once back on)
+  function drawSeadoo(o) {
+    const r = o.run || {}, t = performance.now() / 1000;
+    if (!o.thumb && !o.run) return;
+    for (const w of o.trail || []) {
+      const a = 1 - w.t / 2.4, sp = 0.3 + w.t * (w.big ? 1.6 : 0.6);
+      ctx.fillStyle = `rgba(240,248,255,${(0.5 * a).toFixed(2)})`;
+      for (const s of [-1, 1]) { const q = P(w.x, 0, w.z + s * sp); if (q.behind) continue; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.4 * q.s, 0.07 * q.s, 0, 0, 7); ctx.fill(); }
+      const q = P(w.x, 0, w.z);
+      if (w.t < 0.9 && !q.behind) { ctx.fillStyle = `rgba(255,255,255,${(0.6 * (1 - w.t / 0.9)).toFixed(2)})`; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.5 * q.s * (1 + w.t), 0.1 * q.s, 0, 0, 7); ctx.fill(); }
+    }
+    const fast = r.v > 6, bob = o.thumb ? 0 : Math.sin(t * (fast ? 14 : 3)) * (fast ? 0.04 : 0.02), k = "#1d2226", L = o.look || NEIGHBOUR_LOOKS[0];
+    // seen from up high (the arc views, and Re-live it's passes from them), it's drawn from above, on the water
+    if (!o.thumb && (S.arcView != null || (S.replay && S.replay.pass > 0))) { drawSeadooAbove(o, r, L, t); return; }
+    // side on, its bow the way it's going across the screen (not the world: from the side views that's reversed)
+    // (o.face is its heading, +1 or −1 along x: set by the run, or by Re-live it's recording)
+    const dir = o.face || 1, face = o.thumb ? o.face || 1 : P(o.x + dir, 0, o.z).x >= P(o.x, 0, o.z).x ? 1 : -1;
+    const g = billboard({ x: o.x, z: o.z, y0: bob, face }), { ell, line, poly } = g;
+    if (g.b.behind) return;
+    if (fast) for (let i = 0; i < 8; i++) ell(-1.45 - i * 0.2, 0.15 + i * 0.05 + Math.sin(i * 2.1 + t * 25) * 0.08, 0.13, 0.08, "rgba(240,248,255,.8)");
+    poly([[-1.4, 0.05], [1.15, 0.05], [1.6, 0.42], [1.0, 0.55], [-1.4, 0.52]], "#f2f2ee", k);
+    poly([[-1.4, 0.05], [1.15, 0.05], [1.42, 0.28], [-1.4, 0.26]], "#f2c230", k);
+    poly([[-1.2, 0.52], [0.3, 0.52], [0.25, 0.68], [-1.1, 0.66]], "#2a2e33");
+    poly([[0.3, 0.52], [1.0, 0.55], [0.72, 0.85], [0.42, 0.8]], "#f2f2ee", k);
+    line(0.58, 0.82, 0.55, 1.0, 0.05, k); line(0.45, 1.02, 0.7, 1.0, 0.06, k);
+    ell(0, 0.03, 1.6, 0.07, "rgba(220,240,255,.55)");
+    const out = r.out && !r.shame ? r.out : null;
+    if (!out) {
+      // on board: leaning in at speed, slumped once it's back on in shame
+      const lean = r.shame ? -0.08 : 0.12, hy = r.shame ? 1.38 : 1.52;
+      line(-0.45, 0.66, 0.05, 0.72, 0.13, "#2b3a55"); line(0.05, 0.72, 0.12, 0.4, 0.1, "#2b3a55");
+      poly([[-0.6, 0.68], [-0.18, 0.68], [-0.08 + lean, 1.32], [-0.48 + lean, 1.32]], "#ff6a1a", k);
+      line(-0.2 + lean, 1.22, r.shame ? 0.4 : 0.5, r.shame ? 0.98 : 1.02, 0.07, L.skin);
+      ell(-0.26 + lean * 1.4, hy, 0.13, 0.14, L.skin, k);
+      ell(-0.17 + lean * 1.4, hy + 0.02, 0.06, 0.025, r.shame ? L.skin : "#111");
+    } else {
+      // in the lake off the stern: a splash, a head and flailing arms, then hauling up over the back
+      const climb = out.t > 3.2 ? Math.min(1, (out.t - 3.2) / 1.3) : 0;
+      const w = billboard({ x: o.x - dir * (2.0 - climb * 1.2), z: o.z - 0.4, y0: -0.25 + climb * 0.7, face }), f = Math.sin(t * 9) * 0.15;
+      if (out.t < 0.5) { const s = out.t / 0.5; for (let i = 0; i < 7; i++) w.ell(Math.cos(i) * 0.6 * s, 0.25 + Math.sin(i * 1.7) * 0.35 * s, 0.07, 0.07, "rgba(220,240,255,.85)"); }
+      w.line(-0.15, 0.35, -0.42, 0.55 + f, 0.06, L.skin); w.line(0.15, 0.35, 0.42, 0.55 - f, 0.06, L.skin);
+      w.poly([[-0.2, 0.15], [0.2, 0.15], [0.18, 0.4], [-0.18, 0.4]], "#ff6a1a");
+      w.ell(0, 0.5, 0.12, 0.13, L.skin, k);
+      w.ell(0, 0.18, 0.34, 0.08, "rgba(220,240,255,.5)");
+    }
+    if (o.t >= 0 && o.t < 2.2) bubble(g.b.x, g.Y(2.1), o.say || PROPS.seadoo.say, (2.2 - o.t) / 0.4);
+  }
+  // the Sea-Doo from above: every point is placed on the lake in metres (along its heading, across it, height) and
+  // projected, so it lies right from any angle: a pointed white hull with a yellow rim, the seat, the console and
+  // bars, the rider's orange life jacket, arms and head (or the rider in the water off the stern)
+  function drawSeadooAbove(o, r, L, t) {
+    const dir = o.face || 1, at = (a, b, y) => P(o.x + a * dir, y, o.z + b), c0 = at(0, 0, 0);
+    if (c0.behind) return;
+    const shape = (pts, y, fill, stroke) => {
+      ctx.beginPath(); pts.forEach(([a, b], i) => { const q = at(a, b, y); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, 0.03 * c0.s); ctx.stroke(); }
+    };
+    const blob = (a, b, y, rad, fill) => { const q = at(a, b, y); ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.8, rad * q.s), 0, 7); ctx.fillStyle = fill; ctx.fill(); };
+    const k = "#1d2226", hull = [[-1.4, -0.55], [0.5, -0.62], [1.2, -0.38], [1.65, 0], [1.2, 0.38], [0.5, 0.62], [-1.4, 0.55]];
+    if (r.v > 6) for (let i = 0; i < 8; i++) blob(-1.5 - i * 0.22, Math.sin(i * 2.1 + t * 25) * 0.25, 0.1, 0.16, "rgba(240,248,255,.8)");
+    shape(hull.map(([a, b]) => [a * 1.04, b * 1.12]), 0.15, "#f2c230", k);
+    shape(hull, 0.45, "#f2f2ee", k);
+    shape([[-1.15, -0.22], [0.2, -0.24], [0.25, 0], [0.2, 0.24], [-1.15, 0.22], [-1.25, 0]], 0.6, "#2a2e33");
+    shape([[0.3, -0.36], [0.9, -0.3], [1.05, 0], [0.9, 0.3], [0.3, 0.36]], 0.7, "#f2f2ee", k);
+    shape([[0.75, -0.22], [0.98, -0.12], [0.98, 0.12], [0.75, 0.22]], 0.75, "#5a7a90");
+    const bar = [at(0.55, -0.42, 1.0), at(0.55, 0.42, 1.0)];
+    ctx.strokeStyle = k; ctx.lineWidth = Math.max(1, 0.06 * c0.s); ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(bar[0].x, bar[0].y); ctx.lineTo(bar[1].x, bar[1].y); ctx.stroke();
+    const out = r.out && !r.shame ? r.out : null;
+    if (!out) {
+      // on board: arms out to the bars, the life jacket, the head (hung, back on in shame)
+      const lean = r.shame ? -0.1 : 0.1;
+      ctx.strokeStyle = L.skin; ctx.lineWidth = Math.max(1, 0.08 * c0.s);
+      for (const s of [-1, 1]) { const a = at(-0.2 + lean, s * 0.26, 1.2), b = at(0.55, s * 0.36, 1.0); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      shape([[-0.62 + lean, -0.3], [-0.08 + lean, -0.28], [-0.05 + lean, 0.28], [-0.62 + lean, 0.3]], 1.2, "#ff6a1a", k);
+      blob(-0.3 + lean * 1.5, 0, r.shame ? 1.35 : 1.5, 0.15, L.skin);
+      blob(-0.34 + lean * 1.5, 0, r.shame ? 1.4 : 1.55, 0.12, "#4a3424");
+    } else {
+      // in the lake off the stern: a ring of splash, the life jacket and head bobbing, arms splashing, then up the back
+      const climb = out.t > 3.2 ? Math.min(1, (out.t - 3.2) / 1.3) : 0, a0 = -2.0 + climb * 1.2, y = climb * 0.6, f = Math.sin(t * 9) * 0.2;
+      if (out.t < 0.5) for (let i = 0; i < 8; i++) blob(a0 + Math.cos(i * 0.8) * 0.7 * (out.t / 0.5 + 0.3), Math.sin(i * 0.8) * 0.7 * (out.t / 0.5 + 0.3), 0.1, 0.12, "rgba(220,240,255,.85)");
+      blob(a0, 0, y, 0.42, "rgba(220,240,255,.5)");
+      ctx.strokeStyle = L.skin; ctx.lineWidth = Math.max(1, 0.07 * c0.s);
+      for (const s of [-1, 1]) { const p0 = at(a0, s * 0.2, y + 0.2), p1 = at(a0 + 0.25, s * (0.5 + f * s), y + 0.25); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); }
+      blob(a0, 0, y + 0.15, 0.26, "#ff6a1a"); blob(a0, 0, y + 0.35, 0.14, L.skin); blob(a0 - 0.03, 0, y + 0.4, 0.11, "#4a3424");
+    }
+    if (o.t >= 0 && o.t < 2.2) { const q = at(0, 0, 2.1); bubble(q.x, q.y, o.say || PROPS.seadoo.say, (2.2 - o.t) / 0.4); }
+  }
+  // the boathouse, for the start card's picture
+  function drawBoathouseThumb(o) { drawHouse(o.house || (o.house = makeCabin(o.x, o.z, { w: 6.4, d: 4.6, hw: 2.8, hr: 4.5, look: BOATHOUSE_LOOK, boathouse: true, noDoor: true, windows: [{ face: "R", u: 0, y0: 2.95, y1: 3.65, hu: 0.32 }], turn: -0.35 }))); }
+  Object.assign(PROP_DRAW, { fisher: drawFisher, loons: drawLoonsNest, loon: drawLoon, fish: drawFish, boathouse: drawBoathouseThumb, seadoo: drawSeadoo });
+  function buildLake() {
+    // the islands: the big one to the left (its boathouse at the front right corner, the flag toward its left end),
+    // the smaller one farther off to the right (a little boathouse, then the cottage)
+    const [lx, lz] = atBearing(-18.5, 92), [rx, rz] = atBearing(21, 116);
+    const isles = [makeIsle(lx, lz, 25, 12.5, 6), makeIsle(rx, rz, 20, 10, 5)];
+    const groundY = (x, z) => Math.max(isles[0].y(x, z), isles[1].y(x, z));
+    const [bh1x, bh1z] = atBearing(-8.3, 80.5), [bh2x, bh2z] = atBearing(14.1, 105.5), [cotx, cotz] = atBearing(22.3, 108);
+    // the left one broadside on, its gable end (with a little window) to the right; the right one end on, its gable
+    // and big plank door toward you. About the same size, sitting level on the water on a low timber deck
+    const boathouses = [
+      makeCabin(bh1x, bh1z, { w: 6.4, d: 4.6, hw: 2.8, hr: 4.5, look: BOATHOUSE_LOOK, boathouse: true, noDoor: true, y0: 0.25, deck: true,
+        windows: [{ face: "R", u: 0, y0: 2.95, y1: 3.65, hu: 0.32 }] }),
+      makeCabin(bh2x, bh2z, { w: 6.0, d: 4.8, hw: 2.8, hr: 4.5, look: BOATHOUSE_LOOK, boathouse: true, noDoor: true, y0: 0.25, deck: true, turn: Math.PI / 2,
+        boatDoor: 2.3, boatFace: "L", boatDoorColor: "#5d4430", windows: [{ face: "L", u: 1.85, y0: 1.2, y1: 1.9, hu: 0.3 }] }),
+    ];
+    // the cottage, bigger, a little way up its island on stone piers: a window to the left, a big one and the door
+    // to the right
+    const cottage = makeCabin(cotx, cotz, { w: 11, d: 8, hw: 3.0, hr: 5.8, look: CABIN_LOOK, chimney: true, doorX: 4.3, door: "#4a3426", turn: -0.1, piers: true,
+      y0: groundY(cotx, cotz) + 0.45,
+      windows: [{ face: "front", u: -3.1, y0: 1.0, y1: 2.1, hu: 0.7 }, { face: "front", u: 1.7, y0: 0.8, y1: 2.3, hu: 1.05 }, { face: "L", u: 0, y0: 1.0, y1: 2.1, hu: 0.6 }, { face: "R", u: 0, y0: 1.0, y1: 2.1, hu: 0.6 }] });
+    const buildings = [...boathouses, cottage];
+    boathouses[0].name = "island boathouse"; boathouses[1].name = "little boathouse";
+    // the turquoise boathouse far off along the left shore (scenery)
+    const farShoreZ = (x) => Math.max(205, 300 - Math.max(0, -60 - x) * 0.55);
+    const [tx] = atBearing(-24, 260), turq = makeCabin(tx, farShoreZ(tx) - 2, { w: 6, d: 6, hw: 3, hr: 4.6, look: { wall: "#3fbab5", trim: "#f2f2ee", roof: "#2f8790", shut: null }, boatDoor: 3 });
+    const farShore = [[-900, 0, 900], ...Array.from({ length: 61 }, (_, i) => { const x = -600 + i * 20; return [x, 0, farShoreZ(x)]; }), [900, 0, 900]];
+    // the near shore behind the dock, and the rocky point curving out on the right
+    const nearShore = [[-400, 0, -400], [400, 0, -400], [400, 0, -11], [-400, 0, -11]];
+    // (a point: its waterline runs out behind the corner map's left edge, as seen from the dock, to its tip at the
+    // big rock, then turns straight back; beyond it is open lake. From the dock it's water up to the rocky edge and
+    // the bank's green stays out of sight)
+    const rightShore = [[7.5, 0, -400], [7.5, 0, -9], [6.6, 0, -2], [7.6, 0, 1], [9.6, 0, 4.5], [11.8, 0, 8.5], [14.0, 0, 12], [16.2, 0, 14.2],
+      [18.4, 0, 13.6], [24, 0, 11], [40, 0, 8], [80, 0, 6], [400, 0, 5], [400, 0, -400]];
+    // (the waterline pushed back a metre into the bank, square to the shore, for a narrower rocky edge and more lake)
+    const pushed = rightShore.map((p, i) => {
+      if (i < 2 || i > 11) return p;
+      const [ax, , az] = rightShore[i - 1], [bx, , bz] = rightShore[i + 1], l = Math.hypot(bx - ax, bz - az);
+      return [p[0] + (bz - az) / l, 0, p[2] - (bx - ax) / l];
+    });
+    rightShore.splice(0, rightShore.length, ...pushed);
+    // the shore's edge is a band of piled stones at the waterline (in summer the water comes right up to them, so no
+    // beach), the pine-needle bank rising behind; of the boulders at the point, only one big one stands above the
+    // summer water
+    const boulders = [{ x: 16.6, z: 15.0, r: 1.9, h: 1.0, c: "#8a837b" }];
+    // (all along the shore: behind the dock, round the corner, and out along the point)
+    const edge = [[-200, 0, -11], [7.5, 0, -11], ...rightShore.slice(1, 12)], stones = [];
+    for (let i = 1; i < edge.length; i++) {
+      const [x0, , z0] = edge[i - 1], [x1, , z1] = edge[i], len = Math.hypot(x1 - x0, z1 - z0);
+      // (a narrow band, piled two deep on the land side of the waterline, about a metre wide, green behind)
+      for (let d = 0; d < len; d += rnd(0.35, 0.55)) for (let row = 0; row < 2; row++) {
+        const f = (d + rnd(-0.15, 0.15)) / len, nx = (z1 - z0) / len, nz = -(x1 - x0) / len, back = row * 0.5 + rnd(0.05, 0.3);
+        stones.push({ x: x0 + (x1 - x0) * f + nx * back, z: z0 + (z1 - z0) * f + nz * back, r: rnd(0.3, 0.6), h: rnd(0.22, 0.5), c: pick(["#8f8880", "#9c948c", "#a29a90", "#857e77", "#b1a99e"]) });
+      }
+    }
+    // trees: tall white pines crowding each island (clear of the buildings), a few spruce at the edges; cedars and
+    // hemlocks along the right shore; mixed summer woods along the far shore, two deep
+    const trees = [];
+    // (a tree mustn't stand in a building, nor between it and the launcher)
+    const bearing = (x, z) => Math.atan2(x, z - CAM.z0), dist = (x, z) => Math.hypot(x, z - CAM.z0);
+    const clearOf = (x, z, m) => !buildings.some((b) => houseNear(b, x, z, m)
+      || (dist(x, z) < dist(b.x, b.z) + 2 && Math.abs(bearing(x, z) - bearing(b.x, b.z)) < (Math.max(b.w, b.d) / 2 + 1.5) / dist(b.x, b.z)));
+    // the islands are crowded with tall white pines, mostly; a few smaller trees round the shore
+    const plant = (isle, n, spacing, f0, f1, make) => {
+      for (let i = 0, tries = 0; i < n && tries < n * 40; tries++) {
+        const a = rnd(0, Math.PI * 2), f = rnd(f0, f1), x = isle.cx + Math.cos(a) * isle.rx * f, z = isle.cz + Math.sin(a) * isle.rz * f;
+        if (!inPoly(isle.poly, x, z) || !clearOf(x, z, 2.5) || isle.trees.some((t) => Math.hypot(t.x - x, t.z - z) < spacing)) continue;
+        const t = { ...make(), x, z, y0: isle.y(x, z), shade: rnd(-0.08, 0.06), draw: drawTree };
+        isle.trees.push(t); trees.push(t); i++;
+      }
+    };
+    const whitePine = () => ({ kind: "wpine", h: rnd(17, 24), w: rnd(7.5, 10.5) });
+    // (no birches on these islands: the smaller trees round their shores are spruce)
+    const smallTree = () => ({ kind: "spruce", h: rnd(6, 10), w: rnd(3.5, 5) });
+    plant(isles[0], 62, 2.2, 0, 0.82, whitePine); plant(isles[0], 16, 2.6, 0.78, 0.96, smallTree);
+    plant(isles[1], 44, 2.2, 0, 0.82, whitePine); plant(isles[1], 12, 2.6, 0.78, 0.96, smallTree);
+    const shoreTrees = [[13, 0], [16, 5], [19, 9], [26, 6], [36, 3], [50, 1]].map(([x, z]) => ({ kind: "spruce", x: x + rnd(0, 3), z: z - rnd(2, 4), h: rnd(14, 20), w: rnd(5, 7), shade: rnd(-0.12, -0.02), draw: drawTree }));
+    trees.push(...shoreTrees);
+    const far = [], kinds = ["pine", "spruce", "maple", "birch", "oak", "poplar"];
+    for (let row = 0; row < 2; row++) for (let x = -520; x <= 520; x += rnd(6, 11)) {
+      const kind = pick(kinds), K = TREE_KINDS[kind];
+      far.push({ kind, x, z: farShoreZ(x) + 4 + row * 14 + rnd(0, 10), h: rnd(...K.h) * rnd(0.8, 1.0), w: rnd(...K.w), shade: rnd(-0.1, 0.05) });
+    }
+    far.sort((a, b) => b.z - a.z);
+    const flag = { x: lx - 11, z: lz - 6, h: 12, draw: drawFlagPole };
+    flag.y0 = isles[0].y(flag.x, flag.z);
+    // tied alongside the dock, bow toward the shore, the outboard out at the lake end
+    const boat = { x: 3.05, z: 0.1, yaw: Math.PI };
+    // the water's faint ripples: short light strokes that come and go, drifting a little
+    const ripples = Array.from({ length: 150 }, () => { const z = 3 + Math.pow(Math.random(), 1.6) * 230; return { x: rnd(-1, 1) * (z * 0.65 + 8), z, len: rnd(0.8, 2.4), ph: rnd(0, 6.3) }; });
+    const land = (x, z, pad = 0) => inPoly(farShore, x, z - pad) || z < -11 + pad || inPoly(rightShore, x - pad, z - pad)
+      || isles.some((s) => inPoly(s.outline(pad + 2), x, z));
+    const onDock = (x, z) => (x >= -2.2 && x <= 2.2 && z >= -14 && z <= 2.7) || (x >= -8.7 && x <= -2.2 && z >= -3.7 && z <= 2.7);
+    const fillPath = (pts, color) => { if (pathClip(pts)) { ctx.fillStyle = color; ctx.fill(); } };
+    // a reflection: the thing drawn upside down from its foot, squashed a little, faint on the water
+    const reflect = (t, alpha) => {
+      const b = P(t.x, 0, t.z); if (b.behind || b.y < HZ - 2) return;
+      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(0, b.y * 1.5); ctx.scale(1, -0.5); drawTree(t); ctx.restore();
+    };
+    // the dock: weathered grey boards across it, a dark edge standing proud of the water
+    const deck = (x0, x1, z0, z1) => {
+      fillPath([[x0, -0.35, z1], [x1, -0.35, z1], [x1, 0, z1], [x0, 0, z1]], "#6c665c");
+      fillPath([[x0, -0.35, z0], [x0, -0.35, z1], [x0, 0, z1], [x0, 0, z0]], "#77715f");
+      fillPath([[x1, -0.35, z1], [x1, -0.35, z0], [x1, 0, z0], [x1, 0, z1]], "#77715f");
+      fillPath([[x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1]], "#9d978a");
+      ctx.strokeStyle = "rgba(60,56,48,.35)"; ctx.lineWidth = 1;
+      for (let z = z0 + 0.3; z < z1; z += 0.3) if (pathClip([[x0, 0.005, z], [x1, 0.005, z]], false)) ctx.stroke();
+    };
+    const dockBits = () => {
+      deck(-8.7, -2.2, -3.7, 2.7); deck(-2.2, 2.2, -14, 2.7);
+      // the bench at the front corner, and the swim ladder's two rails curving up over the edge
+      const bench = solid({ x: -7.2, z: 1.9, yaw: 0 });
+      for (const lx of [-0.55, 0.55]) box3(bench, [lx - 0.06, 0, -0.35], [lx + 0.06, 0.42, 0.35], "#8f887a");
+      box3(bench, [-0.75, 0.42, -0.42], [0.75, 0.52, 0.42], "#a39c8d");
+      const lad = solid({ x: -4.2, z: 2.7, yaw: 0 });
+      for (const sx of [-0.28, 0.28]) {
+        const pts = [[sx, -1.2, 0.18], [sx, 0.4, 0.18], [sx, 0.85, 0.05], [sx, 0.75, -0.3], [sx, 0.02, -0.45]].map(lad.Wp);
+        if (pathClip(pts, false)) { ctx.strokeStyle = "#cfd5d8"; ctx.lineWidth = Math.max(1.2, 0.05 * lad.u); ctx.lineJoin = "round"; ctx.stroke(); }
+      }
+      for (const y of [-0.2, -0.7]) lad.line([-0.28, y, 0.18], [0.28, y, 0.18], "#b9c0c4", 0.04 * lad.u);
+    };
+    const drawBoulder = (r) => {
+      const q = P(r.x, 0, r.z), top = P(r.x, r.h, r.z); if (q.behind) return;
+      // (seen from up high, as from the arc views, its top can drop below its foot on screen: keep it a mound)
+      const w = r.r * q.s, hh = Math.max(q.y - top.y, w * 0.5);
+      ctx.fillStyle = haze(r.c, r.x, r.z); ctx.beginPath(); ctx.ellipse(q.x, q.y - hh * 0.45, w, hh * 0.6, 0, Math.PI, 0); ctx.lineTo(q.x + w, q.y); ctx.lineTo(q.x - w, q.y); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.ellipse(q.x - w * 0.25, q.y - hh * 0.7, w * 0.45, hh * 0.22, -0.2, 0, 7); ctx.fill();
+    };
+    // the branches hanging over the top of the view, seen only from the dock (they fade as the camera moves off)
+    // (as in the photo: limbs hanging from the top edge across the middle and right, fine twigs drooping from them;
+    // in summer they're in leaf, so a ragged canopy of leaves runs along the top. Measured as fractions of the
+    // field's width across and of mm (see overhang) down)
+    const LEAF_GREENS = ["#3f7a35", "#4b8a3c", "#356d2f", "#5a9a46", "#2f6229", "#46813a"];
+    const limbs = [], leaves = [], canopy = [];
+    for (const x0 of [0.44, 0.55, 0.66, 0.77, 0.9]) {
+      const pts = [[x0 + rnd(-0.02, 0.02), -0.03]];
+      for (let i = 0, lean = rnd(-0.03, 0.03); i < 7; i++) { const [x, y] = pts[pts.length - 1]; pts.push([x + lean + rnd(-0.02, 0.02), y + rnd(0.03, 0.05)]); }
+      limbs.push({ pts, w: 0.009 });
+      // twigs drooping off it, and leaves all along both
+      for (let i = 1; i < pts.length; i++) for (let k = 0; k < (i < 3 ? 1 : 2); k++) {
+        const [x, y] = pts[i], tw = [[x, y]];
+        for (let j = 0, dx = rnd(-0.025, 0.025); j < 3; j++) { const [a, b] = tw[tw.length - 1]; tw.push([a + dx + rnd(-0.008, 0.008), b + rnd(0.018, 0.03)]); }
+        limbs.push({ pts: tw, w: 0.003 });
+      }
+    }
+    for (const l of limbs) for (let i = 1; i < l.pts.length; i++) {
+      const [x0, y0] = l.pts[i - 1], [x1, y1] = l.pts[i], a = Math.atan2(y1 - y0, x1 - x0);
+      for (let k = 0; k < 4; k++) { const t = Math.random(), side = Math.random() < 0.5 ? -1 : 1; leaves.push({ x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, r: rnd(0.011, 0.02), a: a + side * rnd(0.5, 1.1), off: side * rnd(0.005, 0.014), c: pick(LEAF_GREENS) }); }
+    }
+    for (let i = 0; i < 70; i++) canopy.push({ x: rnd(0.36, 1.03), y: rnd(-0.02, 0.07) * (1 - Math.max(0, 0.42 - rnd(0.36, 1.03))), r: rnd(0.022, 0.042), a: rnd(-0.5, 0.5), c: pick(LEAF_GREENS) });
+    canopy.sort((a, b) => a.y - b.y);
+    const overhang = () => {
+      const away = Math.abs(CAM.yaw) * 3 + Math.abs(CAM.pitch - CAM.base) * 4 + Math.abs(CAM.zoom - 1) * 1.5 + Math.abs(CAM.y - CAM.y0) * 0.25 + Math.abs(CY - CYhome) / H * 3;
+      const a = Math.max(0, 1 - away);
+      if (a <= 0.01) return;
+      const mm = Math.min(W * 0.6, H), t = performance.now() / 1000, sway = Math.sin(t * 0.7) * 0.012;
+      ctx.save(); ctx.globalAlpha = a;
+      // the leafy limbs hanging from the top across the middle and right (they swing a little, more at their tips)
+      const X = (x, y) => (x + sway * y) * W, Y = (y) => y * mm;
+      ctx.strokeStyle = "#4a3a2a"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (const l of limbs) {
+        ctx.lineWidth = Math.max(1, l.w * mm); ctx.beginPath();
+        l.pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x, y), Y(y)) : ctx.moveTo(X(x, y), Y(y)))); ctx.stroke();
+      }
+      for (const f of leaves) {
+        const x = X(f.x, f.y) + Math.cos(f.a) * f.off * mm, y = Y(f.y) + Math.sin(f.a) * f.off * mm;
+        ctx.fillStyle = f.c; ctx.beginPath(); ctx.ellipse(x, y, f.r * mm, f.r * mm * 0.42, f.a, 0, 7); ctx.fill();
+      }
+      // a ragged canopy of leaves along the top, so not much sky shows above them
+      for (const f of canopy) {
+        const x = X(f.x, f.y), y = Y(f.y);
+        ctx.fillStyle = f.c; ctx.beginPath(); ctx.ellipse(x, y, f.r * mm, f.r * mm * 0.62, f.a, 0, 7); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.beginPath(); ctx.ellipse(x - f.r * mm * 0.3, y - f.r * mm * 0.2, f.r * mm * 0.45, f.r * mm * 0.22, f.a, 0, 7); ctx.fill();
+      }
+      ctx.restore();
+    };
+    return {
+      // floats: rings are circles of floats on the water, spinners stand on rafts (houses: so windows reset and replay)
+      ...FLAT, skyline: "#3d6b3a", view: 0.74, floats: true, waterName: "lake", isles, buildings, houses: buildings, boathouses, cottage, trees, groundY,
+      wheels: { range: LAKE.dock, stop: "That's the edge of the dock" },
+      water: (x, z) => !land(x, z) && !onDock(x, z),
+      // (each island draws its own mound and pines, so it's one thing in the far-to-near order)
+      standing: [...isles.map((s) => ({ x: s.cx, z: s.cz, draw: () => drawIsle(s) })), ...shoreTrees, ...buildings.map((h) => ({ x: h.x, z: h.z, draw: () => drawHouse(h) })), flag],
+      back() {
+        // the lake: deep blue near, paler toward the far shore
+        const g = ctx.createLinearGradient(0, HZ, 0, H);
+        g.addColorStop(0, LAKE.water[0]); g.addColorStop(0.18, LAKE.water[1]); g.addColorStop(1, LAKE.water[2]);
+        ctx.fillStyle = g; ctx.fillRect(0, HZ, W, H - HZ);
+        // reflections of the far woods and the island pines
+        for (const t of far) reflect(t, 0.09);
+        for (const t of trees) if (t.z > 60) reflect(t, 0.13);
+        // ripples
+        const now = performance.now() / 1000;
+        for (const r of ripples) {
+          const q = P(r.x + Math.sin(now * 0.25 + r.ph) * 0.6, 0, r.z);
+          if (q.behind || q.x < -20 || q.x > W + 20 || q.y < HZ || q.y > H) continue;
+          const a = 0.1 + 0.16 * (0.5 + 0.5 * Math.sin(now * 0.7 + r.ph)), w = Math.max(3, r.len * q.s);
+          ctx.strokeStyle = `rgba(235,245,255,${a})`; ctx.lineWidth = Math.max(1, 0.05 * q.s);
+          ctx.beginPath(); ctx.moveTo(q.x - w / 2, q.y); ctx.lineTo(q.x + w / 2, q.y); ctx.stroke();
+        }
+        // the far shore and its woods, the turquoise boathouse
+        fillPath(farShore, haze("#4f7a3c", 0, 280));
+        for (const t of far) drawTree(t);
+        drawHouse(turq);
+        // the islands: a granite rim, then the forest floor
+        for (const s of isles) { fillPath(s.outline(1.6), haze(LAKE.rock, s.cx, s.cz)); fillPath(s.outline(0), haze(LAKE.land, s.cx, s.cz)); }
+        // the near shore and the rocky point to the right, its boulders, the dock and the boat
+        // (the bank: green behind its rocky edge)
+        fillPath(rightShore, "#6f8a48");
+        fillPath(nearShore, "#6f8a48");
+        const d = (r) => Math.hypot(r.x - CAM.x, r.z - CAM.z);
+        for (const r of [...stones, ...boulders].sort((a, b) => d(b) - d(a))) drawBoulder(r);
+        dockBits();
+        drawTinBoat(boat);
+      },
+      front() { overhang(); },
+      update() {}, reset() { for (const h of buildings) for (const wn of h.windows) wn.broken = null; },
+      // targets go on open water, clear of the land, the dock and the boat
+      free(x, z, r, form) {
+        for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, px = x + Math.cos(a) * (r + 0.8), pz = z + Math.sin(a) * (r + 0.8); if (land(px, pz) || onDock(px, pz)) return false; }
+        return !land(x, z, 2) && Math.hypot(x - boat.x, z - boat.z) > r + 3;
+      },
+      collide(p, q) {
+        for (const h of buildings) { const r = houseHit(h, p, q); if (r) return r; }
+        // the pines' trunks (the needles above let a spud through)
+        for (const t of trees) {
+          const y = p.y - (t.y0 || 0);
+          if (y < 0 || y > t.h * 0.75 || Math.hypot(p.x - t.x, p.z - t.z) > t.w * 0.05 + 0.1) continue;
+          const bx = q.x - t.x, bz = q.z - t.z, bl = Math.hypot(bx, bz) || 1;
+          return { kind: "trunk", at: [p.x, p.y, p.z], land: [t.x + bx / bl * 0.8, 0, t.z + bz / bl * 0.8] };
+        }
+        return null;
+      },
+      // the swimming loon starts beside the nesting platform (it circles it)
+      spots(kind) {
+        // (the Sea-Doo waits out of sight, off to the side, between its passes)
+        if (kind === "seadoo") return [{ x: -250, z: 45 }];
+        const nest = kind === "loon" && S.props.find((o) => o.kind === "loons");
+        return nest ? [{ x: nest.x + 4, z: nest.z, home: nest, a: 0 }] : null;
+      },
+      // the 25 can go up on the cottage's front roof slope, or the island boathouse's (a smaller ring, to fit)
+      roofTargets: (type) => [roofRingAt(cottage, type, rnd(-1, 1) * 2.6, cottage.d / 4, 1.9), roofRingAt(boathouses[0], type, rnd(-1, 1) * 1.3, boathouses[0].d / 4, 1.35)],
+      map(MX, MY, sc) {
+        ctx.fillStyle = "#a9d0ea"; ctx.fillRect(-1e4, -1e4, 2e4, 2e4);
+        const path = (pts) => { ctx.beginPath(); pts.forEach(([x, , z], i) => (i ? ctx.lineTo(MX(x), MY(z)) : ctx.moveTo(MX(x), MY(z)))); ctx.closePath(); };
+        ctx.fillStyle = "#8fbf6a";
+        for (const poly of [farShore, rightShore, nearShore, ...isles.map((s) => s.outline(1))]) { path(poly); ctx.fill(); }
+        ctx.fillStyle = "#b3342b";
+        for (const h of buildings) { const sd = solid(h); path([[-h.w / 2, 0, -h.d / 2], [h.w / 2, 0, -h.d / 2], [h.w / 2, 0, h.d / 2], [-h.w / 2, 0, h.d / 2]].map(sd.Wp)); ctx.fill(); }
+        ctx.fillStyle = "#9d978a"; path([[-2.2, 0, -14], [2.2, 0, -14], [2.2, 0, 2.7], [-2.2, 0, 2.7]]); ctx.fill(); path([[-8.7, 0, -3.7], [-2.2, 0, -3.7], [-2.2, 0, 2.7], [-8.7, 0, 2.7]]); ctx.fill();
+      },
+    };
+  }
+
   // ---- splat targets: archery-style boards in shades of one colour, the points big across the middle. One hangs
   // on a big lone oak, one leans on a round bale, or one hangs on the barn's broad side. Hit, the spud mashes onto
   // the face ----
@@ -3974,6 +4720,7 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.closePath();
   }
   function drawRing(r) {
+    if (S.scene.floats) { drawFloatRing(r); return; }
     // (following the ground up a hill)
     const R = RINGS[r.type], gy = (x, z) => S.scene.groundY(x, z) + 0.03, c = P(r.x, gy(r.x, r.z), r.z), n = r.hill ? 72 : 40;
     groundCircle(r.x, r.z, r.r, n, gy);
@@ -3983,9 +4730,27 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.lineWidth = Math.max(0.8, 0.095 * c.s); ctx.strokeStyle = r.hit ? "#cfd6da" : R.edge; ctx.stroke();
     if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2), n, gy); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
   }
+  // on water a ring is a circle of floats, alternately its colour and white, bobbing a little, round a faint tint
+  function drawFloatRing(r) {
+    const R = RINGS[r.type], t = performance.now() / 1000, n = Math.max(12, Math.round((2 * Math.PI * r.r) / 1.25));
+    groundCircle(r.x, r.z, r.r, 40, () => 0.02);
+    ctx.fillStyle = r.hit ? "rgba(255,255,255,.22)" : hexA(R.color, 0.16); ctx.fill();
+    if (r.flash) { groundCircle(r.x, r.z, r.r * (1 + (1 - r.flash) * 1.2), 40, () => 0.03); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${r.flash})`; ctx.stroke(); }
+    // the far floats first, so the near ones sit in front
+    const fl = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return { i, x: r.x + Math.cos(a) * r.r, z: r.z + Math.sin(a) * r.r }; }).sort((a, b) => b.z - a.z);
+    for (const f of fl) {
+      const q = P(f.x, 0.04 + Math.sin(t * 1.4 + f.i) * 0.025, f.z); if (q.behind) continue;
+      const s = Math.max(1.3, 0.2 * q.s);
+      ctx.fillStyle = r.hit ? (f.i % 2 ? "#e9edef" : "#ffffff") : f.i % 2 ? R.color : "#ffffff";
+      ctx.strokeStyle = r.hit ? "#b9c2c6" : R.edge; ctx.lineWidth = Math.max(0.6, 0.03 * q.s);
+      ctx.beginPath(); ctx.ellipse(q.x, q.y - s * 0.35, s, s * 0.6, 0, 0, 7); ctx.fill(); ctx.stroke();
+    }
+  }
   function drawFlag(r, at = [r.x, 0, r.z + r.r]) {
     // the flag stands at the back edge of its ring, so it never hides the middle (on a roof: at its top edge)
     const R = RINGS[r.type], base = P(...at), top = P(at[0], at[1] + FLAG_H, at[2]);
+    // (on water, it stands on a little buoy)
+    if (S.scene.floats && r.form === "ring") { const s = Math.max(2, 0.32 * base.s); ctx.fillStyle = R.edge; ctx.beginPath(); ctx.ellipse(base.x, base.y - s * 0.4, s, s * 0.7, 0, 0, 7); ctx.fill(); }
     const h = Math.max(12, base.y - top.y);
     const tx = base.x, ty = base.y - h;
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, base.y); ctx.lineTo(tx, ty); ctx.stroke();
@@ -4224,7 +4989,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // pin: where the map was last tapped to aim
   const MAP = { big: false, zoom: 1, ox: 0, oz: 0, pin: null };
   // short names for the map's tags, where a thing's own name is long
-  const MAP_NAMES = { mailbox: "mailbox", trampoline: "trampoline", leaves: "leaf pile", upNeighbour: "neighbour", mower: "mower", trough: "trough", pumpkins: "pumpkins" };
+  const MAP_NAMES = { mailbox: "mailbox", trampoline: "trampoline", leaves: "leaf pile", upNeighbour: "neighbour", mower: "mower", trough: "trough", pumpkins: "pumpkins", fisher: "fishing boat", loons: "loons' nest", loon: "loon", fish: "fish", seadoo: "Sea-Doo" };
   const MAP_ZOOM_MAX = 4;
   // where the map sits and its scale; shared by drawing and by touching it to aim
   function mapGeom() {
@@ -4275,11 +5040,13 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.fillStyle = r.hit ? "rgba(255,255,255,.9)" : RINGS[r.type].color; ctx.fill();
       ctx.strokeStyle = r.hit ? "#9aa" : RINGS[r.type].edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
-    for (const o of S.props || []) { ctx.fillStyle = "#8a6a48"; ctx.fillRect(MX(o.x) - 2, MY(o.z) - 2, 4, 4); }
+    // (not what's out of sight: the fish under water, the Sea-Doo between its runs)
+    const seen = (S.props || []).filter((o) => o.y0 > -10);
+    for (const o of seen) { ctx.fillStyle = "#8a6a48"; ctx.fillRect(MX(o.x) - 2, MY(o.z) - 2, 4, 4); }
     // zoomed in close, the things in the field get little name tags, to find them by
     if (MAP.zoom >= 1.8) {
       ctx.font = "800 9px Nunito, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-      for (const o of S.props || []) {
+      for (const o of seen) {
         const name = MAP_NAMES[o.kind] || PROPS[o.kind].same || o.kind, x = MX(o.x) + 4, y = MY(o.z);
         ctx.fillStyle = "rgba(255,250,240,.75)"; ctx.fillRect(x - 1, y - 6, ctx.measureText(name).width + 3, 12);
         ctx.fillStyle = "#4a3a28"; ctx.fillText(name, x, y);
@@ -4435,6 +5202,13 @@ body.lab .stage > :not(canvas) { display: none; }
     const a = fr[R.i], b = fr[R.i + 1], k = Math.max(0, Math.min(1, (R.t - a.t) / ((b.t - a.t) || 1)));
     R.ghost = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, rot: a.rot + (b.rot - a.rot) * k };
     S.bird = a.b ? { ...a.b } : null;
+    // the lake's moving things, as they were at this moment of the shot (the Sea-Doo laying its wake again)
+    const ma = a.m, mb = b.m || a.m;
+    if (ma) movers().forEach((o, j) => {
+      const p = ma[j], q = mb[j]; if (!p || !q) return;
+      Object.assign(o, { x: p[0] + (q[0] - p[0]) * k, z: p[1] + (q[1] - p[1]) * k, y0: p[2] + (q[2] - p[2]) * k, yaw: p[3] == null ? o.yaw : p[3] + (q[3] - p[3]) * k, face: p[4], tilt: p[5] });
+      if (o.kind === "seadoo") seadooWake(o, dt * RELIVE_SPEED);
+    });
     if (rec.strikeT != null && !R.struck && R.t >= rec.strikeT) { R.struck = true; S.feathers = []; featherBurst(R.ghost, rec.sp); sfx.squawk(rec.sp); }
   }
   reliveBtn.addEventListener("click", (e) => { e.stopPropagation(); if (S.replay) stopRelive(); else startRelive(); });
@@ -5020,7 +5794,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // fit the thing to the picture: measure it on screen, then scale and centre it
     // the part to show, in metres: [left, bottom, right, top]
     const box = { cow: [-0.55, 0.88, 0.55, 1.78], horse: [-0.45, 1.42, 0.45, 2.42], junker: [-3.1, 0, 3.1, 1.6], leaves: [-1.7, 0, 1.7, 1.0], mailbox: [-0.75, 0, 0.75, 1.75],
-      trampoline: [-2.5, 0, 2.5, 2.8], dog: [-0.7, 0, 0.75, 0.85], neighbour: [-0.42, 0, 0.42, 1.3], mower: [-0.62, -0.02, 0.72, 1.68], pumpkins: [-1.3, 0, 1.3, 1.45],
+      trampoline: [-2.5, 0, 2.5, 2.8], dog: [-0.7, 0, 0.75, 0.85], neighbour: [-0.42, 0, 0.42, 1.3], mower: [-0.62, -0.02, 0.72, 1.68], boathouse: [-3.9, -0.1, 3.9, 4.8], fisher: [-2.2, -0.1, 2.4, 2.0], loons: [-1.3, -0.1, 1.3, 1.1], loon: [-0.5, -0.1, 0.7, 0.6], fish: [-0.5, 0.25, 0.4, 0.8], seadoo: [-1.7, -0.1, 1.7, 1.75], pumpkins: [-1.3, 0, 1.3, 1.45],
       tractor: [-2.3, 0, 2.3, 2.4], sheep: [-0.85, 0, 0.85, 1.05], farmer: [-0.5, -0.68, 0.5, 1.0] }[kind] || [-(o.r + 0.6), 0, o.r + 0.6, o.h + 0.15];
     const fit = (zz) => { const a = P(box[0], box[1], zz), b = P(box[2], box[3], zz); return { a, b, k: Math.min(w * 0.9 / (b.x - a.x), h * 0.86 / (a.y - b.y)) }; };
     // bring it close enough to the camera to fill the picture by itself, so outlines keep their normal thickness
@@ -5029,6 +5803,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (kind === "junker") o.yaw = Math.atan2(0, CAM.z0 - o.z) + 0.55;
     if (kind === "mailbox" || kind === "trampoline") o.yaw = Math.atan2(0, CAM.z0 - o.z) + 0.45;
     if (kind === "tractor") o.yaw = Math.atan2(0, CAM.z0 - o.z) + 1.0;
+    if (kind === "fisher") { o.yaw = Math.atan2(0, CAM.z0 - o.z) + 1.35; o.hull = ["#c45a46", "#b4503e"]; o.inside = "#8f4234"; o.ph = 0.3; }
     const { a, b, k } = fit(o.z);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.translate(w / 2, h / 2); ctx.scale(k, k); ctx.translate(-(a.x + b.x) / 2, -(a.y + b.y) / 2);
@@ -5047,13 +5822,33 @@ body.lab .stage > :not(canvas) { display: none; }
     c.strokeStyle = "rgba(35,48,58,.5)"; c.strokeRect(18, 6, 28, 38);
     return off.toDataURL();
   }
+  // a gull, wings up mid-flap, for the lake's −5 row (a bird strike)
+  function birdThumb() {
+    const off = document.createElement("canvas"); off.width = 128; off.height = 100;
+    const c = off.getContext("2d"); c.scale(2, 2); c.lineJoin = c.lineCap = "round";
+    c.fillStyle = "#e9ecee"; c.strokeStyle = "#4a5056"; c.lineWidth = 1.2;
+    // the wings, black-tipped
+    c.beginPath(); c.moveTo(30, 27); c.quadraticCurveTo(20, 12, 7, 10); c.quadraticCurveTo(17, 20, 24, 29); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(34, 27); c.quadraticCurveTo(44, 12, 57, 10); c.quadraticCurveTo(47, 20, 40, 29); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#3a3f44"; c.beginPath(); c.moveTo(7, 10); c.lineTo(12, 11); c.lineTo(10, 14); c.closePath(); c.fill(); c.beginPath(); c.moveTo(57, 10); c.lineTo(52, 11); c.lineTo(54, 14); c.closePath(); c.fill();
+    // body, head, beak and eye
+    c.fillStyle = "#f6f7f8"; c.beginPath(); c.ellipse(32, 30, 9, 5, 0, 0, 7); c.fill(); c.stroke();
+    c.beginPath(); c.arc(41, 26, 3.6, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = "#e8b23a"; c.beginPath(); c.moveTo(44, 25.5); c.lineTo(48.5, 26.5); c.lineTo(44, 27.8); c.closePath(); c.fill();
+    c.fillStyle = "#1b1b1b"; c.beginPath(); c.arc(42, 25.3, 0.7, 0, 7); c.fill();
+    return off.toDataURL();
+  }
   // the start card's +5 and −5 pictures for a level (each drawn once, then kept)
   const thumbs = {};
+  const EXTRA_NAMES = { window: "a house window", bird: "a bird (a bird strike)" };
   function extrasFor(L) {
-    const kinds = [...new Set(L.props.map((k) => PROPS[k].same || k))], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : thumb(k));
-    const pic = (k) => `<img src="${get(k)}" alt="${k === "window" ? "a house window" : PROPS[k].label || k}" title="${k === "window" ? "a house window" : PROPS[k].label || k}">`;
-    $("xPlus").innerHTML = kinds.filter((k) => !PROPS[k].alive).map(pic).join("");
-    $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : [])].map(pic).join("");
+    const kinds = [...new Set(L.props.map((k) => PROPS[k].same || k))], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : k === "bird" ? birdThumb() : thumb(k));
+    // (a bigger bonus, the Sea-Doo's, gets a small "(+10)" after its picture rather than a row of its own)
+    const pic = (k) => `<img src="${get(k)}" alt="${EXTRA_NAMES[k] || PROPS[k].label || k}" title="${EXTRA_NAMES[k] || PROPS[k].label || k}">` +
+      (PROPS[k] && PROPS[k].big ? `<small class="xmore">(+${PROPS[k].big - 5})</small>` : "");
+    // (the lake's boathouses are the place's own buildings, not props, but they're +5 too)
+    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive), ...(L.scene === "lake" ? ["boathouse"] : [])].map(pic).join("");
+    $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : []), ...(L.scene === "lake" ? ["bird"] : [])].map(pic).join("");
   }
 
   // ================= go =================
