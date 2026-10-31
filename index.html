@@ -196,7 +196,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .holes { display: flex; gap: 3px; align-items: center; justify-content: space-between; background: var(--wood); border: 2px solid var(--wood-dark); border-radius: 6px; padding: 5px 6px; cursor: pointer; touch-action: none; }
 .holes b { flex: 0 1 9px; min-width: 4px; aspect-ratio: 1; border-radius: 50%; background: var(--wood-dark); }
 .holes b.on { background: #c0c6cc; box-shadow: 0 0 0 2px var(--ink); }
-.ver { margin: 0; text-align: center; color: var(--paper); opacity: .55; font-size: .62rem; letter-spacing: .04em; }
+/* the version, bottom left (the middle of a phone's bottom edge can be covered by its own controls) */
+.ver { margin: 0; text-align: left; color: var(--paper); opacity: .55; font-size: .62rem; letter-spacing: .04em; }
 kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.18); border-radius: 5px; padding: 0 5px; }
 
 /* narrower: angle and rotation on one row, pressure and fire under them */
@@ -354,7 +355,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.27</p>
+  <p class="ver">Pneuman v1.29</p>
 </div>
 
 <script>
@@ -4495,7 +4496,8 @@ body.lab .stage > :not(canvas) { display: none; }
     c.fillText(line, pad, foot + 4);
     c.textAlign = "right"; c.fillStyle = "#fffaf0";
     if (more) { c.font = big(px); c.fillText(more, PC.w - pad, foot + 4); }
-    else { c.font = '800 22px Nunito, "Segoe UI", sans-serif'; c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4); }
+    else if (more == null) { c.font = '800 22px Nunito, "Segoe UI", sans-serif'; c.fillText(SHARE_URL.replace(/^https:\/\//, ""), PC.w - pad, foot + 4); }
+    // (more = "": nothing on the right)
     return card;
   }
   const shareBtn = $("shareBtn"), shareCard = $("shareCard"), shareHint = $("shareHint");
@@ -4542,7 +4544,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!rec || !rec.arc || S.potato) return;
     if (S.replay) stopRelive();
     audio(); shrinkRelive();
-    const card = challenge ? postcard(rec, `Beat my ${challenge.score}!`) : postcard(rec, SHARE_LINE, "Click image to see more!");
+    // (an epic spud's picture only says "Click image to see more!" on a computer, where the picture is the link; on a
+    // phone it can't be tapped, and the Play Pneuman line goes with it instead)
+    // (a challenge's likewise: "Click image to take the challenge!" only where the picture is the link)
+    const card = challenge ? postcard(rec, `Beat my ${challenge.score}!`, onPhone() ? "" : "Click image to take the challenge!")
+      : postcard(rec, SHARE_LINE, onPhone() ? "" : "Click image to see more!");
     share = { rec, card, blob: null, challenge }; shareBlob();
     $("shareImg").src = card.toDataURL("image/png");
     shareCard.querySelector(".eyebrow").textContent = challenge ? (challenge.vs ? "Challenge back" : "Pneuman Challenge") : "Epic spud";
@@ -4638,15 +4644,24 @@ body.lab .stage > :not(canvas) { display: none; }
   // with your score. No server: the score in the link could be edited, and the challenger only hears how it went
   // if you challenge back. (Firebase later: see DESIGN.md)
   const GAME_V = ((document.querySelector(".ver") || {}).textContent || "").replace(/^.*v/, "").trim();
+  // the link packs it all into one short code, c = level-seed-width-height-animals-score-version-name (the numbers in
+  // base 36, the level by its place in LEVELS, the name last so it may hold a "-"):
+  // …/pneuman/?c=2-hlx2pd-rg-d2-1-1b-1.28-Jamie
   function challengeLink(score, name) {
-    const p = new URLSearchParams({ level: lvl().id, seed: String(S.seed), w: String(S.layoutView.w), h: String(S.layoutView.h), a: S.animals ? "1" : "0", score: String(score) });
-    if (name) p.set("name", name);
-    p.set("v", GAME_V);
-    return `${SHARE_URL}?${p}`;
+    const b = (n) => Math.round(n).toString(36);
+    const code = [S.level, b(S.seed), b(S.layoutView.w), b(S.layoutView.h), S.animals ? 1 : 0, b(score), GAME_V, name || ""].join("-");
+    return `${SHARE_URL}?${new URLSearchParams({ c: code })}`;
   }
-  // a challenge in this page's address, or null
+  // a challenge in this page's address, or null (the short c= code, or the long form the first links used:
+  // ?level=harvest&seed=…&w=…&h=…&a=1&score=47&name=Jamie&v=1.24)
   function readChallenge() {
-    const q = new URLSearchParams(location.search), level = LEVELS.findIndex((L) => L.id === q.get("level"));
+    let q = new URLSearchParams(location.search);
+    if (q.has("c")) {
+      const f = q.get("c").split("-"), n = (s) => parseInt(s, 36), L = LEVELS[Number(f[0])];
+      if (f.length < 7 || !L) return null;
+      q = new URLSearchParams({ level: L.id, seed: String(n(f[1])), w: String(n(f[2])), h: String(n(f[3])), a: f[4], score: String(n(f[5])), v: f[6], name: f.slice(7).join("-") });
+    }
+    const level = LEVELS.findIndex((L) => L.id === q.get("level"));
     const seed = Number(q.get("seed")), score = Number(q.get("score")), w = Number(q.get("w")), h = Number(q.get("h"));
     if (level < 0 || !q.has("seed") || !q.has("score") || !Number.isFinite(seed) || !Number.isFinite(score) || !(w >= 100 && w <= 4000) || !(h >= 100 && h <= 4000)) return null;
     return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "" };
