@@ -356,7 +356,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.35</p>
+  <p class="ver">Pneuman v1.36</p>
 </div>
 
 <script>
@@ -692,7 +692,7 @@ body.lab .stage > :not(canvas) { display: none; }
     try { return fn(); } finally { Math.random = real; }
   }
   const newSeed = () => Math.floor(Math.random() * 2147483647);
-  const SEED = { layout: 0, wind: 100, bird: 200 };
+  const SEED = { layout: 0, wind: 100, bird: 200, seadoo: 300 };
   const ang = () => HOLES[S.hole];
   const lvl = () => LEVELS[S.level];
   // the gauge's dial always reads to 120; a level can stop the pump lower
@@ -748,8 +748,12 @@ body.lab .stage > :not(canvas) { display: none; }
     // ... and out from behind the launcher and its pump
     const lb = P(-1.7, 0, -1), lt = P(1.6, 2.6, 0.6);
     const blocked = [{ x0: W - mw - 20, x1: 1e4, y0: H - mh - 20, y1: 1e4 }, { x0: lb.x, x1: lt.x, y0: lt.y - 10, y1: 1e4 }];
-    // fully in view, including below the top edge when a steep camera tilt pushes the far field off the top
-    const onScreen = (b) => b.x0 > 6 && b.x1 < W - 6 && b.y0 > 8;
+    // a narrow (phone) field shows only a slim slice of the field ahead, so targets may go out past its sides, as far
+    // as a laptop's view would show (about 24° each way): the player turns the launcher, or looks about, to find them
+    const sx = Math.max(0, F * Math.tan(deg(24)) - W / 2);
+    // fully in view (or just off the sides of a narrow one), including below the top edge when a steep camera tilt
+    // pushes the far field off the top
+    const onScreen = (b) => b.x0 > 6 - sx && b.x1 < W - 6 + sx && b.y0 > 8;
     const rings = [];
     for (const [type, count] of Object.entries(L.mix)) {
       // how this colour shows up here: flat on the ground (a ring), on a house roof, or as a spinner on its frame
@@ -791,7 +795,7 @@ body.lab .stage > :not(canvas) { display: none; }
             // big rings need room: the near edge stays well clear of the launcher
             z = rnd(Math.max(L.z[0], rr + 8), L.z[1]);
             // the smaller the ring, the closer to straight ahead it sits (see BAND), so it stays in reach in a crosswind
-            const halfW = (W / 2) / P(0, 0, z).s - rr - 1;
+            const halfW = (W / 2 + sx) / P(0, 0, z).s - rr - 1;
             x = rnd(-1, 1) * Math.max(2, Math.min(z * Math.tan(BAND.rings[type]), halfW * 0.9));
           }
           // not where the place has something in the way (a house, a tree)
@@ -807,7 +811,7 @@ body.lab .stage > :not(canvas) { display: none; }
           if (tries < 450 && S.scene.hides(box, Math.hypot(x - CAM.x, z - CAM.z))) continue;
           if (tries < 250 && (!apart || !onScreen(box) || blocked.some((b) => overlaps(box, b)) || rings.some((o) => overlaps(box, o.box)))) continue;
           if (tries >= 250 && tries < 450 && (!apart || !onScreen(box))) continue;
-          if (tries >= 450 && (!centresClear || c.x < 30 || c.x > W - 30)) continue;
+          if (tries >= 450 && (!centresClear || c.x < 30 - sx || c.x > W - 30 + sx)) continue;
           placed = { type, form, x, z, r: rr, pts: R.pts, hit: false, box };
           // the spinner's disc faces the launcher
           if (form === "spinner") Object.assign(placed, { yaw: Math.atan2(-x, CAM.z0 - z), ang: 0, spin: 0 });
@@ -1034,7 +1038,8 @@ body.lab .stage > :not(canvas) { display: none; }
       o.yaw = o.yaw0;
     }
     if (kind === "fish") Object.assign(o, { y0: -50, jump: null, next: rnd(2, 6) });
-    if (kind === "seadoo") Object.assign(o, { y0: -50, left: 4, wait: rnd(8, 18), run: null, trail: [], look: pick(NEIGHBOUR_LOOKS) });
+    // (the Sea-Doo's runs come from a stream of the round's own, so a challenge gets the same runs in the same order)
+    if (kind === "seadoo") { o.rng = mulberry32(seedFor(S.seed, SEED.seadoo)); Object.assign(o, { y0: -50, wait: 8 + o.rng() * 10, run: null, trail: [], look: pick(NEIGHBOUR_LOOKS) }); }
     if (kind === "loon") Object.assign(o, { a: 0, dive: 0, face: 1 });
     if (WANDER[kind]) { o.dip = 0; o.step = 0; o.view = "side"; pickAct(o); }
     return o;
@@ -3220,12 +3225,14 @@ body.lab .stage > :not(canvas) { display: none; }
       sd.line([sx * px, 0, -0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u); sd.line([sx * px, 0, 0.8], [sx * px, cy + 0.12, 0], wood, 0.13 * u);
       sd.line([sx * px, 0.05, -0.8], [sx * px, 0.05, 0.8], wood, 0.1 * u);
     }
-    // the disc, turned about its axle; the back is a darker shade, and once scored it's white
+    // the disc, turned about its axle. One face is its colour with its points, the other white with a ✓: before it's
+    // scored the colour faces you, after it the white does, so a spin flashes what it was worth (and from behind,
+    // in the arc views, you see the other face)
     const ca = Math.cos(t.ang), sa = Math.sin(t.ang);
     const disc = Array.from({ length: 28 }, (_, i) => { const a = (i / 28) * Math.PI * 2, yy = Math.sin(a) * rad; return [Math.cos(a) * rad, cy + yy * ca, yy * sa]; });
-    const front = sd.facing(disc, [0, -sa, ca]);
+    const front = sd.facing(disc, [0, -sa, ca]), white = front === !!t.hit;
     if (pathClip(disc.map(sd.Wp))) {
-      ctx.fillStyle = haze(t.hit ? "#eef0f2" : front ? R.color : shadeHex(R.edge, 0.1), t.x, t.z); ctx.fill();
+      ctx.fillStyle = haze(white ? "#eef0f2" : R.color, t.x, t.z); ctx.fill();
       ctx.strokeStyle = R.edge; ctx.lineWidth = Math.max(1, 0.06 * u); ctx.stroke();
     }
     // the hoop it turns in, held by its axle pins
@@ -3233,9 +3240,9 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.strokeStyle = haze(steel, t.x, t.z); ctx.lineWidth = Math.max(1.5, 0.09 * u); ctx.stroke();
     }
     for (const sx of [-1, 1]) sd.line([sx * px, cy, 0], [sx * rad, cy, 0], steel, 0.08 * u);
-    // its points on its face
-    if (front && Math.abs(ca) > 0.3) {
-      const c = sd.at([0, cy, 0]), fs = Math.max(9, rad * 1.05 * c.s), label = t.hit ? "✓" : String(t.pts);
+    // its points (or the ✓) on whichever face shows
+    if (Math.abs(ca) > 0.3) {
+      const c = sd.at([0, cy, 0]), fs = Math.max(9, rad * 1.05 * c.s), label = white ? "✓" : String(t.pts);
       ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, Math.abs(ca));
       ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.lineWidth = Math.max(2, fs * 0.12); ctx.strokeStyle = "#23303a"; ctx.fillStyle = "#fffaf0"; ctx.lineJoin = "round";
@@ -4005,7 +4012,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function seadooWake(o, dt) {
     if (dt) o.trail = o.trail.filter((w) => (w.t += dt) < 2.4);
     const r = o.run, last = o.trail[o.trail.length - 1], dir = o.face || 1;
-    if (r && r.v > 0.5 && (!last || Math.hypot(last.x + dir * 1.3 - o.x, last.z - o.z) > 0.5)) o.trail.push({ x: o.x - dir * 1.3, z: o.z, t: 0, big: r.v > 6 });
+    if (r && r.v > 0.5 && (!last || Math.hypot(last.x + dir * 1.3 - o.x, last.z - o.z) > 0.5)) o.trail.push({ x: o.x - dir * 1.3, z: o.z, t: 0, big: r.v > 4 });
   }
   const LAKE_UPDATE = {
     fisher(o, dt) {
@@ -4044,18 +4051,20 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       o.next = 2;
     },
-    // the Sea-Doo: out of sight between runs; four runs a level, each straight across the lake at full tilt, leaving
-    // a wake. Knocked off, the rider swims a bit, climbs back on, and putters off the rest of the way, very slowly
+    // the Sea-Doo: out of sight between runs; a run every so often all level, each straight across the lake, leaving
+    // a wake. Knocked off, the rider swims a bit, climbs back on, and putters off the rest of the way, very slowly.
+    // Its runs (where, which way, the waits) come from its own seeded stream (o.rng), so every round of a seed has
+    // the same runs
     seadoo(o, dt) {
       seadooWake(o, dt);
-      const r = o.run;
+      const r = o.run, rn = o.rng || Math.random;
       if (!r) {
-        if (o.left <= 0 || (o.wait -= dt) > 0) return;
+        if ((o.wait -= dt) > 0) return;
         for (let i = 0; i < 20; i++) {
-          const z = rnd(26, 62), half = (z - CAM.z0) * 0.75 + 10, dir = Math.random() < 0.5 ? 1 : -1;
+          const z = 26 + rn() * 36, half = (z - CAM.z0) * 0.75 + 10, dir = rn() < 0.5 ? 1 : -1;
           if (![-1, -0.6, -0.3, 0, 0.3, 0.6, 1].every((f) => S.scene.water(f * half, z))) continue;
-          o.run = { z, end: half * dir, dir, v: 13, out: null, shame: false };
-          Object.assign(o, { x: -half * dir, z, y0: 0, face: dir }); o.left--; sfx.seadoo();
+          o.run = { z, end: half * dir, dir, v: 6.5, out: null, shame: false };
+          Object.assign(o, { x: -half * dir, z, y0: 0, face: dir }); sfx.seadoo();
           return;
         }
         o.wait = 3; return;
@@ -4068,7 +4077,7 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       const x0 = o.x; o.x += r.dir * r.v * dt; o.z = r.z + (r.shame || r.out ? 0 : Math.sin(o.x * 0.08) * 1.5);
       seadooWake(o, 0);
-      if ((o.x - r.end) * r.dir > 0 && (x0 - r.end) * r.dir <= 0) Object.assign(o, { run: null, y0: -50, x: -250, z: 45, wait: rnd(12, 25) });
+      if ((o.x - r.end) * r.dir > 0 && (x0 - r.end) * r.dir <= 0) Object.assign(o, { run: null, y0: -50, x: -250, z: 45, wait: 12 + rn() * 13 });
     },
   };
   // a person in the boat (or in the water beside it): the fisher
@@ -4163,7 +4172,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const q = P(w.x, 0, w.z);
       if (w.t < 0.9 && !q.behind) { ctx.fillStyle = `rgba(255,255,255,${(0.6 * (1 - w.t / 0.9)).toFixed(2)})`; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.5 * q.s * (1 + w.t), 0.1 * q.s, 0, 0, 7); ctx.fill(); }
     }
-    const fast = r.v > 6, bob = o.thumb ? 0 : Math.sin(t * (fast ? 14 : 3)) * (fast ? 0.04 : 0.02), k = "#1d2226", L = o.look || NEIGHBOUR_LOOKS[0];
+    const fast = r.v > 4, bob = o.thumb ? 0 : Math.sin(t * (fast ? 14 : 3)) * (fast ? 0.04 : 0.02), k = "#1d2226", L = o.look || NEIGHBOUR_LOOKS[0];
     // seen from up high (the arc views, and Re-live it's passes from them), it's drawn from above, on the water
     if (!o.thumb && (S.arcView != null || (S.replay && S.replay.pass > 0))) { drawSeadooAbove(o, r, L, t); return; }
     // side on, its bow the way it's going across the screen (not the world: from the side views that's reversed)
@@ -4211,7 +4220,7 @@ body.lab .stage > :not(canvas) { display: none; }
     };
     const blob = (a, b, y, rad, fill) => { const q = at(a, b, y); ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.8, rad * q.s), 0, 7); ctx.fillStyle = fill; ctx.fill(); };
     const k = "#1d2226", hull = [[-1.4, -0.55], [0.5, -0.62], [1.2, -0.38], [1.65, 0], [1.2, 0.38], [0.5, 0.62], [-1.4, 0.55]];
-    if (r.v > 6) for (let i = 0; i < 8; i++) blob(-1.5 - i * 0.22, Math.sin(i * 2.1 + t * 25) * 0.25, 0.1, 0.16, "rgba(240,248,255,.8)");
+    if (r.v > 4) for (let i = 0; i < 8; i++) blob(-1.5 - i * 0.22, Math.sin(i * 2.1 + t * 25) * 0.25, 0.1, 0.16, "rgba(240,248,255,.8)");
     shape(hull.map(([a, b]) => [a * 1.04, b * 1.12]), 0.15, "#f2c230", k);
     shape(hull, 0.45, "#f2f2ee", k);
     shape([[-1.15, -0.22], [0.2, -0.24], [0.25, 0], [0.2, 0.24], [-1.15, 0.22], [-1.25, 0]], 0.6, "#2a2e33");
@@ -4296,6 +4305,15 @@ body.lab .stage > :not(canvas) { display: none; }
         stones.push({ x: x0 + (x1 - x0) * f + nx * back, z: z0 + (z1 - z0) * f + nz * back, r: rnd(0.3, 0.6), h: rnd(0.22, 0.5), c: pick(["#8f8880", "#9c948c", "#a29a90", "#857e77", "#b1a99e"]) });
       }
     }
+    // beyond the piled stones the rocky edge carries on as a grey band, all the way along every waterline (the near
+    // shore off to the left, the point's shore off to the right, the far shore), so wherever green meets blue, from
+    // the dock or the arc views, there's rock between. side: which way the land is (1: left of the line's direction)
+    const band = (line, w, side) => line.slice(1).map((b, i) => {
+      const a = line[i], l = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1, nx = side * (b[2] - a[2]) / l * w, nz = -side * (b[0] - a[0]) / l * w;
+      return [[a[0], 0, a[2]], [b[0], 0, b[2]], [b[0] + nx, 0, b[2] + nz], [a[0] + nx, 0, a[2] + nz]];
+    });
+    const shoreBand = band([[-400, 0, -11], [7.5, 0, -11], ...rightShore.slice(1, 14)], 1.1, 1);
+    const farBand = band(farShore.slice(1, -1), 2.5, -1);
     // trees: tall white pines crowding each island (clear of the buildings), a few spruce at the edges; cedars and
     // hemlocks along the right shore; mixed summer woods along the far shore, two deep
     const trees = [];
@@ -4443,6 +4461,7 @@ body.lab .stage > :not(canvas) { display: none; }
         }
         // the far shore and its woods, the turquoise boathouse
         fillPath(farShore, haze("#4f7a3c", 0, 280));
+        for (const q of farBand) fillPath(q, haze(LAKE.rock, q[0][0], q[0][2]));
         for (const t of far) drawTree(t);
         drawHouse(turq);
         // the islands: a granite rim, then the forest floor
@@ -4451,6 +4470,7 @@ body.lab .stage > :not(canvas) { display: none; }
         // (the bank: green behind its rocky edge)
         fillPath(rightShore, "#6f8a48");
         fillPath(nearShore, "#6f8a48");
+        for (const q of shoreBand) fillPath(q, haze("#958e86", q[0][0], q[0][2]));
         const d = (r) => Math.hypot(r.x - CAM.x, r.z - CAM.z);
         for (const r of [...stones, ...boulders].sort((a, b) => d(b) - d(a))) drawBoulder(r);
         dockBits();
