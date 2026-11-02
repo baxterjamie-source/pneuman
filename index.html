@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.45</p>
+  <p class="ver">Pneuman v1.46</p>
 </div>
 
 <script>
@@ -6167,11 +6167,14 @@ body.lab .stage > :not(canvas) { display: none; }
     { kind: "boxes", x: -19, z: 38, w: 2, h: 2.2, d: 2 },
   ];
   // the four workers' rounds: back and forth between two spots, working a while at each: up at an oven's control
-  // panel, checking the line, at the freezer doors or the proofer. [x, z, which way they face there: "back" to
-  // you, at a machine, or −1 / 1 side-on to the left or right]
+  // panel, checking the line, at the freezer doors or the proofer. The first and last points are the spots [x, z,
+  // which way they face there: "back" to you, at a machine, or −1 / 1 side-on to the left or right]; any between
+  // are corners of the way round the machines, so nobody walks through one
   const WORKER_ROUNDS = [
-    [[-10.1, 14.9, "back"], [-13.6, 22, -1]], [[5.9, 16.95, "back"], [13.6, 27, 1]],
-    [[-5.6, 27.15, "back"], [4.9, 29.15, "back"]], [[1, 38.25, "back"], [10.5, 38.85, "back"]],
+    [[-10.1, 14.9, "back"], [-11.4, 14.6], [-11.4, 20], [-13.6, 22, -1]],
+    [[5.9, 16.95, "back"], [10.3, 16.8], [10.3, 21], [13.6, 27, 1]],
+    [[-5.6, 27.15, "back"], [-2.6, 27], [4.9, 29.15, "back"]],
+    [[1, 38.25, "back"], [10.5, 38.85, "back"]],
   ];
   const WORKER_SKIN = ["#e8b48f", "#c68a62", "#8d5a3b", "#f1c7a5"];
   const WORKER_SAYS = ["HEY!", "OI!", "WATCH IT!", "MY SHIRT!"];
@@ -6214,12 +6217,8 @@ body.lab .stage > :not(canvas) { display: none; }
     for (let x = -X; x <= X; x += 1.2) seg([x, 3.2, Z1], [x, roofY(x), Z1], "rgba(120,128,136,.28)", 1);
     quad([[-4, 0, Z1 - 0.05], [4, 0, Z1 - 0.05], [4, 5.5, Z1 - 0.05], [-4, 5.5, Z1 - 0.05]], "#8d969d", "#5d666d");
     for (let y = 0.4; y < 5.5; y += 0.4) seg([-4, y, Z1 - 0.06], [4, y, Z1 - 0.06], "rgba(60,66,72,.35)", 1);
-    const sign = P(0, 12.6, Z1 - 0.1);
-    if (!sign.behind) {
-      const fs = Math.max(8, 1.3 * sign.s);
-      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "#c9572b"; ctx.fillText("SKEETZA PIZZA CO.", sign.x, sign.y);
-    }
+    // the company's name, painted on the back wall
+    wallPaint(wallArt("name"), (u, v) => [-9 + 18 * u, 13.6 - 2 * v, Z1 - 0.08]);
     // the windows (any broken ones dark, with a hole and cracks running out from it)
     FACTORY_WINDOWS.forEach((w, i) => drawHallWindow(w, (S.gun && S.gun.broken[i]) || null, quad, seg));
     // the safety board up on the left wall: "0 days without an accident", the 0 on a plate hung a bit crooked
@@ -6267,27 +6266,54 @@ body.lab .stage > :not(canvas) { display: none; }
     }
   }
   function safetySign() {
-    // (a board on the wall, drawn flat and then laid onto it: its corners on screen give the slant)
-    const x = -HALL.x + 0.06, z0 = 19, z1 = 29, y0 = 5.4, y1 = 8.4;
-    const tl = P(x, y1, z0), tr = P(x, y1, z1), bl = P(x, y0, z0);
-    if (tl.behind || tr.behind || bl.behind) return;
-    const Wd = 300, Hd = 90;
-    ctx.save();
-    ctx.transform((tr.x - tl.x) / Wd, (tr.y - tl.y) / Wd, (bl.x - tl.x) / Hd, (bl.y - tl.y) / Hd, tl.x, tl.y);
-    ctx.fillStyle = "#fbfbf6"; ctx.strokeStyle = "#2f3a42"; ctx.lineWidth = 3; ctx.fillRect(0, 0, Wd, Hd); ctx.strokeRect(0, 0, Wd, Hd);
-    ctx.fillStyle = "#1e8a4c"; ctx.fillRect(0, 0, Wd, 24);
-    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff";
-    ctx.font = `400 18px "Lilita One", Nunito, sans-serif`; ctx.fillText("SAFETY FIRST", Wd / 2, 13);
-    ctx.fillStyle = "#23303a"; ctx.font = `400 26px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "left";
-    ctx.fillText("DAYS WITHOUT", 110, 46); ctx.fillText("AN ACCIDENT", 110, 74);
-    ctx.fillRect(18, 74, 80, 3); // the line the number sits on
-    // the number plate, hung on a nail, crooked
-    ctx.save(); ctx.translate(58, 52); ctx.rotate(-0.17);
-    ctx.fillStyle = "#fff"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 2.5; ctx.fillRect(-20, -22, 40, 42); ctx.strokeRect(-20, -22, 40, 42);
-    ctx.fillStyle = "#c0392b"; ctx.font = `400 36px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.fillText("0", 0, 1);
-    ctx.fillStyle = "#555"; ctx.beginPath(); ctx.arc(0, -17, 2.5, 0, 7); ctx.fill();
-    ctx.restore();
-    ctx.restore();
+    const x = -HALL.x + 0.06;
+    wallPaint(wallArt("safety"), (u, v) => [x, 8.4 - 3 * v, 19 + 10 * u]);
+  }
+  // the hall's signs, each drawn once, flat, on a canvas of its own (again once the lettering's font has loaded)
+  const wallArtCache = {};
+  function wallArt(kind) {
+    const fontsIn = !document.fonts || document.fonts.status === "loaded", got = wallArtCache[kind];
+    if (got && (got.fontsIn || !fontsIn)) return got.c;
+    const c = document.createElement("canvas"), k = 4, g = c.getContext("2d"), Wd = 300, Hd = kind === "name" ? 34 : 90;
+    c.width = Wd * k; c.height = Hd * k; g.scale(k, k); g.textBaseline = "middle";
+    if (kind === "name") {
+      g.font = `400 30px "Lilita One", Nunito, sans-serif`; g.textAlign = "center"; g.fillStyle = "#c9572b";
+      g.fillText("SKEETZA PIZZA CO.", Wd / 2, Hd / 2 + 1);
+    } else {
+      g.fillStyle = "#fbfbf6"; g.strokeStyle = "#2f3a42"; g.lineWidth = 3; g.fillRect(0, 0, Wd, Hd); g.strokeRect(1.5, 1.5, Wd - 3, Hd - 3);
+      g.fillStyle = "#1e8a4c"; g.fillRect(3, 3, Wd - 6, 21);
+      g.textAlign = "center"; g.fillStyle = "#fff"; g.font = `400 18px "Lilita One", Nunito, sans-serif`; g.fillText("SAFETY FIRST", Wd / 2, 14);
+      g.fillStyle = "#23303a"; g.font = `400 26px "Lilita One", Nunito, sans-serif`; g.textAlign = "left";
+      g.fillText("DAYS WITHOUT", 110, 46); g.fillText("AN ACCIDENT", 110, 74);
+      g.fillRect(18, 74, 80, 3); // the line the number sits on
+      // the number plate, hung on a nail, crooked
+      g.save(); g.translate(58, 52); g.rotate(-0.17);
+      g.fillStyle = "#fff"; g.strokeStyle = "#23303a"; g.lineWidth = 2.5; g.fillRect(-20, -22, 40, 42); g.strokeRect(-20, -22, 40, 42);
+      g.fillStyle = "#c0392b"; g.font = `400 36px "Lilita One", Nunito, sans-serif`; g.textAlign = "center"; g.fillText("0", 0, 1);
+      g.fillStyle = "#555"; g.beginPath(); g.arc(0, -17, 2.5, 0, 7); g.fill();
+      g.restore();
+    }
+    wallArtCache[kind] = { c, fontsIn };
+    return c;
+  }
+  // paints a picture flat onto a wall: at(u, v) is the point on the wall for a spot across (u) and down (v) the
+  // picture, both 0–1. It goes on in thin upright strips, each laid on by its own corners, so it shrinks into the
+  // distance the way the wall does, whichever way it's seen from
+  function wallPaint(img, at, n = 24) {
+    const iw = img.width, ih = img.height;
+    for (let i = 0; i < n; i++) {
+      const u0 = i / n, u1 = (i + 1) / n, ue = Math.min(1, u1 + 0.4 / n); // (each strip overlaps the next a little, so no seams show)
+      const a = P(...at(u0, 0)), b = P(...at(u1, 0)), c = P(...at(u0, 1)), d = P(...at(u1, 1)), be = P(...at(ue, 0)), de = P(...at(ue, 1));
+      if (a.behind || b.behind || c.behind || d.behind || be.behind || de.behind) continue;
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(be.x, be.y); ctx.lineTo(de.x, de.y); ctx.lineTo(c.x, c.y); ctx.closePath();
+      ctx.lineWidth = 0; ctx.clip();
+      // (the strip's top edge runs a to b, its left edge a to c)
+      const sw = iw / n, cw = Math.min(sw * 1.5, iw - u0 * iw);
+      ctx.transform((b.x - a.x) / sw, (b.y - a.y) / sw, (c.x - a.x) / ih, (c.y - a.y) / ih, a.x, a.y);
+      ctx.drawImage(img, u0 * iw, 0, cw, ih, 0, 0, cw, ih);
+      ctx.restore();
+    }
   }
   // the factory's machines and benches, each a box with its own front (facing you) and touches
   function drawMachine(m) {
@@ -6777,14 +6803,21 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // ---- the workers: white coats and hairnets, back and forth between two spots, working a while at each ----
   function makeWorker(round, i) {
-    return withSeed(seedFor(S.seed, SEED.worker + i), () => ({ round, leg: 1, x: round[0][0], z: round[0][1], at: round[0][2], face: 1, wait: rnd(0.5, 4), skin: WORKER_SKIN[i % WORKER_SKIN.length], hit: 0, say: "", sauce: [], walk: 0, working: true }));
+    // (leg: the point they're heading for; dir: which way along the round)
+    return withSeed(seedFor(S.seed, SEED.worker + i), () => ({ round, leg: 1, dir: 1, x: round[0][0], z: round[0][1], at: round[0][2], face: 1, wait: rnd(0.5, 4), skin: WORKER_SKIN[i % WORKER_SKIN.length], hit: 0, say: "", sauce: [], walk: 0, working: true }));
   }
   function updateWorker(w, dt) {
     if (w.hit > 0) { w.hit -= dt; return; }
     if (w.wait > 0) { w.wait -= dt; w.working = true; return; }
     w.working = false;
     const [tx, tz, at] = w.round[w.leg], d = Math.hypot(tx - w.x, tz - w.z);
-    if (d < 0.05) { w.at = at; w.leg = 1 - w.leg; w.wait = rnd(2, 5); return; }
+    if (d < 0.05) {
+      // a corner: on to the next point. An end: work there a while, then head back the other way
+      const end = w.leg === 0 || w.leg === w.round.length - 1;
+      if (end) { w.at = at; w.dir = w.leg === 0 ? 1 : -1; w.wait = rnd(2, 5); }
+      w.leg += w.dir;
+      return;
+    }
     const step = Math.min(d, 1.1 * dt);
     // (side-on to you crossing the floor; back or front on when walking mostly away or toward you)
     w.face = Math.abs(tx - w.x) > 0.3 * Math.abs(tz - w.z) ? Math.sign(tx - w.x) : tz > w.z ? "back" : "front";
@@ -6945,13 +6978,13 @@ body.lab .stage > :not(canvas) { display: none; }
     tube(-0.19, -0.08, 1.12, "#a3acb2");
     tube(-0.08, 0.5, 1, "#b9c1c7");
     // the fire button, a big red one on the side, just short of the gauge
-    const bx = 0.36 * L, br = wd(0.36) * 0.24, by = wd(0.36) * 0.5 + br * 0.55;
+    const bx = 0.41 * L, br = wd(0.41) * 0.24, by = wd(0.41) * 0.5 + br * 0.55;
     c.fillStyle = "#3a4148"; c.beginPath(); c.arc(bx, by, br * 1.25, 0, 7); c.fill();
     c.fillStyle = o.flash ? "#ff6b5a" : "#d62f22"; c.beginPath(); c.arc(bx, by, br, 0, 7); c.fill();
     c.lineWidth = Math.max(1, br * 0.15); c.strokeStyle = "#7d1810"; c.stroke();
     c.fillStyle = "rgba(255,255,255,.45)"; c.beginPath(); c.arc(bx - br * 0.3, by - br * 0.3, br * 0.35, 0, 7); c.fill();
     // the gauge on top, right at the top of the chamber, its needle near the top of the dial
-    const gx = 0.44 * L, gr = wd(0.44) * 0.42, gy = -wd(0.44) * 0.5 - gr * 0.85;
+    const gx = 0.46 * L, gr = wd(0.46) * 0.42, gy = -wd(0.46) * 0.5 - gr * 0.85;
     c.fillStyle = "#c9a23a"; c.fillRect(gx - gr * 0.25, gy, gr * 0.5, gr * 0.9);
     c.fillStyle = "#fffaf0"; c.beginPath(); c.arc(gx, gy, gr, 0, 7); c.fill(); c.lineWidth = Math.max(1, gr * 0.18); c.strokeStyle = "#3a4148"; c.stroke();
     c.strokeStyle = "#c0392b"; c.lineWidth = Math.max(1, gr * 0.12); c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + Math.cos(-0.4) * gr * 0.8, gy + Math.sin(-0.4) * gr * 0.8); c.stroke();
@@ -6995,15 +7028,14 @@ body.lab .stage > :not(canvas) { display: none; }
     if (up < 1) drawGunTable(1 - up);
     if (up > 0) {
       // (low in the middle, mostly below the view, so it doesn't cover the machines the skeetzas come from). It
-      // swings round and tips up and down with the aim: its muzzle stays a little under the crosshair, so aimed
-      // high it stands up tall, and aimed low it drops down and lies flatter, pointing into the hall, and never
-      // covers what you're aiming at
-      const base = Math.min(H, W * 0.75);
-      const mx = W * 0.5 + (c.x - W * 0.5) * 0.92, my = c.y + base * 0.07; // (the muzzle: just under the crosshair)
-      const px = W * 0.5 + (c.x - W * 0.5) * 0.3, short = base * 0.42;
-      // (the back of it below the bottom edge; dropped further when aimed low, so it's never shorter than this)
-      const py0 = Math.max(H + base * 0.2, my + short), len = Math.min(Math.hypot(mx - px, my - py0), base * 0.85);
-      const py = py0 + (1 - up) * H * 0.8 + g.kick * H * 0.04;
+      // follows the crosshair only a little: the sights roam the whole hall while the gun just leans and lifts a
+      // touch (a few per cent of the screen) the same way. Only when the sights come right down near it does it
+      // drop out of their way
+      const base = Math.min(H, W * 0.75), nx = clamp((c.x - W / 2) / (W / 2), -1.2, 1.2), ny = clamp((c.y - H / 2) / (H / 2), -1.2, 1.2);
+      const mx = W / 2 + nx * W * 0.07;
+      const my = Math.max(H - base * (0.26 - 0.05 * ny), c.y + base * 0.08); // (the muzzle, and never above the sights)
+      const px = W / 2 + nx * W * 0.025, py0 = H + base * 0.12;
+      const len = Math.hypot(mx - px, my - py0), py = py0 + (1 - up) * H * 0.8 + g.kick * H * 0.04;
       drawMP10(ctx, px, py, Math.atan2(my - py0, mx - px), len, { flash: g.flash });
     }
     if (up > 0.95 && (g.phase === "ready" || g.phase === "live")) {
