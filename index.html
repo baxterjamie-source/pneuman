@@ -203,6 +203,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .gunrow .bar { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #23303a; border: 2px solid var(--ink); }
 .gunrow .bar.spent { background: transparent; opacity: .45; }
 .gunrow .sep { opacity: .5; }
+/* a colour still to hit: an empty ring in its colour; hit: filled */
+.gunrow .ringdot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2.5px solid var(--e); background: transparent; }
+.gunrow .ringdot.got { background: var(--c); }
 .pz { color: #c9572b; font-weight: 800; }
 .fire small { font-family: var(--body); font-weight: 800; font-size: .58rem; letter-spacing: .06em; line-height: 1.15; text-transform: uppercase; opacity: .9; text-align: center; }
 .holes { display: flex; gap: 3px; align-items: center; justify-content: space-between; background: var(--wood); border: 2px solid var(--wood-dark); border-radius: 6px; padding: 5px 6px; cursor: pointer; touch-action: none; }
@@ -377,7 +380,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.56</p>
+  <p class="ver">Pneuman v1.57</p>
 </div>
 
 <script>
@@ -1447,19 +1450,19 @@ body.lab .stage > :not(canvas) { display: none; }
     shotNote(`Right on the ${h.name}! THUNK! +5 bonus!`);
   }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
-  const maxScore = () => lvl().gun ? GUN.clear * GUN.pts : S.rings.reduce((a, r) => a + r.pts, 0);
-  // every target scored (Skeetza: 10 skeetzas, however many flew)
-  const cleared = () => lvl().gun ? S.gun.hits >= GUN.clear : S.rings.every((r) => r.hit);
+  const maxScore = () => lvl().gun ? Object.values(RINGS).reduce((a, r) => a + r.pts, 0) : S.rings.reduce((a, r) => a + r.pts, 0);
+  // every target scored (Skeetza: a skeetza of each colour)
+  const cleared = () => lvl().gun ? Object.keys(RINGS).every((t) => S.gun.got.has(t)) : S.rings.every((r) => r.hit);
 
   function endLevel() {
-    // clearing every ring earns +1 for each spud left over
-    // (Skeetza ends on its last shot, so there are never any over)
-    const spare = cleared() && !lvl().gun ? S.spudsLeft : 0;
+    // clearing every ring earns +1 for each spud left over (Skeetza: each barrel not fired)
+    const spare = cleared() ? S.spudsLeft : 0;
     S.phase = "levelEnd";
     shrinkRelive(); // (into its corner, clear of the card, to watch that last shot again)
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
-    const counts = lvl().gun ? `<span class="pz">🍕 ${S.gun.hits} hit of ${S.gun.launched} launched</span>` : Object.keys(RINGS).map((t) => {
+    const counts = lvl().gun ? Object.keys(RINGS).map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${S.gun.got.has(t) ? 1 : 0}/1</span>`).join("") +
+      `<span class="pz">🍕 ${S.gun.hits} hit of ${S.gun.launched} launched</span>` : Object.keys(RINGS).map((t) => {
       const all = S.rings.filter((r) => r.type === t).length, got = hits.filter((r) => r.type === t).length;
       return `<span style="color:${RINGS[t].edge}"><i></i>${got}/${all}</span>`;
     }).join("");
@@ -1572,7 +1575,8 @@ body.lab .stage > :not(canvas) { display: none; }
     startPick = sel;
     if (S.level !== sel || S.phase !== "title") { S.phase = "title"; previewLevel(sel); }
     showCard("Pneumatic potato launcher", "Pneuman", "Load, pump, aim and fire. Ten spuds per level; each target scores once. Pick a place:",
-      LEVELS[sel].gun ? `<span class="pz">🍕 skeetzas ${GUN.pts} each</span>` : ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join(""),
+      // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
+      ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">🍕 ${GUN.pts}</span>` : ""),
       `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button>`, () => startLevel(startPick));
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
     el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
@@ -6133,7 +6137,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const thumbs = {};
   const EXTRA_NAMES = { window: "a house window", bird: "a bird (a bird strike)" };
   function extrasFor(L) {
-    // (Skeetza: the drone, +15, and a worker, −5, drawn by its own code)
+    // (Skeetza: a drone, +10, and a worker, −5, drawn by its own code)
     if (L.gun) {
       const get = (k) => thumbs[k] || (thumbs[k] = gunThumb(k));
       $("xPlus").innerHTML = `<img src="${get("drone")}" alt="the drone" title="the drone"><small class="xmore">(+10)</small>`;
@@ -6162,7 +6166,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // where the workers start come from the round's seed
   // (pace: how fast the skeetzas' flight plays out, 0.75 = three-quarter speed: the same arcs, a third longer in the air)
   // (cases: the prototype MP 10s in their cabinets, each used once, both barrels: 5 × 2 = the 10 shots)
-  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  // (pts: a plain skeetza; a coloured one is worth its colour's points, as the rings are; drone: each of the two)
+  const GUN = { shots: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, pizzaR: 0.6, pg: 5.5, drone: 10 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
@@ -6437,7 +6442,7 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.fillStyle = b.c; ctx.beginPath(); ctx.ellipse(q.x, q.y, r, r * flat * (b.kind === "disc" ? 1 : 0.7), (b.a % 1) * 0.6, 0, 7); ctx.fill();
   }
   function drawFlop(f) {
-    groundCircle(f.x, f.z, GUN.pizzaR, 18, 0.01); ctx.fillStyle = "#d99a48"; ctx.fill();
+    groundCircle(f.x, f.z, GUN.pizzaR, 18, 0.01); ctx.fillStyle = f.ring ? RINGS[f.ring].edge : "#d99a48"; ctx.fill();
     groundCircle(f.x, f.z, GUN.pizzaR * 0.8, 18, 0.012); ctx.fillStyle = "#e8b34a"; ctx.fill();
     for (let i = 0; i < 5; i++) { const a = f.a + i * 1.26, q = P(f.x + Math.cos(a) * 0.22, 0.015, f.z + Math.sin(a) * 0.22); if (!q.behind) { ctx.fillStyle = f.top.dot; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.07 * q.s, 0.03 * q.s, 0, 0, 7); ctx.fill(); } }
   }
@@ -6447,7 +6452,7 @@ body.lab .stage > :not(canvas) { display: none; }
     S.gun = {
       phase: "wait", t: 0, pulls: 0, launched: 0, pull: null, hits: 0, yaw: 0, pitch: 0.2, guns: Array.from({ length: GUN.cases }, () => ({ ready: true })), hold: -1, up: 0, shards: [],
       shots: 0, timer: 0, pizzas: [], pellets: [], flops: [], booms: [], broken: {}, rec: null, flash: 0, kick: 0, mouse: null, slots: [],
-      drone: makeDrone(), workers: WORKER_ROUNDS.map(makeWorker),
+      drones: DRONE_ZONES.map(makeDrone), got: new Set(), workers: WORKER_ROUNDS.map(makeWorker),
     };
   }
   function startGun() { S.phase = "gun"; S.gun.phase = "table"; hud(); }
@@ -6485,10 +6490,12 @@ body.lab .stage > :not(canvas) { display: none; }
     withSeed(seedFor(S.seed, SEED.pizza + g.pulls++), () => {
       const a = pick(L.filter((l) => l.x <= 0)), b = pick(L.filter((l) => l.x >= 0 && l !== a));
       const C = [rnd(-3, 3), rnd(6, 10), Math.max(15, Math.min(34, (a.z + b.z) / 2 + rnd(-4, 3)))], tc = rnd(1.1, 1.6);
-      for (const [l, t] of [[a, tc], [b, tc + rnd(-0.35, 0.35)]]) {
+      // one of the pair carries a colour not hit yet, while there are any (picked at random from those)
+      const need = Object.keys(RINGS).filter((t) => !g.got.has(t)), ring = need.length ? pick(need) : null, which = Math.random() < 0.5 ? 0 : 1;
+      [[a, tc], [b, tc + rnd(-0.35, 0.35)]].forEach(([l, t], j) => {
         g.pizzas.push({ x: l.x, y: l.y, z: l.z, vx: (C[0] - l.x) / t, vy: (C[1] - l.y) / t + 0.5 * GUN.pg * t, vz: (C[2] - l.z) / t,
-          spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: pick(TOPPINGS), done: false });
-      }
+          spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: pick(TOPPINGS), ring: j === which ? ring : null, done: false });
+      });
     });
     note("PULL!", 900); tone(160, 520, 0.28, 0.1, "sawtooth");
   }
@@ -6519,32 +6526,34 @@ body.lab .stage > :not(canvas) { display: none; }
     // for Re-live it: the hall as it was the moment it fired (where everything was and how it was moving), so the
     // shot can be played out again from there
     shot.rec = { t0: g.t, aim: [g.yaw, g.pitch], pellets: fresh.map(({ shot: _, ...p }) => p), pizzas: structuredClone(g.pizzas.filter((p) => !p.done)),
-      drone: structuredClone(g.drone), workers: structuredClone(g.workers), broken: structuredClone(g.broken), flops: g.flops.slice(), dur: 1 };
+      drones: structuredClone(g.drones), workers: structuredClone(g.workers), broken: structuredClone(g.broken), flops: g.flops.slice(), dur: 1 };
     hud();
   }
+  // a skeetza's points: a coloured one's colour, like the rings; a plain one's GUN.pts
+  const pizzaPts = (p) => (p.ring ? RINGS[p.ring].pts : GUN.pts);
   function hitPizza(p, shot) {
-    const g = S.gun;
-    g.hits++; S.score += GUN.pts; shot.scores++; shot.pizzas++;
+    const g = S.gun, pts = pizzaPts(p);
+    g.hits++; S.score += pts; shot.scores++; shot.pizzas++;
     if (shot.pull) { shot.pull.hits++; shot.pull.by.add(shot); }
-    shot.items.push(`Skeetza! +${GUN.pts}`); shot.at = [p.x, p.y, p.z];
+    shot.items.push(p.ring ? `${cap(p.ring)} skeetza! +${pts}` : `Skeetza! +${pts}`); shot.at = [p.x, p.y, p.z];
+    if (p.ring) g.got.add(p.ring);
     burstPizza(p);
     hud();
   }
   // (what you see and hear of a hit, played again by Re-live it, which scores nothing)
   function burstPizza(p) {
     p.done = true;
-    sfx.splatT(); sfx.ring(GUN.pts);
+    sfx.splatT(); sfx.ring(pizzaPts(p));
     S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(PIZZA_POPS), t: 0 });
     S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
-    // it bursts: crust, cheese and toppings everywhere
+    // it bursts: crust (a coloured one's in its colour), cheese and toppings everywhere
     const bit = (kind, c, s, sp) => S.bits.push({ kind, x: p.x, y: p.y, z: p.z, vx: rnd(-sp, sp), vy: rnd(0.5, sp), vz: rnd(-sp, sp), a: rnd(0, 6), s, c, t: 0, ph: rnd(0, 6) });
-    for (let i = 0; i < 14; i++) bit("chunk", pick(["#e2a74f", "#c98a3c", "#f0c070"]), rnd(0.08, 0.16), 5);
+    for (let i = 0; i < 14; i++) bit("chunk", p.ring ? RINGS[p.ring].color : pick(["#e2a74f", "#c98a3c", "#f0c070"]), rnd(0.08, 0.16), 5);
     for (let i = 0; i < 8; i++) bit("chunk", "#f6d36b", rnd(0.05, 0.1), 4);
     for (let i = 0; i < 8; i++) bit("disc", p.top.dot, rnd(0.06, 0.09), 5);
     for (let i = 0; i < 4; i++) bit("disc", p.top.bit, rnd(0.04, 0.07), 4);
   }
-  function hitDrone(shot) {
-    const dr = S.gun.drone;
+  function hitDrone(dr, shot) {
     S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push("drone");
     shot.scores++; if (shot.pull) shot.pull.drone = true;
     shot.items.push(`The drone! +${GUN.drone} bonus!`); shot.at = [dr.x, dr.y, dr.z];
@@ -6635,7 +6644,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const R = S.gunReplay, rec = R.rec, live = R.saved.gun;
     const shot = { workers: new Set(), left: rec.pellets.length };
     S.gun = { ...live, phase: "live", hold: live.hold < 0 ? 0 : live.hold, up: 1, shots: 0, flash: 0, kick: 0, mouse: null, t: rec.t0, yaw: rec.aim[0], pitch: rec.aim[1],
-      pizzas: structuredClone(rec.pizzas), pellets: [], drone: structuredClone(rec.drone), workers: structuredClone(rec.workers), broken: structuredClone(rec.broken),
+      pizzas: structuredClone(rec.pizzas), pellets: [], drones: structuredClone(rec.drones), workers: structuredClone(rec.workers), broken: structuredClone(rec.broken),
       flops: rec.flops.slice(), booms: [], puffs: [], shards: [], shotLeft: shot, endHit: null, endAt: null };
     S.bits = []; S.pops = [];
     R.t = -GUN_RELIVE.lead; R.fired = false; R.hold = 0; R.cam = null; R.side = null;
@@ -6669,14 +6678,14 @@ body.lab .stage > :not(canvas) { display: none; }
       const pd = sdt * GUN.pace;
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * sdt;
       if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
-      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top }); }
+      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top, ring: p.ring }); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
     movePellets(g, sdt, REPLAY_HITS);
     for (const b of g.booms) b.t += sdt;
     g.booms = g.booms.filter((b) => b.t < 0.35);
     for (const b of S.pops) b.t += sdt * 2;
-    updateDrone(g.drone, g.t, sdt);
+    for (const d of g.drones) updateDrone(d, g.t, sdt);
     for (const w of g.workers) if (w.hit > 0) w.hit -= sdt;
   }
   // where Re-live it's camera is for each pass: over the shoulder (as you aimed), from partway up the side wall
@@ -6718,7 +6727,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the mini spuds in flight, in small steps so none slips through a skeetza. hits: what a hit does (scoring in
   // play; only the look and sound of it in Re-live it)
-  const LIVE_HITS = { pizza: hitPizza, drone: (dr, shot) => hitDrone(shot), worker: hitWorker, window: hitWindow, done: shotDone };
+  const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, done: shotDone };
   const REPLAY_HITS = { pizza: (p) => burstPizza(p), drone: (dr) => downDrone(dr), worker: (w, shot) => { if (!shot.workers.has(w)) { shot.workers.add(w); duckWorker(w); } },
     window: (i, at) => smashWindow(i, at), done() {} };
   function movePellets(g, dt, hits) {
@@ -6730,8 +6739,8 @@ body.lab .stage > :not(canvas) { display: none; }
         // (where the shot hit something first, and where its last spud stopped: Re-live it's side view ends there)
         const hitHere = () => { pl.dead = true; g.endHit = g.endHit || [pl.x, pl.y, pl.z]; };
         if (pz) { hits.pizza(pz, pl.shot); hitHere(); break; }
-        const dr = g.drone;
-        if (dr.state === "fly" && Math.hypot(pl.x - dr.x, pl.y - dr.y, pl.z - dr.z) < 0.7) { hits.drone(dr, pl.shot); hitHere(); break; }
+        const dr = g.drones.find((d) => d.state === "fly" && Math.hypot(pl.x - d.x, pl.y - d.y, pl.z - d.z) < 0.7);
+        if (dr) { hits.drone(dr, pl.shot); hitHere(); break; }
         const wk = g.workers.find((w) => pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.8) && Math.hypot(pl.x - w.x, pl.z - w.z) < 0.35);
         if (wk) { hits.worker(wk, pl.shot); hitHere(); break; }
         // into a wall: a window not yet broken breaks (−5)
@@ -6768,7 +6777,12 @@ body.lab .stage > :not(canvas) { display: none; }
     // the gun slides along the bottom after the crosshair, just a touch behind (see drawGunView)
     const cx = crossAt().x; g.gx = g.gx == null ? cx : g.gx + (cx - g.gx) * Math.min(1, dt * 14);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
-    if (g.phase === "raise" && g.up >= 1) { g.phase = "ready"; g.timer = 0.9; hud(); }
+    // a skeetza of each colour hit: cleared. Once the shot's spuds are down the round ends (unfired barrels count
+    // as spare spuds), whatever else is in the air
+    if (g.phase !== "over" && cleared()) {
+      if (!busy && (g.clearT = (g.clearT || 0) + dt) > 1.2) { g.phase = "over"; S.phase = "settle"; S.timer = 0.6; S.after = endLevel; }
+    }
+    else if (g.phase === "raise" && g.up >= 1) { g.phase = "ready"; g.timer = 0.9; hud(); }
     else if (g.phase === "ready" && (g.timer -= dt) <= 0) { pull(); g.phase = "live"; g.timer = 0; }
     else if (g.phase === "live") {
       // both barrels fired: down it goes. A barrel left but nothing left to shoot at: a moment for the drone, then
@@ -6790,7 +6804,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const pd = dt * GUN.pace;
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * dt;
       if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
-      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top }); sfx.splat(); }
+      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top, ring: p.ring }); sfx.splat(); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
     movePellets(g, dt, LIVE_HITS);
@@ -6798,19 +6812,22 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const b of S.pops) b.t += dt;
     S.pops = S.pops.filter((b) => b.t < 6);
     g.booms = g.booms.filter((b) => b.t < 0.35);
-    updateDrone(g.drone, g.t, dt);
+    for (const d of g.drones) updateDrone(d, g.t, dt);
     for (const w of g.workers) updateWorker(w, dt);
   }
-  // ---- the drone: slow loops about the upper hall on a path from the round's seed; hit, it falls and crashes ----
-  function makeDrone() {
-    return withSeed(seedFor(S.seed, SEED.drone), () => ({ state: "fly", ph: [rnd(0, 6.28), rnd(0, 6.28), rnd(0, 6.28)], w: [rnd(0.16, 0.24), rnd(0.1, 0.15), rnd(0.4, 0.6)], x: 0, y: 10.5, z: 30, vy: 0, tilt: 0, spin: 0 }));
+  // ---- the drones: two, each in slow loops about the upper hall on a path from the round's seed, one working the
+  // nearer half of the hall and a little higher, the other the further half; hit, it falls and crashes ----
+  const DRONE_ZONES = [{ cz: 26, az: 8, cy: 11 }, { cz: 38, az: 8, cy: 9.6 }];
+  function makeDrone(zone, i) {
+    return withSeed(seedFor(S.seed, SEED.drone + i * 7), () => ({ state: "fly", ph: [rnd(0, 6.28), rnd(0, 6.28), rnd(0, 6.28)], w: [rnd(0.16, 0.24), rnd(0.1, 0.15), rnd(0.4, 0.6)],
+      ...zone, x: 0, y: zone.cy, z: zone.cz, vy: 0, tilt: 0, spin: 0 }));
   }
   function updateDrone(d, T, dt) {
     if (d.state === "fly") {
       T *= GUN.droneSpeed; // (round its loops a little quicker than the path's own pace)
       const x = 9 * Math.sin(d.w[0] * T + d.ph[0]);
       d.tilt = clamp((x - d.x) / Math.max(dt, 1e-3) * 0.06, -0.3, 0.3);
-      d.x = x; d.z = 32 + 11 * Math.sin(d.w[1] * T + d.ph[1]); d.y = 10.5 + 1.2 * Math.sin(d.w[2] * T + d.ph[2]);
+      d.x = x; d.z = d.cz + d.az * Math.sin(d.w[1] * T + d.ph[1]); d.y = d.cy + 1.1 * Math.sin(d.w[2] * T + d.ph[2]);
     } else if (d.state === "fall") {
       d.vy -= G * dt; d.y += d.vy * dt; d.spin += dt * 9; d.tilt = Math.sin(d.spin) * 0.6;
       if (d.y <= 0.2) {
@@ -6943,7 +6960,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const r = GUN.pizzaR * q.s, ry = r * (0.82 + 0.12 * Math.sin(p.spin * 0.7 + p.wob));
     if (!sh.behind) { ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
     ctx.save(); ctx.translate(q.x, q.y);
-    ctx.fillStyle = "#e2a74f"; ctx.strokeStyle = "#a8692a"; ctx.lineWidth = Math.max(1, 0.05 * r);
+    // (a coloured one: its crust in its colour)
+    const R = p.ring && RINGS[p.ring];
+    ctx.fillStyle = R ? R.color : "#e2a74f"; ctx.strokeStyle = R ? R.edge : "#a8692a"; ctx.lineWidth = Math.max(1, (R ? 0.15 : 0.05) * r);
     ctx.beginPath(); ctx.ellipse(0, 0, r, ry, 0, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#f3c14b"; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, ry * 0.82, 0, 0, 7); ctx.fill();
     ctx.fillStyle = "rgba(217,105,43,.55)"; ctx.beginPath(); ctx.ellipse(r * 0.2, -ry * 0.15, r * 0.3, ry * 0.22, 0.5, 0, 7); ctx.fill();
@@ -6951,6 +6970,18 @@ body.lab .stage > :not(canvas) { display: none; }
       const a = p.spin + i * 0.9, rr = i % 2 ? 0.5 : 0.28;
       ctx.fillStyle = i % 3 === 2 ? p.top.bit : p.top.dot;
       ctx.beginPath(); ctx.ellipse(Math.cos(a) * r * rr, Math.sin(a) * ry * rr, r * 0.12, ry * 0.12, 0, 0, 7); ctx.fill();
+    }
+    // its points on a see-through film over the pizza: a pale sheen with a glint, and the number in its colour
+    if (R) {
+      ctx.fillStyle = "rgba(255,255,255,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, ry * 0.8, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = Math.max(1, 0.05 * r);
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 0.66, ry * 0.66, 0, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke();
+      const fs = Math.max(8, r * 0.95);
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+      ctx.save(); ctx.scale(1, ry / r);
+      ctx.lineWidth = Math.max(2, fs * 0.2); ctx.strokeStyle = "#fffaf0"; ctx.strokeText(R.pts, 0, fs * 0.04);
+      ctx.fillStyle = R.edge; ctx.fillText(R.pts, 0, fs * 0.04);
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -6970,11 +7001,13 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!sh.behind) { const s = R * sh.s; ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, s, s * 0.25, 0, 0, 7); ctx.fill(); }
     // which face the camera sees: the topped one, or the plain underside
     const seesTop = n[0] * (CAM.x - p.x) + n[1] * (CAM.y - p.y) + n[2] * (CAM.z - p.z) > 0;
-    fill(seesTop ? back : front, "#c98a3c");
+    // (a coloured one's crust is its colour)
+    const RC = p.ring && RINGS[p.ring], crust = RC ? RC.color : "#e2a74f", rim = RC ? RC.edge : "#a8692a";
+    fill(seesTop ? back : front, RC ? RC.edge : "#c98a3c");
     // the crust's edge all the way round
-    for (let i = 0; i < N; i++) { const j = (i + 1) % N; fill([back[i], back[j], front[j], front[i]], i % 2 ? "#d99a48" : "#cf9142"); }
-    if (!seesTop) { fill(back, "#e8c48a", "#a8692a"); return; }
-    fill(front, "#e2a74f", "#a8692a");
+    for (let i = 0; i < N; i++) { const j = (i + 1) % N; fill([back[i], back[j], front[j], front[i]], RC ? (i % 2 ? RC.color : RC.edge) : i % 2 ? "#d99a48" : "#cf9142"); }
+    if (!seesTop) { fill(back, "#e8c48a", rim); return; }
+    fill(front, crust, rim);
     fill(ring(R * 0.82, T + 0.005), "#f3c14b");
     for (let i = 0; i < 7; i++) {
       const a = p.spin + i * 0.9, rr = (i % 2 ? 0.5 : 0.28) * R;
@@ -6998,7 +7031,7 @@ body.lab .stage > :not(canvas) { display: none; }
     return [
       ...g.pizzas.map((p) => ({ x: p.x, z: p.z, draw: () => drawPizza(p) })),
       ...g.booms.map((b) => ({ x: b.x, z: b.z, draw: () => drawBoom(b) })),
-      { x: g.drone.x, z: g.drone.z, draw: () => drawDroneIn(g.drone) },
+      ...g.drones.map((d) => ({ x: d.x, z: d.z, draw: () => drawDroneIn(d) })),
       ...g.workers.map((w) => ({ x: w.x, z: w.z, draw: () => drawWorkerIn(w) })),
     ];
   }
@@ -7208,8 +7241,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!g) return;
     const held = g.phase === "raise" || g.phase === "ready" || g.phase === "live";
     $("gunOut").textContent = `pair ${Math.max(1, g.pulls)}/${GUN.pulls}`;
-    $("gunRow").innerHTML = `<span>Barrels</span>${[0, 1].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span class="pz">🍕 ${g.hits}/${GUN.clear}</span>` +
-      (g.drone.state !== "fly" ? `<span class="sep">·</span><span>drone ✓</span>` : "");
+    // (the colours: a dot each, filled once that colour's skeetza is hit; then the skeetzas hit, and drones down)
+    const down = g.drones.filter((d) => d.state !== "fly").length;
+    $("gunRow").innerHTML = `<span>Barrels</span>${[0, 1].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span>` +
+      Object.keys(RINGS).map((t) => `<span class="ringdot${g.got.has(t) ? " got" : ""}" style="--c:${RINGS[t].color};--e:${RINGS[t].edge}" title="${t} ${RINGS[t].pts}"></span>`).join("") +
+      `<span class="sep">·</span><span class="pz">🍕 ${g.hits}</span>` + (down ? `<span class="sep">·</span><span>drone${down > 1 ? "s" : ""} ${down}/${g.drones.length}</span>` : "");
   }
   // the start card's pictures: the drone and a worker
   function gunThumb(kind) {
