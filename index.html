@@ -377,7 +377,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.54</p>
+  <p class="ver">Pneuman v1.55</p>
 </div>
 
 <script>
@@ -7136,38 +7136,47 @@ body.lab .stage > :not(canvas) { display: none; }
     }
   }
   function drawGunTable(k) {
-    const g = S.gun, ty = H - k * H * 0.24, now = performance.now() / 1000, D = H - ty;
-    // a small wooden table, its top running off the bottom of the view
-    const xl = (f) => W * (0.2 - 0.1 * f), xr = (f) => W * (0.8 + 0.1 * f); // its edges, from the back (0) to the front (1)
+    // (it slides up into view as the gun goes down: ty is its back edge; it's drawn at its full size, DF, throughout)
+    const g = S.gun, DF = H * 0.24, ty = H - k * DF, D = DF, cx0 = W / 2;
+    // a narrow wooden table, its sides nearly parallel, its top running off the bottom of the view
+    const half = Math.min(W * 0.46, DF * 1.4), xl = (f) => cx0 - half * (0.93 + 0.07 * f), xr = (f) => cx0 + half * (0.93 + 0.07 * f);
     ctx.fillStyle = "#9a6a3e"; ctx.strokeStyle = "#5e3d20"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(xl(0), ty); ctx.lineTo(xr(0), ty); ctx.lineTo(xr(1), H + 4); ctx.lineTo(xl(1), H + 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xl(0), ty); ctx.lineTo(xr(0), ty); ctx.lineTo(xr(1), ty + DF + 4); ctx.lineTo(xl(1), ty + DF + 4); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = "rgba(94,61,32,.35)"; ctx.lineWidth = 1.5;
     for (let i = 1; i < 4; i++) { const yy = ty + D * i / 4; ctx.beginPath(); ctx.moveTo(xl(i / 4), yy); ctx.lineTo(xr(i / 4), yy); ctx.stroke(); }
-    // its name, stencilled along the back edge
-    if (D > 30) {
-      ctx.font = `400 ${Math.max(11, Math.min(22, W * 0.024, D * 0.13))}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(255,240,215,.75)"; ctx.fillText("Pneuman Mini-Potato (MP) 10", W / 2, ty + D * 0.12);
+    // its name, stencilled along the back edge, between the two barrels (made to fit)
+    {
+      // (the room there: from one barrel to the other where they cross the back edge, less their thickness)
+      const room = 2 * (half * 0.8 - D * 0.85 / Math.tan(1.1)) - D * 0.35, txt = "Pneuman Mini-Potato (MP) 10";
+      let fs = Math.max(10, Math.min(22, D * 0.13));
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`;
+      const tw = ctx.measureText(txt).width; if (tw > room) fs = Math.max(8, fs * room / tw);
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255,240,215,.75)"; ctx.fillText(txt, cx0, ty + D * 0.1);
     }
-    // somebody's lunch: a pizza with a slice gone
-    if (D > 30) {
-      const px = xr(0.5) - W * 0.07, py = ty + D * 0.55, rx = Math.min(W * 0.055, D * 0.42), ry = rx * 0.42, gap = 0.9;
+    // somebody's lunch: a pizza with a slice gone, down at the front between the two MP 10s
+    {
+      const px = cx0, py = ty + D * 0.78, rx = Math.min(half * 0.32, D * 0.4), ry = rx * 0.42, gap = 0.9;
       ctx.fillStyle = "rgba(60,35,15,.25)"; ctx.beginPath(); ctx.ellipse(px + 2, py + 3, rx, ry, 0, 0, 7); ctx.fill();
       for (const [f, col] of [[1, "#d99a48"], [0.82, "#e8b34a"]]) {
         ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(px, py); ctx.ellipse(px, py, rx * f, ry * f, 0, gap * 0.5 - 0.15, Math.PI * 2 - gap * 0.5 - 0.15); ctx.closePath(); ctx.fill();
       }
       for (let i = 0; i < 7; i++) { const a = 0.9 + i * 0.68, rr = i % 2 ? 0.55 : 0.3; ctx.fillStyle = i % 3 === 2 ? "#2f7d32" : "#c0392b"; ctx.beginPath(); ctx.ellipse(px + Math.cos(a) * rx * rr, py + Math.sin(a) * ry * rr, rx * 0.1, ry * 0.12, 0, 0, 7); ctx.fill(); }
     }
-    // the two MP 10s lying on it (the one in your hands isn't there)
+    // the two MP 10s lying on it (the one in your hands isn't there): angled in toward each other, their backs at
+    // the front corners and their barrels pointing up the hall, long enough to run on past the table's back edge
     g.slots = [];
     g.guns.forEach((gn, i) => {
-      const cx = W * (i ? 0.53 : 0.33), cy = ty + D * 0.5, L = Math.min(W * 0.16, D * 1.3 + 1);
-      g.slots[i] = { x0: cx - L * 0.6, x1: cx + L * 0.6, y0: ty, y1: H };
-      if (i === g.hold || L < 20) return;
-      drawMP10(ctx, cx - L * 0.45, cy, -0.12, L, { flat: true, dim: !gn.ready });
-      if (S.phase === "gun" && g.phase === "table") {
+      const side = i ? 1 : -1, L = D * 1.75, ang = side < 0 ? -1.1 : -Math.PI + 1.1;
+      const bx = cx0 + side * half * 0.8, by = ty + D * 0.95, mx = bx + Math.cos(ang) * L, my = by + Math.sin(ang) * L;
+      g.slots[i] = { x0: Math.min(bx, mx) - D * 0.15, x1: Math.max(bx, mx) + D * 0.15, y0: my - D * 0.1, y1: H };
+      if (i === g.hold) return;
+      // (the right one mirrored, so both have their gauges on top)
+      drawMP10(ctx, bx, by, ang, L, { flat: true, dim: !gn.ready, flip: side > 0 });
+      // (one still being reloaded says so; a ready one needs no label)
+      if (S.phase === "gun" && g.phase === "table" && !gn.ready) {
         ctx.font = `800 ${Math.max(11, Math.min(15, W * 0.016))}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillStyle = gn.ready ? `rgba(255,250,240,${(0.75 + 0.25 * Math.sin(now * 5)).toFixed(2)})` : "rgba(255,250,240,.6)";
-        ctx.fillText(gn.ready ? (W < 560 ? "tap me" : "tap to pick up") : "reloading…", cx, Math.min(H - 10, cy + (H - ty) * 0.32));
+        ctx.fillStyle = "rgba(255,250,240,.75)"; ctx.fillText("reloading…", bx - side * D * 0.05, Math.min(H - 10, ty + D * 0.62));
       }
     });
   }
