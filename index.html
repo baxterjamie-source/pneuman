@@ -377,7 +377,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.55</p>
+  <p class="ver">Pneuman v1.56</p>
 </div>
 
 <script>
@@ -1129,7 +1129,7 @@ body.lab .stage > :not(canvas) { display: none; }
     MAP.zoom = 1; MAP.ox = MAP.oz = 0; MAP.pin = null;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     const L = LEVELS[i];
-    if (L.gun) { startGun(); note(`${i + 1} · ${L.name} · pick up an MP 10`, 3600); return; }
+    if (L.gun) { startGun(); note(`${i + 1} · ${L.name} · grab an MP 10`, 3600); return; }
     note(`${i + 1} · ${L.name} · ${S.wind.kmh ? `wind ${S.wind.kmh} km/h` : "no wind"}${L.maxPsi && L.maxPsi < MAX_PSI ? ` · max ${L.maxPsi} PSI` : ""}`);
   }
 
@@ -1622,7 +1622,7 @@ body.lab .stage > :not(canvas) { display: none; }
     fb.disabled = lvl().gun ? !gunCanAct() : S.phase !== "aim";
     if (fb.dataset.mode !== mode) {
       fb.dataset.mode = mode; fb.classList.toggle("load", mode === "load");
-      fb.innerHTML = mode === "fire" ? "FIRE<small>open the valve</small>" : mode === "trigger" ? "FIRE<small>pull the trigger</small>" : mode === "pick" ? "PICK UP<small>an MP 10 off the table</small>" : "LOAD<small>close valve and tamp spud</small>";
+      fb.innerHTML = mode === "fire" ? "FIRE<small>open the valve</small>" : mode === "trigger" ? "FIRE<small>pull the trigger</small>" : mode === "pick" ? "GRAB<small>a loaded MP 10</small>" : "LOAD<small>close valve and tamp spud</small>";
       if (mode === "pick") fb.classList.add("load");
     }
     if (lvl().gun) gunHud();
@@ -1842,7 +1842,7 @@ body.lab .stage > :not(canvas) { display: none; }
       } else drawPotato(q.x, q.y, rr, p.rot);
     }
 
-    // (Skeetza: the MP 10 and its crosshair, or the table with the two of them, instead of the launcher and map)
+    // (Skeetza: the MP 10 and its crosshair, or the prototypes in their cabinets, instead of the launcher and map)
     if (S.scene.gun) drawGunView();
     else {
       drawLauncher();
@@ -6152,15 +6152,17 @@ body.lab .stage > :not(canvas) { display: none; }
   // ================= Skeetza: the MP 10 in the pizza factory =================
   // a level played another way (L.gun). You stand on the factory floor with the MP 10, a double-barrelled spray gun
   // firing 5 mini spuds a barrel in a tight cluster with hardly any drop, and shoot skeetzas: pizzas thrown up in
-  // pairs from behind the ovens, freezers and proofer. Two MP 10s wait on a table, pumped to 120 PSI: tap one and it
-  // comes up ready, a pair goes up ("PULL!"), and you have both barrels; a barrel you don't fire is kept for the next
-  // pair. Once both are fired it goes back on the table to be reloaded and you take the other. Pairs keep coming
-  // until all 10 barrels are fired (or 20 pairs have flown), skeetzas +10 each, and 10 of them clears the level.
+  // pairs from behind the ovens, freezers and proofer. Five prototype MP 10s (V1 to V5) stand in glass-fronted
+  // cabinets, pumped to 120 PSI: grab one (the glass smashes) and it comes up ready, a pair goes up ("PULL!"), and you
+  // have both barrels; a barrel you don't fire is kept for the next pair. Once both are fired it's done with, and you
+  // grab the next. Pairs keep coming until all 10 barrels are fired (or 20 pairs have flown), skeetzas +10 each, and
+  // 10 of them clears the level.
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
   // where the workers start come from the round's seed
   // (pace: how fast the skeetzas' flight plays out, 0.75 = three-quarter speed: the same arcs, a third longer in the air)
-  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.75, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  // (cases: the prototype MP 10s in their cabinets, each used once, both barrels: 5 × 2 = the 10 shots)
+  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
@@ -6440,10 +6442,10 @@ body.lab .stage > :not(canvas) { display: none; }
     for (let i = 0; i < 5; i++) { const a = f.a + i * 1.26, q = P(f.x + Math.cos(a) * 0.22, 0.015, f.z + Math.sin(a) * 0.22); if (!q.behind) { ctx.fillStyle = f.top.dot; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.07 * q.s, 0.03 * q.s, 0, 0, 7); ctx.fill(); } }
   }
 
-  // ---- the round: the table, the gun, the pairs, the shots ----
+  // ---- the round: the cabinets, the gun, the pairs, the shots ----
   function resetGun() {
     S.gun = {
-      phase: "wait", t: 0, pulls: 0, launched: 0, pull: null, hits: 0, yaw: 0, pitch: 0.2, guns: [{ ready: true, rt: 0 }, { ready: true, rt: 0 }], hold: -1, up: 0,
+      phase: "wait", t: 0, pulls: 0, launched: 0, pull: null, hits: 0, yaw: 0, pitch: 0.2, guns: Array.from({ length: GUN.cases }, () => ({ ready: true })), hold: -1, up: 0, shards: [],
       shots: 0, timer: 0, pizzas: [], pellets: [], flops: [], booms: [], broken: {}, rec: null, flash: 0, kick: 0, mouse: null, slots: [],
       drone: makeDrone(), workers: WORKER_ROUNDS.map(makeWorker),
     };
@@ -6460,16 +6462,18 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.phase === "table") pickUp(g.guns.findIndex((x) => x.ready));
     else if (g.phase === "ready" || g.phase === "live") shoot();
   }
+  // grab a prototype: its cabinet's glass smashes, you take it out, and a moment later the cabinets slide away and it
+  // comes up ready to fire (the button takes the first full one from the left)
   function pickUp(i) {
     const g = S.gun;
-    if (i < 0) { note("Both MP 10s are being reloaded…", 1200); return; }
-    if (!g.guns[i].ready) { note("That one's still being reloaded. Take the other.", 1500); return; }
-    g.hold = i; g.phase = "raise"; g.shots = 0; sfx.load(); hud();
+    if (i < 0) return;
+    if (!g.guns[i].ready) { note("That one's been used. Grab another!", 1500); return; }
+    g.guns[i].ready = false; g.guns[i].smashed = true;
+    g.hold = i; g.phase = "grab"; g.timer = 0.45; g.shots = 0; sfx.glass(); smashCase(i); hud();
   }
-  // both barrels fired: the gun goes back on the table to be reloaded
+  // both barrels fired: it's done with (its cabinet stays smashed and empty), and the cabinets slide back up
   function lowerGun() {
     const g = S.gun;
-    if (g.hold >= 0) Object.assign(g.guns[g.hold], { ready: false, rt: GUN.reload });
     g.hold = -1; g.phase = "lower"; g.timer = 0; hud();
   }
   // a pair of skeetzas goes up from two machines (one each side when it can), their arcs crossing at a point that's
@@ -6632,7 +6636,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const shot = { workers: new Set(), left: rec.pellets.length };
     S.gun = { ...live, phase: "live", hold: live.hold < 0 ? 0 : live.hold, up: 1, shots: 0, flash: 0, kick: 0, mouse: null, t: rec.t0, yaw: rec.aim[0], pitch: rec.aim[1],
       pizzas: structuredClone(rec.pizzas), pellets: [], drone: structuredClone(rec.drone), workers: structuredClone(rec.workers), broken: structuredClone(rec.broken),
-      flops: rec.flops.slice(), booms: [], puffs: [], shotLeft: shot, endHit: null, endAt: null };
+      flops: rec.flops.slice(), booms: [], puffs: [], shards: [], shotLeft: shot, endHit: null, endAt: null };
     S.bits = []; S.pops = [];
     R.t = -GUN_RELIVE.lead; R.fired = false; R.hold = 0; R.cam = null; R.side = null;
     reliveBtn.textContent = `■ ${R.pass + 1}/${GUN_RELIVE.passes.length} · ${GUN_RELIVE.passes[R.pass]}`;
@@ -6750,8 +6754,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!g) return;
     if (S.gunReplay) { updateGunRelive(dt); return; }
     g.t += dt; g.flash = Math.max(0, g.flash - dt * 6); g.kick = Math.max(0, g.kick - dt * 4); updatePuffs(g, dt);
-    for (const gn of g.guns) if (!gn.ready && (gn.rt -= dt) <= 0) gn.ready = true;
-    // up to the shoulder, or down on the table
+    // the glass from a smashed cabinet, falling
+    for (const sh of g.shards) { sh.t += dt; sh.vy += 900 * dt * (H / 700); sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.a += sh.va * dt; }
+    g.shards = g.shards.filter((sh) => sh.t < 1.2);
+    if (g.phase === "grab" && (g.timer -= dt) <= 0) { g.phase = "raise"; sfx.load(); }
+    // up to the shoulder, or put down (and the cabinets back in view)
     const want = g.phase === "raise" || g.phase === "ready" || g.phase === "live" ? 1 : 0;
     g.up += Math.sign(want - g.up) * Math.min(Math.abs(want - g.up), dt * 2.6);
     if (g.mouse && S.phase === "gun") aimAtScreen(g.mouse.x, g.mouse.y);
@@ -6800,6 +6807,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function updateDrone(d, T, dt) {
     if (d.state === "fly") {
+      T *= GUN.droneSpeed; // (round its loops a little quicker than the path's own pace)
       const x = 9 * Math.sin(d.w[0] * T + d.ph[0]);
       d.tilt = clamp((x - d.x) / Math.max(dt, 1e-3) * 0.06, -0.3, 0.3);
       d.x = x; d.z = 32 + 11 * Math.sin(d.w[1] * T + d.ph[1]); d.y = 10.5 + 1.2 * Math.sin(d.w[2] * T + d.ph[2]);
@@ -6997,52 +7005,40 @@ body.lab .stage > :not(canvas) { display: none; }
   // ---- the MP 10, drawn on the screen: galvanised chamber with its gauge (pumped to 120), the trigger under it,
   // the brass valve, then a black T whose two elbows turn forward into the two black barrels ----
   // c: the canvas; x, y: the back of the chamber; ang: which way it points; L: how long it looks
+  // (seen side on, as it stands in its cabinet: a slim grey chamber with its end cap, gauge and red button, the brass
+  // valve, the black T, and the two long black barrels side by side, half its length)
   function drawMP10(c, x, y, ang, L, o = {}) {
-    // (held, it's close to you, so its near end looks much fatter than its far end)
-    const wd = (f) => L * (o.flat ? 0.085 : o.flip ? 0.3 - 0.17 * f : 0.19 - 0.1 * f), ink = "#1b2026";
+    const w = L * 0.085, ink = "#1b2026";
     c.save(); c.translate(x, y); c.rotate(ang);
-    if (o.flip) c.scale(1, -1); // (pointing up and to the left, held: so the gauge is still on top)
     if (o.dim) c.globalAlpha = 0.5;
     const tube = (f0, f1, k, col, off = 0) => {
-      c.beginPath(); c.moveTo(f0 * L, off * wd(f0) - wd(f0) * k / 2); c.lineTo(f1 * L, off * wd(f1) - wd(f1) * k / 2); c.lineTo(f1 * L, off * wd(f1) + wd(f1) * k / 2); c.lineTo(f0 * L, off * wd(f0) + wd(f0) * k / 2); c.closePath();
+      c.beginPath(); c.rect(f0 * L, off * w - w * k / 2, (f1 - f0) * L, w * k);
       c.fillStyle = col; c.fill(); c.strokeStyle = ink; c.lineWidth = Math.max(1, L * 0.006); c.stroke();
-      c.fillStyle = "rgba(255,255,255,.22)"; c.beginPath(); c.moveTo(f0 * L, off * wd(f0) - wd(f0) * k * 0.35); c.lineTo(f1 * L, off * wd(f1) - wd(f1) * k * 0.35); c.lineTo(f1 * L, off * wd(f1) - wd(f1) * k * 0.15); c.lineTo(f0 * L, off * wd(f0) - wd(f0) * k * 0.15); c.closePath(); c.fill();
+      c.fillStyle = "rgba(255,255,255,.22)"; c.fillRect(f0 * L, off * w - w * k * 0.35, (f1 - f0) * L, w * k * 0.2);
     };
     // the pipe end cap on the back of the chamber: a little wider than the pipe, its end domed
-    c.fillStyle = "#9ea7ad"; c.beginPath(); c.ellipse(-0.19 * L, 0, wd(-0.19) * 0.3, wd(-0.19) * 0.56, 0, 0, 7); c.fill(); c.stroke();
-    tube(-0.19, -0.08, 1.12, "#a3acb2");
-    tube(-0.08, 0.5, 1, "#b9c1c7");
+    c.fillStyle = "#9ea7ad"; c.beginPath(); c.ellipse(-0.13 * L, 0, w * 0.25, w * 0.45, 0, 0, 7); c.fill(); c.stroke();
+    tube(-0.13, -0.05, 0.9, "#a3acb2");
+    tube(-0.05, 0.36, 0.72, "#b9c1c7");
     // the fire button, a big red one on the side, just short of the gauge
-    const bx = 0.41 * L, br = wd(0.41) * 0.24, by = wd(0.41) * 0.5 + br * 0.55;
+    const bx = 0.27 * L, br = w * 0.2, by = w * 0.36 + br * 0.55;
     c.fillStyle = "#3a4148"; c.beginPath(); c.arc(bx, by, br * 1.25, 0, 7); c.fill();
-    c.fillStyle = o.flash ? "#ff6b5a" : "#d62f22"; c.beginPath(); c.arc(bx, by, br, 0, 7); c.fill();
+    c.fillStyle = "#d62f22"; c.beginPath(); c.arc(bx, by, br, 0, 7); c.fill();
     c.lineWidth = Math.max(1, br * 0.15); c.strokeStyle = "#7d1810"; c.stroke();
     c.fillStyle = "rgba(255,255,255,.45)"; c.beginPath(); c.arc(bx - br * 0.3, by - br * 0.3, br * 0.35, 0, 7); c.fill();
     // the gauge on top, right at the top of the chamber, its needle near the top of the dial
-    const gx = 0.46 * L, gr = wd(0.46) * 0.42, gy = -wd(0.46) * 0.5 - gr * 0.85;
+    const gx = 0.32 * L, gr = w * 0.38, gy = -w * 0.36 - gr * 0.85;
     c.fillStyle = "#c9a23a"; c.fillRect(gx - gr * 0.25, gy, gr * 0.5, gr * 0.9);
     c.fillStyle = "#fffaf0"; c.beginPath(); c.arc(gx, gy, gr, 0, 7); c.fill(); c.lineWidth = Math.max(1, gr * 0.18); c.strokeStyle = "#3a4148"; c.stroke();
     c.strokeStyle = "#c0392b"; c.lineWidth = Math.max(1, gr * 0.12); c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + Math.cos(-0.4) * gr * 0.8, gy + Math.sin(-0.4) * gr * 0.8); c.stroke();
-    tube(0.5, 0.57, 0.85, "#d4a537");
-    tube(0.57, 0.62, 0.8, "#1f2326");
-    // the T's cross piece, an elbow at each end, and the two barrels side by side, right up against each other like
-    // a double-barrelled shotgun's: each with its own shine, a dark seam where they meet, and two round bores
-    tube(0.6, 0.67, 1.35, "#1f2326");
-    for (const s of [-1, 1]) {
-      tube(0.66, 1, 0.62, "#1a1d20", s * 0.31);
-      c.fillStyle = "#3a4046"; c.beginPath(); c.ellipse(L, s * 0.31 * wd(1), wd(1) * 0.12, wd(1) * 0.31, 0, 0, 7); c.fill();
-      c.fillStyle = "#020303"; c.beginPath(); c.ellipse(L, s * 0.31 * wd(1), wd(1) * 0.08, wd(1) * 0.2, 0, 0, 7); c.fill();
-    }
+    tube(0.36, 0.42, 0.72, "#d4a537");
+    tube(0.42, 0.46, 0.7, "#1f2326");
+    // the T's cross piece, and the two barrels side by side, right up against each other like a double-barrelled
+    // shotgun's, a dark seam where they meet
+    tube(0.45, 0.5, 1.3, "#1f2326");
+    for (const s of [-1, 1]) tube(0.49, 1, 0.6, "#1a1d20", s * 0.3);
     c.strokeStyle = "#000"; c.lineWidth = Math.max(1, L * 0.005);
-    c.beginPath(); c.moveTo(0.66 * L, 0); c.lineTo(L, 0); c.stroke();
-    for (const s of [-1, 1]) {
-      if (o.flash) {
-        const fx = L * 1.04, fy = s * 0.31 * wd(1), fr = wd(1) * 1.4 * o.flash;
-        c.fillStyle = `rgba(255,236,150,${o.flash.toFixed(2)})`; c.beginPath();
-        for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, rr = i % 2 ? fr * 0.45 : fr; c.lineTo(fx + Math.cos(a) * rr, fy + Math.sin(a) * rr); }
-        c.closePath(); c.fill();
-      }
-    }
+    c.beginPath(); c.moveTo(0.49 * L, 0); c.lineTo(L, 0); c.stroke();
     c.restore();
   }
   // the MP 10 in your hands, looking down along the top of it from just behind (like a double-barrelled shotgun
@@ -7088,7 +7084,7 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const p of g.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 1.5; p.vy *= 1 - dt * 1.2; }
     g.puffs = g.puffs.filter((p) => p.t < p.life);
   }
-  // the view down the gun: the crosshair, the mini spuds in flight, the gun at the shoulder; or the table with the
+  // the view down the gun: the crosshair, the mini spuds in flight, the gun at the shoulder; or the cabinets with the
   // two MP 10s coming up into view as the gun goes down
   function drawGunView() {
     const g = S.gun;
@@ -7135,50 +7131,77 @@ body.lab .stage > :not(canvas) { display: none; }
       }
     }
   }
+  // ---- the prototypes: five MP 10s (V1 to V5) standing in wooden cabinets with glass fronts, like fire-hose
+  // cabinets, in a cluster across the bottom of the view, a wooden plaque under them. A cabinet is drawn in its own
+  // units, 34 wide and 92 tall (from −44 to 48, the middle at 0), scaled to fit ----
+  // where the cabinets are, all the way up (k = 1); off: how far down they go when they've slid away
+  function caseLayout() {
+    const n = GUN.cases, cw = Math.min(H * 0.33 * 34 / 92, (W * 0.92) / (n + (n - 1) * 0.2)), sc = cw / 34, gap = cw * 0.2;
+    const ph = Math.max(14, cw * 0.42), bottom = H - ph - 10, cy = bottom - 48 * sc, x0 = W / 2 - ((n - 1) * (cw + gap)) / 2;
+    return { sc, cw, gap, ph, cy, xs: Array.from({ length: n }, (_, i) => x0 + i * (cw + gap)), off: 92 * sc + ph + 30 };
+  }
+  // the glass of cabinet i bursts: shards fly out and fall, in screen space
+  function smashCase(i) {
+    const g = S.gun, L = caseLayout(), x = L.xs[i];
+    for (let k = 0; k < 22; k++) g.shards.push({ x: x + rnd(-11, 11) * L.sc, y: L.cy + rnd(-30, 40) * L.sc, vx: rnd(-70, 70) * L.sc, vy: rnd(-90, 10) * L.sc,
+      s: rnd(2, 6) * L.sc, a: rnd(0, 6), va: rnd(-12, 12), t: 0 });
+  }
+  // (k: how far up they've slid, 0 out of sight below to 1 in place; they slide away as the gun comes up)
   function drawGunTable(k) {
-    // (it slides up into view as the gun goes down: ty is its back edge; it's drawn at its full size, DF, throughout)
-    const g = S.gun, DF = H * 0.24, ty = H - k * DF, D = DF, cx0 = W / 2;
-    // a narrow wooden table, its sides nearly parallel, its top running off the bottom of the view
-    const half = Math.min(W * 0.46, DF * 1.4), xl = (f) => cx0 - half * (0.93 + 0.07 * f), xr = (f) => cx0 + half * (0.93 + 0.07 * f);
-    ctx.fillStyle = "#9a6a3e"; ctx.strokeStyle = "#5e3d20"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(xl(0), ty); ctx.lineTo(xr(0), ty); ctx.lineTo(xr(1), ty + DF + 4); ctx.lineTo(xl(1), ty + DF + 4); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = "rgba(94,61,32,.35)"; ctx.lineWidth = 1.5;
-    for (let i = 1; i < 4; i++) { const yy = ty + D * i / 4; ctx.beginPath(); ctx.moveTo(xl(i / 4), yy); ctx.lineTo(xr(i / 4), yy); ctx.stroke(); }
-    // its name, stencilled along the back edge, between the two barrels (made to fit)
-    {
-      // (the room there: from one barrel to the other where they cross the back edge, less their thickness)
-      const room = 2 * (half * 0.8 - D * 0.85 / Math.tan(1.1)) - D * 0.35, txt = "Pneuman Mini-Potato (MP) 10";
-      let fs = Math.max(10, Math.min(22, D * 0.13));
-      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`;
-      const tw = ctx.measureText(txt).width; if (tw > room) fs = Math.max(8, fs * room / tw);
-      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(255,240,215,.75)"; ctx.fillText(txt, cx0, ty + D * 0.1);
-    }
-    // somebody's lunch: a pizza with a slice gone, down at the front between the two MP 10s
-    {
-      const px = cx0, py = ty + D * 0.78, rx = Math.min(half * 0.32, D * 0.4), ry = rx * 0.42, gap = 0.9;
-      ctx.fillStyle = "rgba(60,35,15,.25)"; ctx.beginPath(); ctx.ellipse(px + 2, py + 3, rx, ry, 0, 0, 7); ctx.fill();
-      for (const [f, col] of [[1, "#d99a48"], [0.82, "#e8b34a"]]) {
-        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(px, py); ctx.ellipse(px, py, rx * f, ry * f, 0, gap * 0.5 - 0.15, Math.PI * 2 - gap * 0.5 - 0.15); ctx.closePath(); ctx.fill();
-      }
-      for (let i = 0; i < 7; i++) { const a = 0.9 + i * 0.68, rr = i % 2 ? 0.55 : 0.3; ctx.fillStyle = i % 3 === 2 ? "#2f7d32" : "#c0392b"; ctx.beginPath(); ctx.ellipse(px + Math.cos(a) * rx * rr, py + Math.sin(a) * ry * rr, rx * 0.1, ry * 0.12, 0, 0, 7); ctx.fill(); }
-    }
-    // the two MP 10s lying on it (the one in your hands isn't there): angled in toward each other, their backs at
-    // the front corners and their barrels pointing up the hall, long enough to run on past the table's back edge
+    const g = S.gun, L = caseLayout(), dy = (1 - k) * L.off;
     g.slots = [];
-    g.guns.forEach((gn, i) => {
-      const side = i ? 1 : -1, L = D * 1.75, ang = side < 0 ? -1.1 : -Math.PI + 1.1;
-      const bx = cx0 + side * half * 0.8, by = ty + D * 0.95, mx = bx + Math.cos(ang) * L, my = by + Math.sin(ang) * L;
-      g.slots[i] = { x0: Math.min(bx, mx) - D * 0.15, x1: Math.max(bx, mx) + D * 0.15, y0: my - D * 0.1, y1: H };
-      if (i === g.hold) return;
-      // (the right one mirrored, so both have their gauges on top)
-      drawMP10(ctx, bx, by, ang, L, { flat: true, dim: !gn.ready, flip: side > 0 });
-      // (one still being reloaded says so; a ready one needs no label)
-      if (S.phase === "gun" && g.phase === "table" && !gn.ready) {
-        ctx.font = `800 ${Math.max(11, Math.min(15, W * 0.016))}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillStyle = "rgba(255,250,240,.75)"; ctx.fillText("reloading…", bx - side * D * 0.05, Math.min(H - 10, ty + D * 0.62));
+    L.xs.forEach((x, i) => {
+      const gn = g.guns[i], cy = L.cy + dy;
+      g.slots[i] = { x0: x - L.cw / 2, x1: x + L.cw / 2, y0: cy - 44 * L.sc, y1: cy + 48 * L.sc };
+      ctx.save(); ctx.translate(x, cy); ctx.scale(L.sc, L.sc);
+      // the box: its frame, then the inside (top, sides and floor in depth, the back wall), and the clips
+      ctx.fillStyle = "#9a6a3e"; ctx.strokeStyle = "#5e3d20"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.rect(-17, -44, 34, 92); ctx.fill(); ctx.stroke();
+      const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([px, py], j) => (j ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath(); ctx.fill(); };
+      // (the inside a light wood, so the black barrels stand out against it)
+      poly([[-13, -36], [13, -36], [9, -31], [-9, -31]], "#a8865c");
+      poly([[-13, -36], [-9, -31], [-9, 40], [-13, 44]], "#c29f72");
+      poly([[13, -36], [9, -31], [9, 40], [13, 44]], "#9c7a50");
+      poly([[-13, 44], [13, 44], [9, 40], [-9, 40]], "#cfae80");
+      ctx.fillStyle = "#e0c79f"; ctx.fillRect(-9, -31, 18, 71);
+      ctx.fillStyle = "#6d767c"; ctx.fillRect(-6, -8, 12, 2.2); ctx.fillRect(-6, 26, 12, 2.2);
+      // its version, on a red sign over the door
+      ctx.fillStyle = "#c0392b"; ctx.fillRect(-12, -42.5, 24, 5.5);
+      ctx.fillStyle = "#fff"; ctx.font = `800 4.6px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(`V${i + 1}`, 0, -39.6);
+      // the prototype, standing up inside, barrels up
+      if (gn.ready) drawMP10(ctx, 0, 37, -Math.PI / 2, 66);
+      // the glass front: whole, with its shine; or smashed, a few jagged pieces left in the corners of the frame
+      ctx.lineWidth = 1.6; ctx.strokeStyle = "#2d1d0e";
+      if (!gn.smashed) {
+        ctx.fillStyle = "rgba(207,230,242,.28)"; ctx.fillRect(-13, -36, 26, 80); ctx.strokeRect(-13, -36, 26, 80);
+        ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-9, -32); ctx.lineTo(-3, 40); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-5, -32); ctx.lineTo(-1, 10); ctx.stroke();
+      } else {
+        ctx.strokeRect(-13, -36, 26, 80);
+        for (const sh of [[[-13, -36], [-3, -36], [-7, -27], [-13, -20]], [[13, -36], [5, -36], [8, -29], [13, -16]], [[-13, 44], [-13, 32], [-7, 38], [-3, 44]], [[13, 44], [13, 36], [8, 44]]]) {
+          poly(sh, "rgba(233,244,251,.8)"); ctx.strokeStyle = "#46515c"; ctx.lineWidth = 0.7; ctx.stroke();
+        }
       }
+      ctx.restore();
     });
+    // the plaque under them
+    {
+      const w = L.xs[L.xs.length - 1] - L.xs[0] + L.cw * 1.3, x = W / 2 - w / 2, y = L.cy + 48 * L.sc + 4 + dy, txt = "Pneuman Mini-Potato (MP) 10 · Prototype";
+      ctx.fillStyle = "#8a5a2b"; ctx.strokeStyle = "#5e3d20"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, L.ph, 4) : ctx.rect(x, y, w, L.ph); ctx.fill(); ctx.stroke();
+      let fs = L.ph * 0.6;
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`;
+      const tw = ctx.measureText(txt).width; if (tw > w * 0.92) fs *= (w * 0.92) / tw;
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fbe9c8"; ctx.fillText(txt, W / 2, y + L.ph / 2 + 1);
+    }
+    // glass from a cabinet just smashed, flying and falling
+    for (const sh of g.shards) {
+      ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(sh.a); ctx.globalAlpha = Math.max(0, 1 - sh.t / 1.2);
+      ctx.fillStyle = "rgba(225,240,250,.9)"; ctx.strokeStyle = "rgba(70,81,90,.7)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-sh.s, sh.s * 0.6); ctx.lineTo(sh.s, sh.s * 0.3); ctx.lineTo(0, -sh.s); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
   }
   function gunHud() {
     const g = S.gun;
@@ -7198,7 +7221,7 @@ body.lab .stage > :not(canvas) { display: none; }
     return off.toDataURL();
   }
   // ---- playing it: a mouse aims by pointing and fires with a click; a finger drags to aim and taps (or the FIRE
-  // button) to fire; on the table a tap picks up an MP 10. Arrow keys aim, Space or Enter fires ----
+  // button) to fire; a tap on a full cabinet grabs its MP 10. Arrow keys aim, Space or Enter fires ----
   // (these listen first, and keep the launcher's own handlers out of it while Skeetza is being played)
   const gunOn = () => !!lvl().gun && S.phase === "gun" && $("overlay").hidden;
   let gunTouch = null;
