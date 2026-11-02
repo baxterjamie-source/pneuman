@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.49</p>
+  <p class="ver">Pneuman v1.50</p>
 </div>
 
 <script>
@@ -6477,7 +6477,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function shoot() {
     const g = S.gun;
     if (g.shots >= 2 || S.spudsLeft <= 0) return;
-    g.shots++; S.spudsLeft--; g.flash = 1; g.kick = 1; sfx.fire();
+    g.shots++; S.spudsLeft--; g.flash = 1; g.kick = 1; sfx.fire(); gunPuff(g);
     // out of the barrels low on the right (where the gun's held), toward the crosshair, in a tight spread
     const d = aimDir(), e = GUN.eye, rt = [Math.cos(g.yaw), 0, -Math.sin(g.yaw)];
     const o = [e[0] + rt[0] * 0.22 + d[0] * 0.6, e[1] - 0.25 + d[1] * 0.6, e[2] + rt[2] * 0.22 + d[2] * 0.6], T = [e[0] + d[0] * 35, e[1] + d[1] * 35, e[2] + d[2] * 35];
@@ -6610,7 +6610,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const shot = { workers: new Set(), left: rec.pellets.length };
     S.gun = { ...live, phase: "live", hold: live.hold < 0 ? 0 : live.hold, up: 1, shots: 0, flash: 0, kick: 0, mouse: null, t: rec.t0, yaw: rec.aim[0], pitch: rec.aim[1],
       pizzas: structuredClone(rec.pizzas), pellets: [], drone: structuredClone(rec.drone), workers: structuredClone(rec.workers), broken: structuredClone(rec.broken),
-      flops: rec.flops.slice(), booms: [], shotLeft: shot, endHit: null, endAt: null };
+      flops: rec.flops.slice(), booms: [], puffs: [], shotLeft: shot, endHit: null, endAt: null };
     S.bits = []; S.pops = [];
     R.t = -GUN_RELIVE.lead; R.fired = false; R.hold = 0; R.cam = null; R.side = null;
     reliveBtn.textContent = `■ ${R.pass + 1}/${GUN_RELIVE.passes.length} · ${GUN_RELIVE.passes[R.pass]}`;
@@ -6631,10 +6631,10 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // a beat before it fires, then the shot, slowed right down
     R.t += R.t < 0 ? dt : sdt;
-    g.flash = Math.max(0, g.flash - sdt * 6); g.kick = Math.max(0, g.kick - sdt * 4);
+    g.flash = Math.max(0, g.flash - sdt * 6); g.kick = Math.max(0, g.kick - sdt * 4); updatePuffs(g, sdt);
     if (R.t < 0) return;
     if (!R.fired) {
-      R.fired = true; g.flash = 1; g.kick = 1; g.shots = 1; sfx.fire();
+      R.fired = true; g.flash = 1; g.kick = 1; g.shots = 1; sfx.fire(); gunPuff(g);
       g.pellets = rec.pellets.map((p) => ({ ...p, shot: g.shotLeft }));
     }
     g.t += sdt;
@@ -6726,7 +6726,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun;
     if (!g) return;
     if (S.gunReplay) { updateGunRelive(dt); return; }
-    g.t += dt; g.flash = Math.max(0, g.flash - dt * 6); g.kick = Math.max(0, g.kick - dt * 4);
+    g.t += dt; g.flash = Math.max(0, g.flash - dt * 6); g.kick = Math.max(0, g.kick - dt * 4); updatePuffs(g, dt);
     for (const gn of g.guns) if (!gn.ready && (gn.rt -= dt) <= 0) gn.ready = true;
     // up to the shoulder, or down on the table
     const want = g.phase === "raise" || g.phase === "ready" || g.phase === "live" ? 1 : 0;
@@ -7020,6 +7020,49 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     c.restore();
   }
+  // the MP 10 in your hands, looking down along the top of it from just behind (like a double-barrelled shotgun
+  // held up to aim): just the two black barrels side by side, running away from you up the screen from below its
+  // bottom edge, narrowing a little, their far ends rounded off. x, y: the middle of their near end; s: how wide
+  // the pair is there; lean: a small tilt
+  function drawMP10Pov(c, x, y, s, lean = 0, flash = 0) {
+    const ink = "#0d0f11", near = s / 4, far = s * 0.2, len = s * 0.62;
+    c.save(); c.translate(x, y); c.rotate(lean); c.strokeStyle = ink; c.lineWidth = Math.max(1, s * 0.012);
+    // the barrels: each a tube seen from above, its far end rounded off
+    for (const side of [-1, 1]) {
+      const cx0 = side * near, cx1 = side * far, r0 = near, r1 = far;
+      c.fillStyle = "#1b1e21"; c.beginPath();
+      c.moveTo(cx0 - r0, 0); c.lineTo(cx1 - r1, -len); c.arc(cx1, -len, r1, Math.PI, 0); c.lineTo(cx0 + r0, 0); c.closePath(); c.fill(); c.stroke();
+      // its shine, down the side nearer the light, and a darker underside
+      c.fillStyle = "rgba(255,255,255,.22)"; c.beginPath();
+      c.moveTo(cx0 - r0 * 0.55, 0); c.lineTo(cx1 - r1 * 0.55, -len); c.lineTo(cx1 - r1 * 0.25, -len - r1 * 0.5); c.lineTo(cx0 - r0 * 0.25, 0); c.closePath(); c.fill();
+      c.fillStyle = "rgba(0,0,0,.35)"; c.beginPath();
+      c.moveTo(cx0 + r0 * 0.55, 0); c.lineTo(cx1 + r1 * 0.55, -len); c.lineTo(cx1 + r1, -len); c.lineTo(cx0 + r0, 0); c.closePath(); c.fill();
+    }
+    // the seam where they meet
+    c.strokeStyle = "#000"; c.lineWidth = Math.max(1, s * 0.015); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -len); c.stroke();
+    // the flash off the far ends when it fires
+    if (flash) for (const side of [-1, 1]) {
+      const fx = side * far, fy = -len - far * 1.2, fr = s * 0.35 * flash;
+      c.fillStyle = `rgba(255,236,150,${flash.toFixed(2)})`; c.beginPath();
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, rr = i % 2 ? fr * 0.45 : fr; c.lineTo(fx + Math.cos(a) * rr, fy + Math.sin(a) * rr); }
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+  // a puff of smoke out of the barrel that just fired (the left for the first shot, the right for the second), in
+  // screen space: a few soft grey clouds that drift up and spread as they fade
+  function gunPuff(g) {
+    const m = g.muzzles && g.muzzles[g.shots > 1 ? 1 : 0], s = g.puffSize || 60;
+    if (!m) return;
+    g.puffs = g.puffs || [];
+    for (let i = 0; i < 7; i++) g.puffs.push({ x: m[0] + rnd(-0.03, 0.03) * s, y: m[1] - rnd(0, 0.06) * s, vx: rnd(-0.25, 0.25) * s, vy: -rnd(0.35, 0.9) * s,
+      r: rnd(0.07, 0.13) * s, t: 0, life: rnd(0.9, 1.5), shade: Math.round(rnd(140, 195)) });
+  }
+  function updatePuffs(g, dt) {
+    if (!g.puffs || !g.puffs.length) return;
+    for (const p of g.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 1.5; p.vy *= 1 - dt * 1.2; }
+    g.puffs = g.puffs.filter((p) => p.t < p.life);
+  }
   // the view down the gun: the crosshair, the mini spuds in flight, the gun at the shoulder; or the table with the
   // two MP 10s coming up into view as the gun goes down
   function drawGunView() {
@@ -7037,16 +7080,26 @@ body.lab .stage > :not(canvas) { display: none; }
     const c = crossAt(), up = g.up;
     if (up < 1) drawGunTable(1 - up);
     if (up > 0) {
-      // (held up at the bottom of the view, gauge on the side. It slides along the bottom to stay right under the
-      // crosshair, upright in the middle and leaning a little toward whichever side the crosshair is on, so it
-      // always points the way you're aiming. Only when the crosshair comes down low does it dip out of the way. It
-      // kicks back when it fires)
-      const base = Math.min(H, W * 0.75), len = base * 0.5;
+      // (seen as you'd hold it, looking along the top of it: see drawMP10Pov. It slides along the bottom to stay
+      // right under the crosshair, leaning a touch toward whichever side that is. Only when the crosshair comes
+      // down low does it drop out of the way. It kicks back when it fires)
+      // (recoil: each shot jolts it back toward you, down the view and a touch bigger, and it settles back)
+      const base = Math.min(H, W * 0.75), s = base * 0.27 * (1 + 0.1 * g.kick), reach = s * 0.62;
       if (g.gx == null) g.gx = c.x;
-      const ang = -Math.PI / 2 + 0.2 * clamp((g.gx - W / 2) / (W / 2), -1, 1);
-      const mx = g.gx, my = clamp(c.y + base * 0.1, H - base * 0.3, H - base * 0.05) + (1 - up) * H * 0.8; // (the muzzle)
-      const bx = mx - Math.cos(ang) * len, by = my - Math.sin(ang) * len, kb = g.kick * base * 0.05;
-      drawMP10(ctx, bx - Math.cos(ang) * kb, by - Math.sin(ang) * kb, ang, len, { flash: g.flash, flip: true });
+      // (its near end just below the bottom edge, so just the ends of the barrels rise a short way into the view.
+      // As the crosshair comes down toward them they back away down the view, keeping well clear under it)
+      const ny = Math.max(H + base * 0.02, c.y + base * 0.2 + reach) + (1 - up) * H * 0.8 + g.kick * base * 0.1;
+      const lean = 0.1 * clamp((g.gx - W / 2) / (W / 2), -1, 1);
+      drawMP10Pov(ctx, g.gx, ny, s, lean, g.flash);
+      // (where its two muzzles are on the screen, for the smoke)
+      g.muzzles = [-1, 1].map((k) => { const lx = k * s * 0.2, ly = -reach - s * 0.2; return [g.gx + lx * Math.cos(lean) - ly * Math.sin(lean), ny + lx * Math.sin(lean) + ly * Math.cos(lean)]; });
+      g.puffSize = s;
+    }
+    // the smoke from the shots, drifting up and spreading out as it fades
+    for (const p of (g && g.puffs) || []) {
+      const k = p.t / p.life, r = p.r * (1 + k * 2.2);
+      ctx.fillStyle = `rgba(${p.shade},${p.shade},${p.shade + 4},${(0.62 * (1 - k)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
     }
     if (up > 0.95 && (g.phase === "ready" || g.phase === "live")) {
       ctx.lineCap = "round";
