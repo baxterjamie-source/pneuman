@@ -376,7 +376,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.51</p>
+  <p class="ver">Pneuman v1.52</p>
 </div>
 
 <script>
@@ -6148,7 +6148,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
   // where the workers start come from the round's seed
-  const GUN = { shots: 10, clear: 10, pulls: 20, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  // (pace: how fast the skeetzas' flight plays out, 0.5 = half speed: the same arcs, twice as long in the air)
+  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.5, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
@@ -6650,7 +6651,8 @@ body.lab .stage > :not(canvas) { display: none; }
     g.t += sdt;
     for (const p of g.pizzas) {
       if (p.done) continue;
-      p.vy -= GUN.pg * sdt; p.x += p.vx * sdt; p.y += p.vy * sdt; p.z += p.vz * sdt; p.spin += p.vs * sdt;
+      const pd = sdt * GUN.pace;
+      p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * sdt;
       if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top }); }
     }
@@ -6766,7 +6768,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // the skeetzas, the mini spuds, the drone, the workers
     for (const p of g.pizzas) {
       if (p.done) continue;
-      p.vy -= GUN.pg * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.spin += p.vs * dt;
+      // (at GUN.pace: the same arc, flown slower; they spin at the usual rate)
+      const pd = dt * GUN.pace;
+      p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * dt;
       if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top }); sfx.splat(); }
     }
