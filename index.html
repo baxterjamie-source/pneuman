@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.47</p>
+  <p class="ver">Pneuman v1.48</p>
 </div>
 
 <script>
@@ -6138,7 +6138,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
   // where the workers start come from the round's seed
-  const GUN = { shots: 10, clear: 10, pulls: 20, pts: 10, eye: [0, 1.65, -2], pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  const GUN = { shots: 10, clear: 10, pulls: 20, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
@@ -6468,12 +6468,11 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function aimDir() { const g = S.gun; return [Math.cos(g.pitch) * Math.sin(g.yaw), Math.sin(g.pitch), Math.cos(g.pitch) * Math.cos(g.yaw)]; }
   const crossAt = () => { const d = aimDir(), e = GUN.eye; return P(e[0] + d[0] * 30, e[1] + d[1] * 30, e[2] + d[2] * 30); };
-  // the mouse turns the view: where it is across the field is how far round you look (the left edge hard left,
-  // the right edge hard right), and up and down the same, so the hall swings round the crosshair as it moves
+  // point the gun at a spot on the screen (the mouse): back through the camera into the hall
   function aimAtScreen(sx, sy) {
-    const g = S.gun;
-    g.yaw = clamp((sx / W - 0.5) * 2 * 0.8, -0.8, 0.8);
-    g.pitch = clamp(0.275 - (sy / H - 0.5) * 1.1, -0.2, 0.75);
+    const g = S.gun, X = (sx - W / 2) / F, Y = (CY - sy) / F;
+    const dy = Y * cp - sp, z1 = Y * sp + cp, dx = X * cyw + z1 * syw, dz = -X * syw + z1 * cyw;
+    g.yaw = clamp(Math.atan2(dx, dz), -0.8, 0.8); g.pitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.2, 0.75);
   }
   function shoot() {
     const g = S.gun;
@@ -6659,7 +6658,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const R = S.gunReplay, g = S.gun, rec = R.rec, e = GUN.eye;
     const d = [Math.cos(rec.aim[1]) * Math.sin(rec.aim[0]), Math.sin(rec.aim[1]), Math.cos(rec.aim[1]) * Math.cos(rec.aim[0])];
     let pos, look, zoom = 1;
-    if (R.pass === 0) { pos = e; look = [e[0] + d[0], e[1] + d[1], e[2] + d[2]]; }
+    if (R.pass === 0) { setGunView(); return 1; } // (just as you saw it)
     else if (R.pass === 1) {
       // from the side wall (the one the shot heads away from), sliding down the hall alongside the mini spuds,
       // then settling on where the shot ended (the first thing it hit, or where the last spud came down) and
@@ -6733,12 +6732,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const want = g.phase === "raise" || g.phase === "ready" || g.phase === "live" ? 1 : 0;
     g.up += Math.sign(want - g.up) * Math.min(Math.abs(want - g.up), dt * 2.6);
     if (g.mouse && S.phase === "gun") aimAtScreen(g.mouse.x, g.mouse.y);
-    // the gun's sway: it trails a quick turn a little (left behind as the view swings) and settles back
-    if (dt) {
-      const vy = (g.yaw - (g.lastYaw ?? g.yaw)) / dt, vp = (g.pitch - (g.lastPitch ?? g.pitch)) / dt, k = Math.min(1, dt * 7);
-      g.swX = (g.swX || 0) + (clamp(-vy, -3, 3) * 0.03 - (g.swX || 0)) * k; g.swY = (g.swY || 0) + (clamp(vp, -3, 3) * 0.03 - (g.swY || 0)) * k;
-      g.lastYaw = g.yaw; g.lastPitch = g.pitch;
-    }
+    // (the sights stay on the screen: a finger or the arrow keys can't push them off its edges)
+    const hx = Math.atan(W / 2 / F) * 0.96, hy = Math.atan(H / 2 / F) * 0.94;
+    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -GUN.look - hy, -GUN.look + hy);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
     if (g.phase === "raise" && g.up >= 1) { g.phase = "ready"; g.timer = 0.9; hud(); }
     else if (g.phase === "ready" && (g.timer -= dt) <= 0) { pull(); g.phase = "live"; g.timer = 0; }
@@ -7039,13 +7035,11 @@ body.lab .stage > :not(canvas) { display: none; }
     const c = crossAt(), up = g.up;
     if (up < 1) drawGunTable(1 - up);
     if (up > 0) {
-      // (held like a first-person shooter's gun: low on the right, angled in toward the crosshair in the middle,
-      // gauge on top. It stays put while the view turns, only swaying: trailing a quick turn, lifting a touch as you
-      // aim up and dipping as you aim down, breathing a little, and kicking back when it fires)
-      const base = Math.min(H, W * 0.75), bob = Math.sin(g.t * 1.7) * base * 0.005;
-      const sx = (g.swX || 0) * base, sy = (g.swY || 0) * base - (g.pitch - 0.25) * base * 0.06 + bob + (1 - up) * H * 0.8;
-      const mx = W / 2 + base * 0.14 + sx, my = H / 2 + base * 0.22 + sy; // (the muzzle, just below and right of the sights)
-      const bx = W / 2 + base * 0.62 + sx * 0.6, by = H + base * 0.15 + sy * 0.6; // (the back, off the bottom corner)
+      // (held like a first-person shooter's gun: low on the right, angled in toward the middle, gauge on top. It
+      // stays put: only the sights move. It kicks back when it fires)
+      const base = Math.min(H, W * 0.75), sy = (1 - up) * H * 0.8;
+      const mx = W / 2 + base * 0.2, my = H / 2 + base * 0.3 + sy; // (the muzzle, below and right of the middle)
+      const bx = W / 2 + base * 0.66, by = H + base * 0.15 + sy; // (the back, off the bottom corner)
       const ang = Math.atan2(my - by, mx - bx), len = Math.hypot(mx - bx, my - by), kb = g.kick * base * 0.05;
       drawMP10(ctx, bx - Math.cos(ang) * kb, by - Math.sin(ang) * kb, ang, len, { flash: g.flash, flip: true });
     }
@@ -7163,18 +7157,15 @@ body.lab .stage > :not(canvas) { display: none; }
       if (k === "ArrowDown") g.pitch = clamp(g.pitch - step, -0.2, 0.75);
     }
   }, true);
-  // the camera: where you stand, looking where the gun points, like a first-person shooter: the hall turns round
-  // you and the crosshair stays in the middle (it trails the aim a moment, so a quick swing settles onto the centre)
-  function gunCam(dt) {
-    const g = S.gun, a = Math.min(1, dt * 14);
-    // (a tall phone field is narrow, so there the view is a little closer in, so the skeetzas are big enough to hit)
-    F0 = W < H ? W * 1.5 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1; F = F0;
+  // the camera: where you stand, looking up the hall a little, and it stays still: only the sights move (a view
+  // that turns with the aim is too much to watch)
+  function setGunView() { [CAM.x, CAM.y, CAM.z] = GUN.eye; CAM.yaw = 0; CAM.pitch = GUN.look; }
+  function gunCam() {
+    // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
+    // still wide enough to see the machines they come from)
+    F0 = W < H ? W * 1.15 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1; F = F0;
     if (S.gunReplay) F = F0 * gunReliveCam();
-    else {
-      [CAM.x, CAM.y, CAM.z] = GUN.eye;
-      const wy = g ? g.yaw : 0, wp = -(g ? g.pitch : 0.2);
-      if (!dt) { CAM.yaw = wy; CAM.pitch = wp; } else { CAM.yaw += (wy - CAM.yaw) * a; CAM.pitch += (wp - CAM.pitch) * a; }
-    }
+    else setGunView();
     CY = CYhome = H * 0.5;
     cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch); cyw = Math.cos(CAM.yaw); syw = Math.sin(CAM.yaw);
     HZ = CY - F * Math.tan(CAM.pitch);
