@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.48</p>
+  <p class="ver">Pneuman v1.49</p>
 </div>
 
 <script>
@@ -6735,6 +6735,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the sights stay on the screen: a finger or the arrow keys can't push them off its edges)
     const hx = Math.atan(W / 2 / F) * 0.96, hy = Math.atan(H / 2 / F) * 0.94;
     g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -GUN.look - hy, -GUN.look + hy);
+    // the gun slides along the bottom after the crosshair, just a touch behind (see drawGunView)
+    const cx = crossAt().x; g.gx = g.gx == null ? cx : g.gx + (cx - g.gx) * Math.min(1, dt * 14);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
     if (g.phase === "raise" && g.up >= 1) { g.phase = "ready"; g.timer = 0.9; hud(); }
     else if (g.phase === "ready" && (g.timer -= dt) <= 0) { pull(); g.phase = "live"; g.timer = 0; }
@@ -7035,12 +7037,15 @@ body.lab .stage > :not(canvas) { display: none; }
     const c = crossAt(), up = g.up;
     if (up < 1) drawGunTable(1 - up);
     if (up > 0) {
-      // (held like a first-person shooter's gun: low on the right, angled in toward the middle, gauge on top. It
-      // stays put: only the sights move. It kicks back when it fires)
-      const base = Math.min(H, W * 0.75), sy = (1 - up) * H * 0.8;
-      const mx = W / 2 + base * 0.2, my = H / 2 + base * 0.3 + sy; // (the muzzle, below and right of the middle)
-      const bx = W / 2 + base * 0.66, by = H + base * 0.15 + sy; // (the back, off the bottom corner)
-      const ang = Math.atan2(my - by, mx - bx), len = Math.hypot(mx - bx, my - by), kb = g.kick * base * 0.05;
+      // (held up at the bottom of the view, gauge on the side. It slides along the bottom to stay right under the
+      // crosshair, upright in the middle and leaning a little toward whichever side the crosshair is on, so it
+      // always points the way you're aiming. Only when the crosshair comes down low does it dip out of the way. It
+      // kicks back when it fires)
+      const base = Math.min(H, W * 0.75), len = base * 0.5;
+      if (g.gx == null) g.gx = c.x;
+      const ang = -Math.PI / 2 + 0.2 * clamp((g.gx - W / 2) / (W / 2), -1, 1);
+      const mx = g.gx, my = clamp(c.y + base * 0.1, H - base * 0.3, H - base * 0.05) + (1 - up) * H * 0.8; // (the muzzle)
+      const bx = mx - Math.cos(ang) * len, by = my - Math.sin(ang) * len, kb = g.kick * base * 0.05;
       drawMP10(ctx, bx - Math.cos(ang) * kb, by - Math.sin(ang) * kb, ang, len, { flash: g.flash, flip: true });
     }
     if (up > 0.95 && (g.phase === "ready" || g.phase === "live")) {
