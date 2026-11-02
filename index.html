@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.43</p>
+  <p class="ver">Pneuman v1.44</p>
 </div>
 
 <script>
@@ -6583,7 +6583,7 @@ body.lab .stage > :not(canvas) { display: none; }
       pizzas: structuredClone(rec.pizzas), pellets: [], drone: structuredClone(rec.drone), workers: structuredClone(rec.workers), broken: structuredClone(rec.broken),
       flops: rec.flops.slice(), booms: [], shotLeft: shot };
     S.bits = []; S.pops = [];
-    R.t = -GUN_RELIVE.lead; R.fired = false; R.hold = 0; R.cam = null;
+    R.t = -GUN_RELIVE.lead; R.fired = false; R.hold = 0; R.cam = null; R.side = null;
     reliveBtn.textContent = `■ ${R.pass + 1}/${GUN_RELIVE.passes.length} · ${GUN_RELIVE.passes[R.pass]}`;
   }
   function stopGunRelive() {
@@ -6631,12 +6631,34 @@ body.lab .stage > :not(canvas) { display: none; }
     let pos, look, zoom = 1;
     if (R.pass === 0) { pos = e; look = [e[0] + d[0], e[1] + d[1], e[2] + d[2]]; }
     else if (R.pass === 1) {
-      // the shot's run, out as far as the skeetzas were (30 m with none up), seen from the wall on the far side,
-      // looking at its far half, where the skeetzas cross it
-      const far = rec.pizzas.length ? Math.max(...rec.pizzas.map((p) => Math.hypot(p.x - e[0], p.y - e[1], p.z - e[2]))) : 30;
-      const A = [e[0] + d[0] * far, e[1] + d[1] * far, e[2] + d[2] * far], side = A[0] > 0 ? -1 : 1;
-      const mid = [e[0] + (A[0] - e[0]) * 0.7, e[1] + (A[1] - e[1]) * 0.7, e[2] + (A[2] - e[2]) * 0.7];
-      pos = [side * (HALL.x - 1.5), 5, mid[2] - 6]; look = mid; zoom = 0.7;
+      // from the side wall (the one further from the shot), framed on the skeetzas' whole paths through the replay
+      // and the far part of the shot where it meets them, zoomed out as far as it takes to fit them all, however
+      // deep in the hall they are (worked out once a pass)
+      if (!R.side) {
+        const far = rec.pizzas.length ? Math.max(...rec.pizzas.map((p) => Math.hypot(p.x - e[0], p.y - e[1], p.z - e[2]))) : 30;
+        const pts = [0.45, 0.7, 1, 1.08].map((k) => [e[0] + d[0] * far * k, e[1] + d[1] * far * k, e[2] + d[2] * far * k]);
+        for (const p of rec.pizzas) for (let k = 0; k <= 4; k++) {
+          const t = (rec.dur * k) / 4;
+          pts.push([p.x + p.vx * t, Math.max(0, p.y + p.vy * t - 0.5 * GUN.pg * t * t), p.z + p.vz * t]);
+        }
+        const cz = pts.reduce((a, p) => a + p[2], 0) / pts.length, side = pts.reduce((a, p) => a + p[0], 0) > 0 ? -1 : 1;
+        const cpos = [side * (HALL.x - 1.5), 6, clamp(cz - 5, HALL.z0 + 1, HALL.z1 - 8)];
+        const C = pts.reduce((a, p) => a.map((v, i) => v + p[i] / pts.length), [0, 0, 0]);
+        let yaw = Math.atan2(C[0] - cpos[0], C[2] - cpos[2]), pitch = -Math.atan2(C[1] - cpos[1], Math.hypot(C[0] - cpos[0], C[2] - cpos[2])), ex;
+        // centre them on screen, then zoom so they all fit (and no closer in than the normal view)
+        for (let i = 0; i < 4; i++) {
+          ex = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+          for (const p of pts) {
+            const c = camSpace(p, cpos, yaw, pitch), tx = c[0] / Math.max(0.5, c[2]), ty = c[1] / Math.max(0.5, c[2]);
+            ex.x0 = Math.min(ex.x0, tx); ex.x1 = Math.max(ex.x1, tx); ex.y0 = Math.min(ex.y0, ty); ex.y1 = Math.max(ex.y1, ty);
+          }
+          yaw += Math.atan((ex.x0 + ex.x1) / 2); pitch -= Math.atan((ex.y0 + ex.y1) / 2);
+        }
+        const fit = Math.min(W * 0.8 / (ex.x1 - ex.x0 || 1), H * 0.7 / (ex.y1 - ex.y0 || 1));
+        R.side = { pos: cpos, yaw, pitch, zoom: Math.min(1, fit / F0) };
+      }
+      [CAM.x, CAM.y, CAM.z] = R.side.pos; CAM.yaw = R.side.yaw; CAM.pitch = R.side.pitch;
+      return R.side.zoom;
     } else {
       // (once they're all down, or a few metres short of a wall, it stays where it got to)
       const live = g.pellets.length ? g.pellets : null, near = live && live.some((p) => p.z > HALL.z1 - 7 || Math.abs(p.x) > HALL.x - 5 || p.y > roofY(p.x) - 3);
