@@ -194,6 +194,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   padding: 4px 8px; border-radius: 12px; display: grid; place-items: center; align-content: center; gap: 2px; width: 116px; line-height: 1.05;
 }
 .fire.load { background: #3f9a4a; }
+.fire { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 /* Skeetza: the MP 10's box (its load and barrels) takes the place of the launcher's three */
 .ctl-gun { display: none; }
 .gunmode .tray .ctl:not(.ctl-gun) { display: none; }
@@ -376,7 +377,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.52</p>
+  <p class="ver">Pneuman v1.53</p>
 </div>
 
 <script>
@@ -5370,7 +5371,17 @@ body.lab .stage > :not(canvas) { display: none; }
   rotIn.addEventListener("input", () => setYaw(Number(rotIn.value)));
   $("rotL").addEventListener("click", () => setYaw(S.yaw - 0.5));
   $("rotR").addEventListener("click", () => setYaw(S.yaw + 0.5));
-  $("fire").addEventListener("click", () => { audio(); action(); });
+  // (on Skeetza the button fires the moment a finger lands on it: a phone often sends no click for a tap made while
+  // another finger is on the screen, aiming. The click that may follow that same tap is then ignored)
+  let fireTouched = 0;
+  $("fire").addEventListener("pointerdown", (e) => {
+    if (!lvl().gun || e.pointerType === "mouse") return;
+    e.preventDefault(); fireTouched = performance.now(); audio(); action();
+  });
+  $("fire").addEventListener("click", () => {
+    if (lvl().gun && performance.now() - fireTouched < 1000) return;
+    audio(); action();
+  });
 
   // ================= re-live it =================
   // after each shot a big Re-live it! button pops up front and centre for 5 s, then shrinks to the top right corner
