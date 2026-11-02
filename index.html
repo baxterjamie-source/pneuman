@@ -230,7 +230,9 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   /* the field grows to fill the screen height left over by the header, scores and controls */
   .wrap { min-height: 100dvh; grid-template-rows: auto auto minmax(300px, 1fr) auto auto; padding-block: 10px 6px; }
   .stage { aspect-ratio: auto; max-height: none; min-height: 300px; height: 100%; }
-  .hud { gap: 4px; }
+  /* (one chip to a row, always: if they shared a row they'd wrap the moment a bonus showed up, the header would
+     grow and the field shrink and jump) */
+  .hud { gap: 4px; flex-direction: column; align-items: flex-start; }
   .chip { font-size: .72rem; padding: 2px 7px; border-width: 2px; border-radius: 9px; gap: 5px; }
   .chip .k { font-size: .6rem; }
   .spud { width: 8px; height: 7px; border-width: 1.5px; }
@@ -374,7 +376,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.50</p>
+  <p class="ver">Pneuman v1.51</p>
 </div>
 
 <script>
@@ -454,12 +456,19 @@ body.lab .stage > :not(canvas) { display: none; }
   let ctx = cv.getContext("2d"); // swapped briefly to draw the start screen's little pictures
   const psiIn = $("psi"), rotIn = $("rot");
   let W = 800, H = 450, dpr = 1;
+  // (resizing a canvas wipes it, and the field's size changes often on a phone: the address bar sliding in and out,
+  // a line of the header coming and going. So it's drawn again straight away, or the field would flash blank,
+  // showing the blue behind it, until the next frame)
+  let drawnOnce = false;
   function resize() {
     const r = cv.getBoundingClientRect();
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = Math.max(1, r.width); H = Math.max(1, r.height);
-    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const w = Math.round(W * dpr), h = Math.round(H * dpr);
+    if (cv.width === w && cv.height === h) return;
+    cv.width = w; cv.height = h;
     const f = $("fx"); f.width = cv.width; f.height = cv.height; f.dirty = true;
+    if (drawnOnce) try { setupCam(0); draw(); } catch (err) { console.error(err); }
   }
   new ResizeObserver(resize).observe(cv); resize();
   $("holes").innerHTML = HOLES.map(() => "<b></b>").join("");
@@ -1003,7 +1012,8 @@ body.lab .stage > :not(canvas) { display: none; }
         }
         continue;
       }
-      for (let tries = 0; tries < 300; tries++) {
+      // (no rings to put it near: the field had no room for them, as when the page is still finding its size)
+      for (let tries = 0; tries < 300 && S.rings.length; tries++) {
         // in harm's way: usually just short of a ring or just past it along the line of fire (where a shot that's
         // a bit short or long lands), sometimes off to one side
         const ring = S.rings[Math.floor(Math.random() * S.rings.length)];
@@ -7243,10 +7253,16 @@ body.lab .stage > :not(canvas) { display: none; }
   const challenge = readChallenge();
   S.phase = "title";
   if (challenge) showChallenge(challenge); else showStart(linked);
-  let last = performance.now();
+  let last = performance.now(), oops = false;
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    update(dt); draw(); requestAnimationFrame(frame);
+    // (the next frame is asked for first, so a frame that goes wrong is just skipped rather than stopping the game
+    // on a blank field; what went wrong shows once, so it can be reported)
+    requestAnimationFrame(frame);
+    try { update(dt); draw(); drawnOnce = true; } catch (err) {
+      console.error(err);
+      if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
+    }
   })(last);
 })();
 </script>
