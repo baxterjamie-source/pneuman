@@ -377,7 +377,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.53</p>
+  <p class="ver">Pneuman v1.54</p>
 </div>
 
 <script>
@@ -6159,8 +6159,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
   // where the workers start come from the round's seed
-  // (pace: how fast the skeetzas' flight plays out, 0.5 = half speed: the same arcs, twice as long in the air)
-  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.5, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  // (pace: how fast the skeetzas' flight plays out, 0.75 = three-quarter speed: the same arcs, a third longer in the air)
+  const GUN = { shots: 10, clear: 10, pulls: 20, pace: 0.75, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
