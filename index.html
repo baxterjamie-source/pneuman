@@ -374,7 +374,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.41</p>
+  <p class="ver">Pneuman v1.42</p>
 </div>
 
 <script>
@@ -5496,9 +5496,11 @@ body.lab .stage > :not(canvas) { display: none; }
     const keep = { ctx, W, H, dpr, CY, cam: { ...CAM }, propT: rec.prop ? rec.prop.t : null,
       s: { arc: S.arc, arcView: S.arcView, view: S.view, pops: S.pops, lx: S.lx, yaw: S.yaw, hole: S.hole, angDisp: S.angDisp, replay: S.replay, bird: S.bird, loadMsg: S.loadMsg } };
     ctx = off.getContext("2d"); W = gw; H = gh; dpr = 1;
-    Object.assign(S, { replay: null, arc: rec.arc, arcView: 1, view: null, lx: rec.lx, yaw: rec.yaw, hole: rec.hole, angDisp: HOLES[rec.hole], bird: null, loadMsg: 0, pops: rec.pops.map((b) => ({ ...b, t: 0.5 })) });
+    // (Skeetza has no arc to show: the hall as you see it from where you stand, splats, flops, broken windows and all)
+    if (rec.gun) { try { setupCam(0); draw(); } finally { ({ ctx, W, H, dpr, CY } = keep); Object.assign(CAM, keep.cam); setupCam(0); } }
+    else Object.assign(S, { replay: null, arc: rec.arc, arcView: 1, view: null, lx: rec.lx, yaw: rec.yaw, hole: rec.hole, angDisp: HOLES[rec.hole], bird: null, loadMsg: 0, pops: rec.pops.map((b) => ({ ...b, t: 0.5 })) });
     if (rec.prop) rec.prop.t = 0.5;
-    try {
+    if (!rec.gun) try {
       setupCam(0);
       const v = arcCam(ARC_VIEWS[1], rec.arc);
       Object.assign(CAM, { x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch, zoom: v.F / F0 }); CY = H / 2; setupCam(0);
@@ -5558,7 +5560,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim());
     const lead = c.vs
       ? `I scored ${c.score} on your ${place} round${c.vs.name ? `, ${c.vs.name}` : ""} (you had ${c.vs.score}). Your turn: beat my ${c.score}! 🥔`
-      : `Pneuman Challenge: beat my ${c.score} on ${place}! Same targets, same wind, one try. 🥔`;
+      : `Pneuman Challenge: beat my ${c.score} on ${place}! ${sameRound(LEVELS[S.level])}, one try. 🥔`;
     return { link, lead, tail: "Take the challenge:", text: `${lead} ${link}` };
   }
   // the preview's picture and address are live links to the game, as they'll be in the message
@@ -5574,8 +5576,10 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // challenge: { score, vs } to send this round as a challenge (vs: the challenge being answered, for challenge back)
   function openShare(challenge = null) {
-    const rec = S.rec;
-    if (!rec || !rec.arc || S.potato) return;
+    // (Skeetza's challenges have no shot of their own to show: see postcard)
+    const rec = lvl().gun ? { level: S.level, gun: true } : S.rec;
+    if (!rec || (!rec.gun && !rec.arc) || S.potato) return;
+    if (S.gunReplay) stopGunRelive();
     if (S.replay) stopRelive();
     audio(); shrinkRelive();
     // (an epic spud's picture only says "Click image to see more!" on a computer, where the picture is the link; on a
@@ -5720,6 +5724,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (and the address goes back to a plain level link, so a reload doesn't bring the challenge back)
     try { history.replaceState(null, "", `${location.pathname}?level=${lvl().id}`); } catch (e) {}
   }
+  // what's the same for both players (Skeetza has no targets or wind: its skeetzas fly the same way for both)
+  const sameRound = (L) => (L.gun ? "Same skeetzas, same drone" : "Same targets, same wind");
   const verdict = (mine, theirs, name) => mine > theirs ? "You win!" : mine < theirs ? `${name || "Your friend"} wins` : "A tie!";
   function showChallenge(c) {
     S.challenge = c; useChallengeAnimals(c);
@@ -5728,7 +5734,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const old = c.v && c.v !== GAME_V ? ` (Sent from Pneuman v${c.v}; this is v${GAME_V}, so the round may differ a little.)` : "";
     const plain = () => { leaveChallenge(); showStart(c.level); };
     if (!mine) {
-      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name}. Same targets, same wind, one try. Your turn!${old}`, "",
+      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name}. ${sameRound(L)}, one try. Your turn!${old}`, "",
         `<button id="ovGo" type="button">Play ${L.name}</button><button id="ovPick" type="button">Just play Pneuman</button>`,
         () => { chSave(c, { started: Date.now() }); startLevel(c.level, c); });
       $("ovPick").onclick = () => { audio(); plain(); };
@@ -6128,11 +6134,11 @@ body.lab .stage > :not(canvas) { display: none; }
   // pairs from behind the ovens, freezers and proofer. Two MP 10s wait on a table, pumped to 120 PSI: tap one and it
   // comes up ready, a pair goes up ("PULL!"), and you have both barrels; a barrel you don't fire is kept for the next
   // pair. Once both are fired it goes back on the table to be reloaded and you take the other. Pairs keep coming
-  // until all 10 barrels are fired, skeetzas +10 each, and 10 of them clears the level.
+  // until all 10 barrels are fired (or 20 pairs have flown), skeetzas +10 each, and 10 of them clears the level.
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
   // where the workers start come from the round's seed
-  const GUN = { shots: 10, clear: 10, pts: 10, eye: [0, 1.65, -2], pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
+  const GUN = { shots: 10, clear: 10, pulls: 20, pts: 10, eye: [0, 1.65, -2], pellets: 5, speed: 80, spread: 0.012, reload: 2.5, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
@@ -6690,12 +6696,15 @@ body.lab .stage > :not(canvas) { display: none; }
     else if (g.phase === "ready" && (g.timer -= dt) <= 0) { pull(); g.phase = "live"; g.timer = 0; }
     else if (g.phase === "live") {
       // both barrels fired: down it goes. A barrel left but nothing left to shoot at: a moment for the drone, then
-      // the next pair (the barrel's kept for it)
+      // the next pair (the barrel's kept for it), unless that was the last of the 20
       if (g.shots >= 2 && !busy) { if ((g.timer += dt) > 0.5) lowerGun(); }
-      else if (!flying && !busy) { if ((g.timer += dt) > 1.8) { g.phase = "ready"; g.timer = 0.6; } }
-      else g.timer = 0;
+      else if (!flying && !busy) {
+        if ((g.timer += dt) > 1.8) {
+          if (g.pulls >= GUN.pulls) { note(`That's all ${GUN.pulls} pairs!`, 2000); lowerGun(); } else { g.phase = "ready"; g.timer = 0.6; }
+        }
+      } else g.timer = 0;
     } else if (g.phase === "lower" && g.up <= 0) {
-      if (S.spudsLeft > 0) { g.phase = "table"; hud(); }
+      if (S.spudsLeft > 0 && g.pulls < GUN.pulls) { g.phase = "table"; hud(); }
       else if (!flying && !busy) { g.phase = "over"; S.phase = "settle"; S.timer = 1.2; S.after = endLevel; }
     }
     // the skeetzas, the mini spuds, the drone, the workers
@@ -6887,15 +6896,18 @@ body.lab .stage > :not(canvas) { display: none; }
       c.fillStyle = col; c.fill(); c.strokeStyle = ink; c.lineWidth = Math.max(1, L * 0.006); c.stroke();
       c.fillStyle = "rgba(255,255,255,.22)"; c.beginPath(); c.moveTo(f0 * L, off * wd(f0) - wd(f0) * k * 0.35); c.lineTo(f1 * L, off * wd(f1) - wd(f1) * k * 0.35); c.lineTo(f1 * L, off * wd(f1) - wd(f1) * k * 0.15); c.lineTo(f0 * L, off * wd(f0) - wd(f0) * k * 0.15); c.closePath(); c.fill();
     };
-    // the trigger, under the chamber
-    c.strokeStyle = ink; c.lineWidth = Math.max(1.5, wd(0.2) * 0.12); c.lineCap = "round";
-    c.beginPath(); c.moveTo(0.18 * L, wd(0.18) * 0.45); c.quadraticCurveTo(0.2 * L, wd(0.2) * 1.0, 0.25 * L, wd(0.25) * 0.95); c.stroke();
     // the pipe end cap on the back of the chamber: a little wider than the pipe, its end domed
     c.fillStyle = "#9ea7ad"; c.beginPath(); c.ellipse(-0.19 * L, 0, wd(-0.19) * 0.3, wd(-0.19) * 0.56, 0, 0, 7); c.fill(); c.stroke();
     tube(-0.19, -0.08, 1.12, "#a3acb2");
     tube(-0.08, 0.5, 1, "#b9c1c7");
-    // the gauge on top, its needle near the top of the dial
-    const gx = 0.3 * L, gr = wd(0.3) * 0.42, gy = -wd(0.3) * 0.5 - gr * 0.85;
+    // the fire button, a big red one on the side, just short of the gauge
+    const bx = 0.36 * L, br = wd(0.36) * 0.24, by = wd(0.36) * 0.5 + br * 0.55;
+    c.fillStyle = "#3a4148"; c.beginPath(); c.arc(bx, by, br * 1.25, 0, 7); c.fill();
+    c.fillStyle = o.flash ? "#ff6b5a" : "#d62f22"; c.beginPath(); c.arc(bx, by, br, 0, 7); c.fill();
+    c.lineWidth = Math.max(1, br * 0.15); c.strokeStyle = "#7d1810"; c.stroke();
+    c.fillStyle = "rgba(255,255,255,.45)"; c.beginPath(); c.arc(bx - br * 0.3, by - br * 0.3, br * 0.35, 0, 7); c.fill();
+    // the gauge on top, right at the top of the chamber, its needle near the top of the dial
+    const gx = 0.44 * L, gr = wd(0.44) * 0.42, gy = -wd(0.44) * 0.5 - gr * 0.85;
     c.fillStyle = "#c9a23a"; c.fillRect(gx - gr * 0.25, gy, gr * 0.5, gr * 0.9);
     c.fillStyle = "#fffaf0"; c.beginPath(); c.arc(gx, gy, gr, 0, 7); c.fill(); c.lineWidth = Math.max(1, gr * 0.18); c.strokeStyle = "#3a4148"; c.stroke();
     c.strokeStyle = "#c0392b"; c.lineWidth = Math.max(1, gr * 0.12); c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + Math.cos(-0.4) * gr * 0.8, gy + Math.sin(-0.4) * gr * 0.8); c.stroke();
@@ -6938,10 +6950,17 @@ body.lab .stage > :not(canvas) { display: none; }
     const c = crossAt(), up = g.up;
     if (up < 1) drawGunTable(1 - up);
     if (up > 0) {
-      // (low in the middle, kept small, so it doesn't cover the machines the skeetzas come from)
-      const px = W * 0.5, py = H * 1.06 + (1 - up) * H * 0.8 + g.kick * H * 0.04;
-      const base = Math.min(H, W * 0.75), len = clamp(Math.hypot(c.x - px, c.y - py) * 0.55, base * 0.44, base * 0.66);
-      drawMP10(ctx, px, py, Math.atan2(c.y - py, c.x - px), len, { flash: g.flash });
+      // (low in the middle, mostly below the view, so it doesn't cover the machines the skeetzas come from). It
+      // swings round and tips up and down with the aim: its muzzle stays a little under the crosshair, so aimed
+      // high it stands up tall, and aimed low it drops down and lies flatter, pointing into the hall, and never
+      // covers what you're aiming at
+      const base = Math.min(H, W * 0.75);
+      const mx = W * 0.5 + (c.x - W * 0.5) * 0.92, my = c.y + base * 0.07; // (the muzzle: just under the crosshair)
+      const px = W * 0.5 + (c.x - W * 0.5) * 0.3, short = base * 0.42;
+      // (the back of it below the bottom edge; dropped further when aimed low, so it's never shorter than this)
+      const py0 = Math.max(H + base * 0.2, my + short), len = Math.min(Math.hypot(mx - px, my - py0), base * 0.85);
+      const py = py0 + (1 - up) * H * 0.8 + g.kick * H * 0.04;
+      drawMP10(ctx, px, py, Math.atan2(my - py0, mx - px), len, { flash: g.flash });
     }
     if (up > 0.95 && (g.phase === "ready" || g.phase === "live")) {
       ctx.lineCap = "round";
@@ -6992,7 +7011,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun;
     if (!g) return;
     const held = g.phase === "raise" || g.phase === "ready" || g.phase === "live";
-    $("gunOut").textContent = `pair ${Math.max(1, g.pulls)}`;
+    $("gunOut").textContent = `pair ${Math.max(1, g.pulls)}/${GUN.pulls}`;
     $("gunRow").innerHTML = `<span>Barrels</span>${[0, 1].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span class="pz">🍕 ${g.hits}/${GUN.clear}</span>` +
       (g.drone.state !== "fly" ? `<span class="sep">·</span><span>drone ✓</span>` : "");
   }
