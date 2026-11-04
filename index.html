@@ -6695,13 +6695,16 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // (where you stand and how you look: the place's own, if it has them, Skeetza's otherwise)
   const gunEye = () => (S.scene && S.scene.eye) || GUN.eye, gunLook = () => (S.scene && S.scene.look != null ? S.scene.look : GUN.look);
+  // (how fast the targets fly, Skeetza's GUN.pace unless the place has its own; and how far the view has tilted up
+  // to follow them, for a place that does)
+  const gunPace = () => (S.scene && S.scene.gp && S.scene.gp.pace) || GUN.pace, gunTilt = () => (S.scene && S.scene.gp && S.scene.gp.tilt) || 0;
   function aimDir() { const g = S.gun; return [Math.cos(g.pitch) * Math.sin(g.yaw), Math.sin(g.pitch), Math.cos(g.pitch) * Math.cos(g.yaw)]; }
   const crossAt = () => { const d = aimDir(), e = gunEye(); return P(e[0] + d[0] * 30, e[1] + d[1] * 30, e[2] + d[2] * 30); };
   // point the gun at a spot on the screen (the mouse): back through the camera into the hall
   function aimAtScreen(sx, sy) {
     const g = S.gun, X = (sx - W / 2) / F, Y = (CY - sy) / F;
     const dy = Y * cp - sp, z1 = Y * sp + cp, dx = X * cyw + z1 * syw, dz = -X * syw + z1 * cyw;
-    g.yaw = clamp(Math.atan2(dx, dz), -0.8, 0.8); g.pitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.2, 0.75);
+    g.yaw = clamp(Math.atan2(dx, dz), -0.8, 0.8); g.pitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.2, 0.75 + gunTilt());
   }
   function shoot() {
     const g = S.gun;
@@ -6888,7 +6891,7 @@ body.lab .stage > :not(canvas) { display: none; }
     g.t += sdt;
     for (const p of g.pizzas) {
       if (p.done) continue;
-      const pd = sdt * GUN.pace;
+      const pd = sdt * gunPace();
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * sdt;
       if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       if (S.scene.gp) S.scene.gp.drift(p, sdt);
@@ -7008,7 +7011,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.mouse && S.phase === "gun") aimAtScreen(g.mouse.x, g.mouse.y);
     // (the sights stay on the screen: a finger or the arrow keys can't push them off its edges)
     const hx = Math.atan(W / 2 / F) * 0.96, hy = Math.atan(H / 2 / F) * 0.94;
-    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -gunLook() - hy, -gunLook() + hy);
+    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -gunLook() + gunTilt() - hy, -gunLook() + gunTilt() + hy);
     // the gun slides along the bottom after the crosshair, just a touch behind (see drawGunView)
     const cx = crossAt().x; g.gx = g.gx == null ? cx : g.gx + (cx - g.gx) * Math.min(1, dt * 14);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
@@ -7036,7 +7039,7 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const p of g.pizzas) {
       if (p.done) continue;
       // (at GUN.pace: the same arc, flown slower; they spin at the usual rate)
-      const pd = dt * GUN.pace;
+      const pd = dt * gunPace();
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * dt;
       if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       // (a place with wind: it pushes the wood along)
@@ -7599,7 +7602,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // the camera: where you stand, looking up the hall a little, and it stays still: only the sights move (a view
   // that turns with the aim is too much to watch)
   // (a place can look its own way: Milling looks nearly level, to take in its yard)
-  function setGunView() { [CAM.x, CAM.y, CAM.z] = (S.scene && S.scene.eye) || GUN.eye; CAM.yaw = 0; CAM.pitch = S.scene && S.scene.look != null ? S.scene.look : GUN.look; }
+  function setGunView() { [CAM.x, CAM.y, CAM.z] = (S.scene && S.scene.eye) || GUN.eye; CAM.yaw = 0; CAM.pitch = (S.scene && S.scene.look != null ? S.scene.look : GUN.look) - gunTilt(); }
   function gunCam() {
     // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
     // still wide enough to see the machines they come from)
@@ -8689,8 +8692,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const roofAt = (o, z) => o.eave + (z < o.rz ? (z - o.zf) / (o.rz - o.zf) : (o.zb - z) / (o.zb - o.rz)) * (o.ridge - o.eave) + 0.5;
     const inBox = (pl, x0, x1, z0, z1, top) => pl.x > x0 && pl.x < x1 && pl.z > z0 && pl.z < z1 && pl.y < top;
     const gp = {
+      eye: () => (W > H ? [0, 1.7, -6] : [0, 1.65, 2]),
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 16, z0: 2, z1: 44 },
-      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } bonusState.vaneHit = null; bonusState.signHit = null; },
+      reset() { gp.tilt = 0; gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } bonusState.vaneHit = null; bonusState.signHit = null; },
       smash: smashMillWindow,
       // (the hands come back up after a duck)
       tick(dt) { for (const w of Object.values(CREWHIT)) w.hit = Math.max(0, w.hit - dt); },
@@ -8710,7 +8714,19 @@ body.lab .stage > :not(canvas) { display: none; }
       // toward or away from you
       newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
       // the wind pushes the wood (light and flat) along as it flies
-      drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * GUN.pace; p.vz += gp.wind.z * 0.16 * dt * GUN.pace; },
+      drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * gp.pace; p.vz += gp.wind.z * 0.16 * dt * gp.pace; },
+      // the wood flies a little quicker than Skeetza's pizzas (the same arcs, flown faster)
+      pace: 0.92,
+      // the view tilts up to keep the highest piece in sight when it climbs above the top, and back down after
+      // (only up and down; tilt is how far, in radians)
+      tilt: 0,
+      follow(dt) {
+        const g = S.gun, e = gp.eye(), half = Math.atan(H / 2 / F), top = -gunLook() + half * 0.6;
+        let want = 0;
+        if (g && !S.gunReplay) for (const p of g.pizzas) { if (p.done) continue; const el = Math.atan2(p.y + GUN.pizzaR - e[1], Math.hypot(p.x - e[0], p.z - e[2])); want = Math.max(want, el - top); }
+        want = clamp(want, 0, 0.55);
+        gp.tilt += (want - gp.tilt) * Math.min(1, dt * (want > gp.tilt ? 4 : 1.6));
+      },
       // where wood comes down: on the trodden ground, or on top of the deep snow
       // (on the snow as you see it, everywhere: nothing comes to rest in the air)
       floor: () => 0.03,
@@ -8810,7 +8826,7 @@ body.lab .stage > :not(canvas) { display: none; }
       update(dt) {
         const s = mstate(); pusher.x = s.pusher.x; pusher.z = s.pusher.z; carrier.x = s.carrier.x; carrier.z = s.carrier.z; disker.x = s.disker.x; disker.z = s.disker.z;
         const d = deerNow(); deerThing.x = d ? d.x : 0; deerThing.z = d ? d.z : 99; const dg = dogNow(); dogThing.x = dg.x; dogThing.z = dg.z;
-        if (dt) { updateGun(dt); gp.tick(dt); }
+        if (dt) { updateGun(dt); gp.tick(dt); gp.follow(dt); }
       },
       reset: resetGun, free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {} };
   }
