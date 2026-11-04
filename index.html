@@ -524,13 +524,14 @@ body.lab .stage > :not(canvas) { display: none; }
       // the time); the 10 and 15 are spinners on anchored rafts
       targets: { purple: "spinner", blue: "spinner" }, roofOdds: { red: 0.5 },
       props: ["fisher", "loons", "loon", "fish", "seadoo"] },
+    // the pizza factory, played with the MP 10 instead of the launcher (gun: see Skeetza below)
+    { id: "skeetza", name: "Skeetza", scene: "factory", mix: {}, z: [10, 50], wind: [0, 0], gun: true, props: [] },
+    // (between the two MP 10 levels, so they don't come one after the other)
     // (a level can also set hillOdds, the chance each ground ring goes on the front of one of its hills; Harvest's
     // hills are background scenery now, so nothing goes on them)
     { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118,
       targets: { yellow: "splat", purple: "splat" },
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
-    // the pizza factory, played with the MP 10 instead of the launcher (gun: see Skeetza below)
-    { id: "skeetza", name: "Skeetza", scene: "factory", mix: {}, z: [10, 50], wind: [0, 0], gun: true, props: [] },
     // the winter sawmill yard, the MP 10 again, shooting live-edge cookies and slabs (and now with wind)
     { id: "milling", name: "Milling", scene: "mill", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Wood", icon: "🪵" },
   ];
@@ -7602,7 +7603,8 @@ body.lab .stage > :not(canvas) { display: none; }
   function gunCam() {
     // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
     // still wide enough to see the machines they come from)
-    F0 = W < H ? W * 1.15 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1; F = F0;
+    // (a place can size its own view: Milling, on a wide, short laptop field, zooms out to take in more of the yard and sky)
+    F0 = S.scene && S.scene.focal ? S.scene.focal() : W < H ? W * 1.15 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1; F = F0;
     if (S.gunReplay) F = F0 * gunReliveCam();
     else setGunView();
     CY = CYhome = H * 0.5;
@@ -8798,7 +8800,10 @@ body.lab .stage > :not(canvas) { display: none; }
       // wood as it flies; on a phone, in close)
       get eye() { return W > H ? [0, 1.7, -6] : [0, 1.65, 2]; },
       // (and on a wide screen, short for its width, looking up a little more, so the arcs have room)
-      get look() { return W > H ? -0.11 : -0.05; }, skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
+      get look() { return W > H ? -0.11 : -0.05; },
+      // (on a wide field, a wider view, sized from its height so the yard sits well inside it with sky to follow the
+      // wood; a phone keeps the close view)
+      focal: () => (W < H ? W * 1.15 : Math.min(W * 0.85, H * 1.9)), skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
       back() { millBack(); drawFallen(); },
       front() { drawSign(); drawVane(); millFront(); drawWindChip(); },
       dyn: gunThings,
