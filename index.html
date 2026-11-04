@@ -44,6 +44,10 @@ header { display: flex; align-items: center; justify-content: space-between; gap
   padding: 10px 14px; min-width: 190px; display: grid; gap: 8px; box-shadow: 0 6px 0 rgba(0,0,0,.2);
 }
 .settings h3 { margin: 0; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
+.settings { max-height: calc(100vh - 90px); overflow-y: auto; }
+.settings h3.set-sub { margin-top: 4px; padding-top: 8px; border-top: 2px solid rgba(35,48,58,.15); display: flex; align-items: center; justify-content: space-between; gap: 10px; opacity: 1; }
+.settings h3.set-sub span { opacity: .65; }
+.set-sub .set-btn { font-size: .75rem; letter-spacing: 0; text-transform: none; padding: 2px 8px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
 .set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
 .set-row select { font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 2px 6px; cursor: pointer; }
@@ -321,8 +325,15 @@ body.lab .stage > :not(canvas) { display: none; }
       <h3>Settings</h3>
       <label class="set-row">Level <select id="lvlSel"></select></label>
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
-      <label class="set-row">Animals <input type="checkbox" id="animalsTgl" role="switch" checked></label>
       <label class="set-row">Distance stripes <input type="checkbox" id="stripesTgl" role="switch"></label>
+      <h3 class="set-sub"><span>Animations</span> <button class="set-btn" id="animAllBtn" type="button">All off</button></h3>
+      <label class="set-row">Animals <input type="checkbox" id="animalsTgl" role="switch" checked></label>
+      <label class="set-row">Workers <input type="checkbox" id="workersTgl" role="switch" checked></label>
+      <label class="set-row">Mill &amp; saws <input type="checkbox" id="machinesTgl" role="switch" checked></label>
+      <label class="set-row">Smoke &amp; fire <input type="checkbox" id="smokeTgl" role="switch" checked></label>
+      <h3 class="set-sub"><span>Speed test</span></h3>
+      <label class="set-row">Frame rate <input type="checkbox" id="fpsTgl" role="switch"></label>
+      <label class="set-row">Full resolution <input type="checkbox" id="hiresTgl" role="switch" checked></label>
       <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
     </div>
     <!-- the controls that aren't obvious, opened from settings so they don't take room under the field -->
@@ -555,6 +566,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // settings: animals in the field (on by default), 10 m distance stripes on the grass (off by default)
   S.animals = true; S.stripes = false;
   try { S.animals = localStorage.getItem("pneuman-animals") !== "0"; S.stripes = localStorage.getItem("pneuman-stripes") === "1"; } catch (e) {}
+  // settings for finding what slows a machine down: the scenery's animations in layers (all on by default; the
+  // targets, the gun and the boards always move: that's the game), a frame-rate readout, and full resolution on a
+  // sharp screen (off draws a quarter of the pixels on a laptop's 2× screen)
+  // (workers: Milling's four hands; machines: the sawmill and band saw running, sawdust flying, the hands at them
+  // moving; smoke: the chimney's smoke and the woodstove's fire)
+  S.anim = { workers: true, machines: true, smoke: true }; S.fps = false; S.hires = true;
+  try { Object.assign(S.anim, JSON.parse(localStorage.getItem("pneuman-anim") || "{}")); S.fps = localStorage.getItem("pneuman-fps") === "1"; S.hires = localStorage.getItem("pneuman-hires") !== "0"; } catch (e) {}
   // the blue lever is down (valve open) until a spud is loaded, so pumping just leaks out
   const valveOpen = () => !S.loaded && S.phase !== "loading";
 
@@ -570,7 +588,7 @@ body.lab .stage > :not(canvas) { display: none; }
   let drawnOnce = false;
   function resize() {
     const r = cv.getBoundingClientRect();
-    dpr = Math.min(2, window.devicePixelRatio || 1);
+    dpr = S.hires ? Math.min(2, window.devicePixelRatio || 1) : 1;
     W = Math.max(1, r.width); H = Math.max(1, r.height);
     const w = Math.round(W * dpr), h = Math.round(H * dpr);
     if (cv.width === w && cv.height === h) return;
@@ -1945,7 +1963,11 @@ body.lab .stage > :not(canvas) { display: none; }
       ...(S.scene.dyn ? S.scene.dyn() : []).map((s) => ({ d: dist(s), f: () => s.draw(s) })),
     ];
     standing.sort((a, b) => b.d - a.d);
-    for (const s of standing) s.f();
+    // (one thing that can't be drawn from some odd camera is left out of that frame, rather than stopping the game:
+    // what went wrong is logged once)
+    for (const s of standing) {
+      try { s.f(); } catch (err) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (!draw.oops) { draw.oops = true; console.error(err); } }
+    }
     // splats up on a roof, flying bits (leaves, letters, glass), the place's falling leaves, and its bubbles
     for (const s of S.splats) if (s.y) drawSplat(s);
     drawBits();
@@ -1967,8 +1989,10 @@ body.lab .stage > :not(canvas) { display: none; }
     // allowed, so a Two Fer Za and its two KA-PIZZAs can all be read; they glide there rather than jump)
     // (the big pizza calls are placed first and the small bubbles find room round them; a call rises as it plays)
     const placed = [], pops = [...(S.pops || []).filter((b) => b.fancy), ...(S.pops || []).filter((b) => !b.fancy)];
+    // (the big calls pop up in the middle of the screen, not where it happened: up top on a small screen they were
+    // lost behind the shot's note and Re-live it; the white bubbles stay over what was hit)
     for (const b of pops) {
-      const q = P(b.x, b.y + 1, b.z);
+      const q = b.fancy ? { x: W / 2, y: H * 0.46 } : P(b.x, b.y + 1, b.z);
       if (q.behind || b.t >= (b.fancy ? 3.7 : popLife)) continue;
       let w, h, cy;
       if (b.fancy) { const fs = clamp(W * 0.05, 26, 46); ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; w = ctx.measureText(b.text).width + fs * 0.3; h = fs * 1.15; cy = q.y - 30 - Math.min(b.t, 3) * 6; }
@@ -5964,6 +5988,29 @@ body.lab .stage > :not(canvas) { display: none; }
     S.stripes = stripesTgl.checked;
     try { localStorage.setItem("pneuman-stripes", S.stripes ? "1" : "0"); } catch (e) {}
   });
+  // the animation layers, and All off / All on for the lot (animals included)
+  const animTgls = { workers: $("workersTgl"), machines: $("machinesTgl"), smoke: $("smokeTgl") }, animAllBtn = $("animAllBtn");
+  const saveAnim = () => { try { localStorage.setItem("pneuman-anim", JSON.stringify(S.anim)); } catch (e) {} };
+  const anyAnim = () => S.animals || Object.values(S.anim).some(Boolean);
+  const showAnimAll = () => { animAllBtn.textContent = anyAnim() ? "All off" : "All on"; };
+  for (const [k, el] of Object.entries(animTgls)) {
+    el.checked = S.anim[k];
+    el.addEventListener("change", () => { S.anim[k] = el.checked; saveAnim(); showAnimAll(); });
+  }
+  animalsTgl.addEventListener("change", showAnimAll);
+  animAllBtn.addEventListener("click", () => {
+    const on = !anyAnim();
+    for (const [k, el] of Object.entries(animTgls)) { S.anim[k] = on; el.checked = on; }
+    saveAnim();
+    if (!animalsTgl.disabled && animalsTgl.checked !== on) { animalsTgl.checked = on; animalsTgl.dispatchEvent(new Event("change")); }
+    showAnimAll();
+  });
+  showAnimAll();
+  // the speed test: a frame-rate readout in the corner, and full resolution (off: one pixel per screen point)
+  const fpsTgl = $("fpsTgl"), hiresTgl = $("hiresTgl");
+  fpsTgl.checked = S.fps; hiresTgl.checked = S.hires;
+  fpsTgl.addEventListener("change", () => { S.fps = fpsTgl.checked; try { localStorage.setItem("pneuman-fps", S.fps ? "1" : "0"); } catch (e) {} });
+  hiresTgl.addEventListener("change", () => { S.hires = hiresTgl.checked; try { localStorage.setItem("pneuman-hires", S.hires ? "1" : "0"); } catch (e) {} resize(); });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
   gear.addEventListener("click", (e) => { e.stopPropagation(); showCtls(false); showSettings(settings.hidden); });
   document.addEventListener("click", (e) => {
@@ -6636,7 +6683,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function resetGun() {
     S.gun = {
       phase: "wait", t: 0, pulls: 0, launched: 0, pull: null, hits: 0, yaw: 0, pitch: 0.2, guns: Array.from({ length: GUN.cases }, () => ({ ready: true })), hold: -1, up: 0, shards: [],
-      shots: 0, timer: 0, pizzas: [], pellets: [], flops: [], booms: [], broken: {}, rec: null, flash: 0, kick: 0, mouse: null, slots: [],
+      shots: 0, timer: 0, pizzas: [], pellets: [], flops: [], booms: [], broken: {}, rec: null, flash: 0, kick: 0, mouse: null, slots: [], tilt: 0, pan: 0,
       drones: S.scene.gp ? [] : DRONE_ZONES.map(makeDrone), got: new Set(), workers: S.scene.gp ? [] : WORKER_ROUNDS.map(makeWorker),
     };
     if (S.scene.gp && S.scene.gp.reset) S.scene.gp.reset();
@@ -6696,15 +6743,36 @@ body.lab .stage > :not(canvas) { display: none; }
   // (where you stand and how you look: the place's own, if it has them, Skeetza's otherwise)
   const gunEye = () => (S.scene && S.scene.eye) || GUN.eye, gunLook = () => (S.scene && S.scene.look != null ? S.scene.look : GUN.look);
   // (how fast the targets fly, Skeetza's GUN.pace unless the place has its own; and how far the view has tilted up
-  // to follow them, for a place that does)
-  const gunPace = () => (S.scene && S.scene.gp && S.scene.gp.pace) || GUN.pace, gunTilt = () => (S.scene && S.scene.gp && S.scene.gp.tilt) || 0;
+  // and turned sideways to follow them)
+  const gunPace = () => (S.scene && S.scene.gp && S.scene.gp.pace) || GUN.pace, gunTilt = () => (S.gun && S.gun.tilt) || 0, gunPan = () => (S.gun && S.gun.pan) || 0;
+  // the view follows what's in the air (Skeetza and Milling alike): it tilts up to keep the highest piece in sight
+  // when it climbs above the top, turns left or right to keep the ones heading off the sides in (between the two,
+  // if they're off both sides at once), and eases back to where it was once they're down. The sights ride along with
+  // it, so they stay where they were on the screen (as they do under the mouse)
+  function gunFollow(g, dt) {
+    const e = gunEye(), hy = Math.atan(H / 2 / F), hx = Math.atan(W / 2 / F), top = -gunLook() + hy * 0.6, side = hx * 0.72;
+    let up = 0, lo = Infinity, hi = -Infinity;
+    for (const p of g.pizzas) {
+      if (p.done) continue;
+      const dx = p.x - e[0], dz = p.z - e[2], d = Math.max(1, Math.hypot(dx, dz)), az = Math.atan2(dx, dz), r = GUN.pizzaR / d;
+      up = Math.max(up, Math.atan2(p.y + GUN.pizzaR - e[1], d) - top);
+      lo = Math.min(lo, az - r); hi = Math.max(hi, az + r);
+    }
+    // (the turn that keeps them all in, nearest straight ahead; halfway between, if no turn does)
+    let pan = 0;
+    if (hi > lo) { const a = hi - side, b = lo + side; pan = a <= b ? clamp(0, a, b) : (a + b) / 2; }
+    const wantT = clamp(up, 0, 0.6), wantP = clamp(pan, -0.7, 0.7), t0 = g.tilt, p0 = g.pan;
+    g.tilt += (wantT - g.tilt) * Math.min(1, dt * (wantT > g.tilt ? 4 : 1.6));
+    g.pan += (wantP - g.pan) * Math.min(1, dt * (Math.abs(wantP) > Math.abs(g.pan) ? 3 : 1.6));
+    if (!g.mouse) { g.pitch += g.tilt - t0; g.yaw += g.pan - p0; }
+  }
   function aimDir() { const g = S.gun; return [Math.cos(g.pitch) * Math.sin(g.yaw), Math.sin(g.pitch), Math.cos(g.pitch) * Math.cos(g.yaw)]; }
   const crossAt = () => { const d = aimDir(), e = gunEye(); return P(e[0] + d[0] * 30, e[1] + d[1] * 30, e[2] + d[2] * 30); };
   // point the gun at a spot on the screen (the mouse): back through the camera into the hall
   function aimAtScreen(sx, sy) {
     const g = S.gun, X = (sx - W / 2) / F, Y = (CY - sy) / F;
     const dy = Y * cp - sp, z1 = Y * sp + cp, dx = X * cyw + z1 * syw, dz = -X * syw + z1 * cyw;
-    g.yaw = clamp(Math.atan2(dx, dz), -0.8, 0.8); g.pitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.2, 0.75 + gunTilt());
+    g.yaw = clamp(Math.atan2(dx, dz), gunPan() - 0.8, gunPan() + 0.8); g.pitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.2, 0.75 + gunTilt());
   }
   function shoot() {
     const g = S.gun;
@@ -7011,7 +7079,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.mouse && S.phase === "gun") aimAtScreen(g.mouse.x, g.mouse.y);
     // (the sights stay on the screen: a finger or the arrow keys can't push them off its edges)
     const hx = Math.atan(W / 2 / F) * 0.96, hy = Math.atan(H / 2 / F) * 0.94;
-    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -gunLook() + gunTilt() - hy, -gunLook() + gunTilt() + hy);
+    g.yaw = clamp(g.yaw, gunPan() - hx, gunPan() + hx); g.pitch = clamp(g.pitch, -gunLook() + gunTilt() - hy, -gunLook() + gunTilt() + hy);
     // the gun slides along the bottom after the crosshair, just a touch behind (see drawGunView)
     const cx = crossAt().x; g.gx = g.gx == null ? cx : g.gx + (cx - g.gx) * Math.min(1, dt * 14);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
@@ -7047,6 +7115,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape }); S.scene.gp ? sfx.thunk() : sfx.splat(); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
+    gunFollow(g, dt);
     movePellets(g, dt, LIVE_HITS);
     for (const b of g.booms) b.t += dt;
     for (const b of S.pops) b.t += dt;
@@ -7572,7 +7641,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (e.pointerType === "mouse") { g.mouse = p; cv.style.cursor = g.phase === "table" ? "pointer" : "none"; return; }
     if (!gunTouch || gunTouch.id !== e.pointerId) return;
     g.mouse = null;
-    g.yaw = clamp(g.yaw + (p.x - gunTouch.x) / F * 1.3, -0.8, 0.8); g.pitch = clamp(g.pitch - (p.y - gunTouch.y) / F * 1.3, -0.2, 0.75);
+    g.yaw = clamp(g.yaw + (p.x - gunTouch.x) / F * 1.3, gunPan() - 0.8, gunPan() + 0.8); g.pitch = clamp(g.pitch - (p.y - gunTouch.y) / F * 1.3, -0.2, 0.75 + gunTilt());
     if (Math.hypot(p.x - gunTouch.x0, p.y - gunTouch.y0) > 8) gunTouch.moved = true;
     gunTouch.x = p.x; gunTouch.y = p.y;
   }, true);
@@ -7593,16 +7662,16 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!e.repeat) { audio(); gunAction(); }
     } else if (k.startsWith("Arrow")) {
       e.preventDefault(); e.stopImmediatePropagation(); g.mouse = null;
-      if (k === "ArrowLeft") g.yaw = clamp(g.yaw - step, -0.8, 0.8);
-      if (k === "ArrowRight") g.yaw = clamp(g.yaw + step, -0.8, 0.8);
-      if (k === "ArrowUp") g.pitch = clamp(g.pitch + step, -0.2, 0.75);
-      if (k === "ArrowDown") g.pitch = clamp(g.pitch - step, -0.2, 0.75);
+      if (k === "ArrowLeft") g.yaw = clamp(g.yaw - step, gunPan() - 0.8, gunPan() + 0.8);
+      if (k === "ArrowRight") g.yaw = clamp(g.yaw + step, gunPan() - 0.8, gunPan() + 0.8);
+      if (k === "ArrowUp") g.pitch = clamp(g.pitch + step, -0.2, 0.75 + gunTilt());
+      if (k === "ArrowDown") g.pitch = clamp(g.pitch - step, -0.2, 0.75 + gunTilt());
     }
   }, true);
-  // the camera: where you stand, looking up the hall a little, and it stays still: only the sights move (a view
-  // that turns with the aim is too much to watch)
+  // the camera: where you stand, looking up the hall a little. It doesn't turn with the aim (too much to watch),
+  // only to follow what's in the air (gunFollow)
   // (a place can look its own way: Milling looks nearly level, to take in its yard)
-  function setGunView() { [CAM.x, CAM.y, CAM.z] = (S.scene && S.scene.eye) || GUN.eye; CAM.yaw = 0; CAM.pitch = (S.scene && S.scene.look != null ? S.scene.look : GUN.look) - gunTilt(); }
+  function setGunView() { [CAM.x, CAM.y, CAM.z] = (S.scene && S.scene.eye) || GUN.eye; CAM.yaw = gunPan(); CAM.pitch = (S.scene && S.scene.look != null ? S.scene.look : GUN.look) - gunTilt(); }
   function gunCam() {
     // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
     // still wide enough to see the machines they come from)
@@ -7735,7 +7804,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const faceOf = (dx, dz) => (Math.abs(dx) > Math.abs(dz) * 0.7 ? Math.sign(dx) : 0);
     let st = null;
     function millState() {
-      const t = T(), n = Math.floor(t / CYCLE), c = t - n * CYCLE, k = n % 4;
+      // (Mill & saws off in settings: everything here stands still, at a moment when nothing's being cut)
+      const t = S.anim.machines ? T() : 285.5, n = Math.floor(t / CYCLE), c = t - n * CYCLE, k = n % 4;
       const hx = c < 8 ? HEAD0 + (HEAD1 - HEAD0) * (c / 8) : c < 9 ? HEAD1 : c < 12 ? HEAD1 + (HEAD0 - HEAD1) * ease((c - 9) / 3) : HEAD0;
       const picked = c >= 14.5;
       const s = { t, c, k, hx, cutting: c < 8, top: TOP0 - k * SLAB_T - (picked ? SLAB_T : 0), kerf: picked ? null : c < 8 ? hx : MILL.lx1, stack: k + (c >= 21 ? 1 : 0) };
@@ -7850,7 +7920,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // ---- inside the barn: the woodstove on the back wall, a fire going behind its glass; two Muskoka chairs and a
     // coffee table on a rug in front of it, a bench with a back beside it, a sink on the wall to the right ----
     function drawStove() {
-      const t = T(), sx = STOVE.x, sz = STOVE.z - 0.35, w = 0.48;
+      const t = S.anim.smoke ? T() : 0, sx = STOVE.x, sz = STOVE.z - 0.35, w = 0.48; // (a still fire with Smoke & fire off)
       glow(sx, 0.6, sz - 0.3, 4.2, `rgba(255,140,50,${(0.38 + 0.1 * Math.sin(t * 9)).toFixed(3)})`);
       seg([sx, 1.0, STOVE.z], [sx, B.eave, STOVE.z], "#1a1a1a", wid(sx, 2, STOVE.z, 0.22));
       quad([[sx - w, 1.0, sz], [sx + w, 1.0, sz], [sx + w, 1.0, sz + 0.7], [sx - w, 1.0, sz + 0.7]], "#2b2b2b");
@@ -7908,6 +7978,10 @@ body.lab .stage > :not(canvas) { display: none; }
       if (pathClip(wpts)) {
         ctx.save(); ctx.clip();
         const a = P(Wn.x0, Wn.y1, Wn.z), b = P(Wn.x1, Wn.y0, Wn.z), w = b.x - a.x, h = b.y - a.y;
+        // (seen from a camera down in the yard, as Re-live it's spud-cam can be, a corner can be behind it and the
+        // picture comes out inside out, with negative sizes the canvas won't draw: then it's just pale sky)
+        if (a.behind || b.behind || w < 2 || h < 2) { ctx.fillStyle = "#e3e8ec"; ctx.fill(); ctx.restore(); }
+        else {
         const g = ctx.createLinearGradient(0, a.y, 0, b.y); g.addColorStop(0, "#c3ccd4"); g.addColorStop(0.65, "#e3e8ec"); g.addColorStop(1, "#f6f9fb");
         ctx.fillStyle = g; ctx.fillRect(a.x - 2, a.y - 2, w + 4, h + 4);
         // out back, as the woods behind the barn are: the feet of tall trees going up out of view (far ones grey in the
@@ -7917,7 +7991,7 @@ body.lab .stage > :not(canvas) { display: none; }
         ctx.fillStyle = "#b9c2c8"; for (const u of [0.05, 0.18, 0.37, 0.52, 0.66, 0.83, 0.95]) ctx.fillRect(a.x + u * w, a.y - 2, Math.max(1, 0.12 * sw), gy - a.y + 2);
         ctx.fillStyle = "#f6f9fb"; ctx.fillRect(a.x - 2, gy, w + 4, b.y - gy + 2);
         const dt = (T() % 34) / 10;
-        if (dt < 1) { const dir = Math.floor(T() / 34) % 2 ? -1 : 1, u = dir > 0 ? -0.35 + dt * 1.7 : 1.35 - dt * 1.7; drawDeer2D(a.x + u * w, gy + h * 0.1, sw * 0.42, dir, T() * 5); }
+        if (dt < 1 && S.animals) { const dir = Math.floor(T() / 34) % 2 ? -1 : 1, u = dir > 0 ? -0.35 + dt * 1.7 : 1.35 - dt * 1.7; drawDeer2D(a.x + u * w, gy + h * 0.1, sw * 0.42, dir, T() * 5); }
         for (const [u, tw, kind] of [[0.12, 0.34, "hard"], [0.44, 0.26, "birch"], [0.72, 0.42, "pine"], [0.98, 0.3, "hard"]]) {
           const px = a.x + u * w, half = tw * sw / 2;
           if (kind === "pine") {
@@ -7932,6 +8006,7 @@ body.lab .stage > :not(canvas) { display: none; }
         }
         ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.moveTo(a.x + w * 0.1, a.y); ctx.lineTo(a.x + w * 0.3, a.y); ctx.lineTo(a.x + w * 0.05, b.y); ctx.lineTo(a.x - w * 0.15, b.y); ctx.fill();
         ctx.restore();
+        }
       }
       const ww = wid(-8.5, 1.6, Wn.z, 0.06);
       for (const u of [1 / 3, 2 / 3]) seg([Wn.x0 + (Wn.x1 - Wn.x0) * u, Wn.y0, Wn.z - 0.01], [Wn.x0 + (Wn.x1 - Wn.x0) * u, Wn.y1, Wn.z - 0.01], "#3e3026", ww);
@@ -8277,6 +8352,7 @@ body.lab .stage > :not(canvas) { display: none; }
       disker: { jacket: "#1f2023", pants: "#c39a62", bib: true, hat: "#d63a2f", toque: true, gloves: "#e0b040" },
     };
     function drawHand(p, look) {
+      if (!S.anim.workers) return; // (Workers off in settings)
       const q = P(p.x, 0, p.z); if (q.behind) return;
       // (hit: they duck, arms up over their head, for a moment; and keep the splat on their coat)
       const hk = CREWHIT[Object.keys(CREW).find((k) => CREW[k] === look)], duck = hk && hk.hit > 0 ? Math.min(1, hk.hit / 0.3, (2.4 - hk.hit) / 0.15 + 0.2) : 0;
@@ -8325,7 +8401,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const carrier = {
       x: 0, z: 16, draw: () => {
         const s = mstate(), c = s.carrier;
-        if (!c.carry) { drawHand(c, CREW.carrier); return; }
+        if (!c.carry || !S.anim.workers) { drawHand(c, CREW.carrier); return; }
         // the slab: carried on edge at his side, along the way he's walking (so going to or from the stack you see
         // mostly its end), its live edges dark along top and bottom; drawn behind him or in front, whichever side is
         // nearer you
@@ -8345,6 +8421,7 @@ body.lab .stage > :not(canvas) { display: none; }
     };
     // the cookie carrier: black hoodie, tan bib overalls, a red toque; a stack of five held in front
     function drawDisker(d) {
+      if (!S.anim.workers) return;
       const look = CREW.disker, l = Math.hypot(d.dx || 0, d.dz || 0) || 1, ux = (d.dx || 0) / l, uz = (d.dz || 0) / l;
       const stack = () => cookieStack(d.x + ux * 0.32, d.z + uz * 0.32, 0.92, CARRY5, 0.05);
       const away = d.walking && uz > 0.3;
@@ -8519,7 +8596,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function millFront() {
       const t = T(), x0 = STOVE.x, y0 = 10.1, z0 = STOVE.z;
-      for (let k = 0; k < 12; k++) {
+      for (let k = 0; k < (S.anim.smoke ? 12 : 0); k++) { // (none with Smoke & fire off in settings)
         // (it leans with the pair's wind while you're playing; a gentle drift to the right otherwise)
         const w = gp.wind.kmh ? gp.wind : { x: 2.7, z: 0.7 }, age = (t * 0.18 + k / 12) % 1, q = P(x0 + age * age * w.x * 2.2, y0 + age * 7, z0 + age * age * w.z * 2.2);
         if (q.behind) continue;
@@ -8554,7 +8631,9 @@ body.lab .stage > :not(canvas) { display: none; }
       wild.dogScare = -9;
     }
     const gt = () => (S.gun ? S.gun.t : T());
+    // (Animals off in settings: no deer, terrier or crows)
     function deerNow() {
+      if (!S.animals) return null;
       const t = gt(), c = wild.deer.find((d) => t >= d.t0 && t < d.t0 + (d.hitAt != null ? d.hitAt - d.t0 + 4 : d.dur));
       if (!c) return null;
       const u = (t - c.t0) / c.dur;
@@ -8571,6 +8650,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function crowsNow() {
       const t = gt(), out = [];
+      if (!S.animals) return out;
       for (const f of wild.crows) {
         if (t < f.t0 || t > f.t0 + f.dur + 4) continue;
         const u = (t - f.t0) / f.dur;
@@ -8605,7 +8685,7 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.beginPath(); ctx.moveTo(X(-0.18), Y(0)); ctx.lineTo(X(-0.3), Y(0.04)); ctx.lineTo(X(-0.3), Y(-0.04)); ctx.fill();
     }
     const deerThing = { x: 0, z: 99, draw: () => { const d = deerNow(); if (!d) return; const q = P(d.x, d.y, d.z); if (!q.behind) drawDeer2D(q.x, q.y, q.s, d.dir, d.ph); } };
-    const dogThing = { x: 0, z: 29, draw: () => { const d = dogNow(), q = P(d.x, 0, d.z); if (!q.behind) drawTerrier2D(q.x, q.y, q.s, d.dir, d.ph, d.sit); } };
+    const dogThing = { x: 0, z: 29, draw: () => { if (!S.animals) return; const d = dogNow(), q = P(d.x, 0, d.z); if (!q.behind) drawTerrier2D(q.x, q.y, q.s, d.dir, d.ph, d.sit); } };
     const crowThing = { x: 0, z: 30, draw: () => { for (const c of crowsNow()) { const q = P(c.x, c.y, c.z); if (!q.behind) drawCrow2D(q.x, q.y, Math.max(6, q.s), c.dir, c.ph); } } };
     // what's hit: an animal or bird's reaction (in play and in Re-live it), and its line in the shot's note
     const animal = (name, the, say, at, react) => ({ name, the, say, at, react });
@@ -8635,22 +8715,32 @@ body.lab .stage > :not(canvas) { display: none; }
       // (it swings round, slowly, to face into the pair's wind)
       const want = gp.wind.kmh ? Math.atan2(-gp.wind.z, -gp.wind.x) : 0.6;
       if (!bent) b.vaneYaw += Math.atan2(Math.sin(want - b.vaneYaw), Math.cos(want - b.vaneYaw)) * 0.01;
+      // (bright polished copper, outlined dark, so it stands out against the grey sky and the trees: it's a bonus)
+      const COPPER = "#d9782f", COPPER_LT = "#f6b27a", COPPER_DK = "#7a3a12";
       seg([v.x, v.y0 - 0.2, v.z], [v.x, v.y + 0.15, v.z], "#2b2d30", wid(v.x, v.y, v.z, 0.08));
+      // a copper ball on the post, catching the light
+      const bq = P(v.x, v.y - 0.25, v.z);
+      if (!bq.behind) { const br = Math.max(2.5, 0.13 * bq.s), bg = ctx.createRadialGradient(bq.x - br * 0.35, bq.y - br * 0.35, br * 0.1, bq.x, bq.y, br); bg.addColorStop(0, "#ffe0bf"); bg.addColorStop(0.5, COPPER); bg.addColorStop(1, COPPER_DK); ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bq.x, bq.y, br, 0, 7); ctx.fill(); }
       // the four arms and their letters (fixed: N away from you, E to the right)
       const ay = v.y - 0.55, L = 0.8;
       for (const [dx, dz, ch] of [[1, 0, "E"], [-1, 0, "W"], [0, 1, "N"], [0, -1, "S"]]) {
-        seg([v.x, ay, v.z], [v.x + dx * L, ay, v.z + dz * L], "#2b2d30", 1.5);
+        seg([v.x, ay, v.z], [v.x + dx * L, ay, v.z + dz * L], COPPER_DK, 2.5);
+        seg([v.x, ay, v.z], [v.x + dx * L, ay, v.z + dz * L], COPPER, 1.4);
         const q = P(v.x + dx * (L + 0.15), ay, v.z + dz * (L + 0.15)); if (q.behind) continue;
-        ctx.font = `800 ${Math.max(7, 0.38 * q.s)}px Nunito, sans-serif`; ctx.fillStyle = "#2b2d30"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ch, q.x, q.y);
+        ctx.font = `900 ${Math.max(8, 0.42 * q.s)}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+        ctx.lineWidth = 2.5; ctx.strokeStyle = COPPER_DK; ctx.strokeText(ch, q.x, q.y); ctx.fillStyle = COPPER_LT; ctx.fillText(ch, q.x, q.y);
       }
       // the rooster, side on as it turns (narrower as it faces you or away); bent back when hit
       const q = P(v.x, v.y + 0.15, v.z); if (q.behind) return;
       const s = q.s, cy = Math.cos(b.vaneYaw), sx = Math.max(0.18, Math.abs(cy)) * Math.sign(cy || 1);
       ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(bent * -0.9 * Math.sign(sx)); ctx.scale(sx * s * 1.6, s * 1.6 * (1 - bent * 0.25));
-      ctx.fillStyle = "#2b2d30"; ctx.beginPath();
+      const rg = ctx.createLinearGradient(0, -0.75, 0, 0); rg.addColorStop(0, COPPER_LT); rg.addColorStop(0.45, COPPER); rg.addColorStop(1, "#a9541c");
+      ctx.fillStyle = rg; ctx.strokeStyle = COPPER_DK; ctx.lineWidth = 0.06; ctx.lineJoin = "round"; ctx.beginPath();
       ctx.moveTo(-0.55, -0.05); ctx.quadraticCurveTo(-0.7, -0.55, -0.4, -0.75); ctx.quadraticCurveTo(-0.45, -0.4, -0.2, -0.3);
       ctx.lineTo(0.15, -0.3); ctx.quadraticCurveTo(0.22, -0.62, 0.38, -0.66); ctx.lineTo(0.42, -0.74); ctx.lineTo(0.47, -0.66); ctx.lineTo(0.62, -0.6); ctx.lineTo(0.48, -0.52);
-      ctx.quadraticCurveTo(0.42, -0.25, 0.2, -0.08); ctx.lineTo(0.08, 0); ctx.lineTo(-0.3, 0); ctx.closePath(); ctx.fill();
+      ctx.quadraticCurveTo(0.42, -0.25, 0.2, -0.08); ctx.lineTo(0.08, 0); ctx.lineTo(-0.3, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // (a glint along its back)
+      ctx.strokeStyle = "rgba(255,236,214,.85)"; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.moveTo(-0.15, -0.24); ctx.quadraticCurveTo(0.05, -0.27, 0.16, -0.26); ctx.stroke();
       ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.arc(0.4, -0.72, 0.05, 0, 7); ctx.fill();
       ctx.restore();
       // a little snow on its arms
@@ -8694,7 +8784,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const gp = {
       eye: () => (W > H ? [0, 1.7, -6] : [0, 1.65, 2]),
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 16, z0: 2, z1: 44 },
-      reset() { gp.tilt = 0; gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } bonusState.vaneHit = null; bonusState.signHit = null; },
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } bonusState.vaneHit = null; bonusState.signHit = null; },
       smash: smashMillWindow,
       // (the hands come back up after a duck)
       tick(dt) { for (const w of Object.values(CREWHIT)) w.hit = Math.max(0, w.hit - dt); },
@@ -8717,16 +8807,7 @@ body.lab .stage > :not(canvas) { display: none; }
       drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * gp.pace; p.vz += gp.wind.z * 0.16 * dt * gp.pace; },
       // the wood flies a little quicker than Skeetza's pizzas (the same arcs, flown faster)
       pace: 0.92,
-      // the view tilts up to keep the highest piece in sight when it climbs above the top, and back down after
-      // (only up and down; tilt is how far, in radians)
-      tilt: 0,
-      follow(dt) {
-        const g = S.gun, e = gp.eye(), half = Math.atan(H / 2 / F), top = -gunLook() + half * 0.6;
-        let want = 0;
-        if (g && !S.gunReplay) for (const p of g.pizzas) { if (p.done) continue; const el = Math.atan2(p.y + GUN.pizzaR - e[1], Math.hypot(p.x - e[0], p.z - e[2])); want = Math.max(want, el - top); }
-        want = clamp(want, 0, 0.55);
-        gp.tilt += (want - gp.tilt) * Math.min(1, dt * (want > gp.tilt ? 4 : 1.6));
-      },
+      // (the view follows the wood up and sideways: gunFollow, as Skeetza's)
       // where wood comes down: on the trodden ground, or on top of the deep snow
       // (on the snow as you see it, everywhere: nothing comes to rest in the air)
       floor: () => 0.03,
@@ -8735,7 +8816,7 @@ body.lab .stage > :not(canvas) { display: none; }
       pellet(pl, hits) {
         // the hands (each once a shot)
         const ms = mstate();
-        for (const k of CREW_KEYS) {
+        for (const k of S.anim.workers ? CREW_KEYS : []) {
           const p = ms[k], w = CREWHIT[k];
           if (k === "cutter" && pl.z < SH.zf) continue;
           if (pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.85) && Math.hypot(pl.x - p.x, pl.z - p.z) < 0.38) {
@@ -8751,7 +8832,7 @@ body.lab .stage > :not(canvas) { display: none; }
           return "hit";
         }
         const dog = dogNow();
-        if (gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < 0.6) {
+        if (S.animals && gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < 0.6) {
           hits.animal(animal("terrier", "the terrier", "YIP!", [dog.x, 0.5, dog.z], () => { wild.dogScare = gt(); S.pops.push({ x: dog.x, y: 0.9, z: dog.z, text: "YIP!", t: 0 }); tone(980, 1400, 0.12, 0.08, "triangle"); }), pl.shot);
           return "hit";
         }
@@ -8826,7 +8907,7 @@ body.lab .stage > :not(canvas) { display: none; }
       update(dt) {
         const s = mstate(); pusher.x = s.pusher.x; pusher.z = s.pusher.z; carrier.x = s.carrier.x; carrier.z = s.carrier.z; disker.x = s.disker.x; disker.z = s.disker.z;
         const d = deerNow(); deerThing.x = d ? d.x : 0; deerThing.z = d ? d.z : 99; const dg = dogNow(); dogThing.x = dg.x; dogThing.z = dg.z;
-        if (dt) { updateGun(dt); gp.tick(dt); gp.follow(dt); }
+        if (dt) { updateGun(dt); gp.tick(dt); }
       },
       reset: resetGun, free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {} };
   }
@@ -8863,12 +8944,26 @@ body.lab .stage > :not(canvas) { display: none; }
   S.phase = "title";
   if (challenge) showChallenge(challenge); else showStart(linked);
   let last = performance.now(), oops = false;
+  // the speed test's readout, bottom right of the field: frames a second, and how long each frame's own work takes
+  // (over 16 ms and it can't keep up with 60), averaged over the last half second or so
+  const fpsAvg = { n: 0, gap: 0, work: 0, t0: 0, show: "" };
+  function drawFps(now, work) {
+    const a = fpsAvg;
+    if (a.prev) { a.gap += now - a.prev; a.work += work; a.n++; }
+    a.prev = now;
+    if (now - a.t0 > 500 && a.n) { a.show = `${Math.round(1000 / (a.gap / a.n))} fps · ${(a.work / a.n).toFixed(1)} ms · ${Math.round(W * dpr)}×${Math.round(H * dpr)}`; a.n = a.gap = a.work = 0; a.t0 = now; }
+    if (!a.show) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.font = "800 12px Nunito, sans-serif"; const w = ctx.measureText(a.show).width + 14;
+    ctx.fillStyle = "rgba(35,48,58,.75)"; ctx.fillRect(W - w - 6, H - 52, w, 22);
+    ctx.fillStyle = "#fffaf0"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(a.show, W - w + 1, H - 41);
+  }
   (function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     // (the next frame is asked for first, so a frame that goes wrong is just skipped rather than stopping the game
     // on a blank field; what went wrong shows once, so it can be reported)
     requestAnimationFrame(frame);
-    try { update(dt); draw(); drawnOnce = true; } catch (err) {
+    try { const t0 = performance.now(); update(dt); draw(); drawnOnce = true; if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
       console.error(err);
       if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
     }
