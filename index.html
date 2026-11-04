@@ -285,17 +285,21 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 .gunmode .tray { grid-template-columns: auto minmax(0, 1fr) auto; }
 .gunmode .tray .ctl-gun { grid-column: 2; }
 .gunmode .tray .fire2 { display: grid; grid-column: 1; }
-.gunmode .tray .fire { grid-column: auto; width: 104px; }
+.gunmode .tray .fire { grid-column: auto; width: 124px; }
+.pzi { width: .9em; height: .9em; vertical-align: -0.1em; margin-right: 3px; }
+.ctl-gun .val .sep { opacity: .45; }
 @media (max-width: 520px) {
   /* (room for both buttons: the box loses its "MP 10 · 120 PSI" label, so it stays one line of counts and one of dots) */
   .gunmode .tray { gap: 6px; }
-  .gunmode .tray .fire { width: 68px; font-size: 1.15rem; }
+  .gunmode .tray .fire { width: 84px; font-size: 1.2rem; }
   .gunmode .tray .fire small { font-size: .48rem; }
   .gunmode .ctl-gun { padding: 6px 7px; gap: 4px; }
   .gunmode .ctl-gun .ctl-head .lbl { display: none; }
   .gunmode .ctl-gun .ctl-head { justify-content: center; }
   .gunmode .ctl-gun .val { font-size: 1.1rem; white-space: nowrap; }
-  .gunmode .gunrow { gap: 4px; justify-content: center; }
+  .gunmode .gunrow { gap: 3px; justify-content: center; flex-wrap: nowrap; font-size: .66rem; }
+  .gunmode .gunrow .sep { display: none; }
+  .gunmode .gunrow > span:first-child { margin-right: 2px; }
 }
 /* ?lab: the field canvas fills the window to show the launcher contact sheet */
 body.lab .wrap > :not(.stage) { display: none; }
@@ -387,10 +391,11 @@ body.lab .stage > :not(canvas) { display: none; }
             <rect x="4" y="624" width="412" height="92" rx="12" fill="#f6e7c8" stroke="#23303a" stroke-width="4"/>
             <g class="ahfire"><rect x="14" y="634" width="82" height="72" rx="10"/><text x="55" y="672" class="big">FIRE</text><text x="55" y="686">PULL THE</text><text x="55" y="696">TRIGGER</text></g>
             <rect x="104" y="634" width="212" height="72" rx="9" fill="#fffaf0" stroke="#23303a" stroke-width="3"/>
-            <text x="210" y="664" class="pair">pair 4/20</text>
+            <g transform="translate(138 657) scale(.95)"><circle r="9.4" fill="#d9963f" stroke="#8a5420" stroke-width="1.2"/><circle r="7.2" fill="#f4d063"/><circle cx="-3.2" cy="-2.6" r="1.8" fill="#c8402c"/><circle cx="3.1" cy="-3.1" r="1.7" fill="#c8402c"/><circle cx="2.7" cy="3" r="1.8" fill="#c8402c"/><circle cx="-2.7" cy="3.3" r="1.5" fill="#c8402c"/></g>
+            <text x="153" y="664" class="pair" style="text-anchor:start;fill:#c9572b">4</text>
+            <text x="238" y="664" class="pair">pair 4/20</text>
             <g stroke-width="2.5"><circle cx="146" cy="688" r="6" fill="none" stroke="#9aa"/><circle cx="162" cy="688" r="6" fill="#23303a" stroke="#23303a"/>
               <circle cx="186" cy="688" r="6" fill="#e8860c" stroke="#a85c00"/><circle cx="202" cy="688" r="6" fill="#9b6be0" stroke="#6a3cb0"/><circle cx="218" cy="688" r="6" fill="#4a90e2" stroke="#2a64b0"/><circle cx="234" cy="688" r="6" fill="none" stroke="#b81f1a"/></g>
-            <text x="262" y="693" class="pz">🍕 4</text>
             <g class="ahfire"><rect x="324" y="634" width="82" height="72" rx="10"/><text x="365" y="672" class="big">FIRE</text><text x="365" y="686">PULL THE</text><text x="365" y="696">TRIGGER</text></g>
           </g>
           <!-- the sights -->
@@ -475,7 +480,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.61</p>
+  <p class="ver">Pneuman v1.62</p>
 </div>
 
 <script>
@@ -526,9 +531,11 @@ body.lab .stage > :not(canvas) { display: none; }
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
     // the pizza factory, played with the MP 10 instead of the launcher (gun: see Skeetza below)
     { id: "skeetza", name: "Skeetza", scene: "factory", mix: {}, z: [10, 50], wind: [0, 0], gun: true, props: [] },
+    // the winter sawmill yard, the MP 10 again, shooting live-edge cookies and slabs (and now with wind)
+    { id: "milling", name: "Milling", scene: "mill", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Wood", icon: "🪵" },
   ];
   // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
-  const COMING_SOON = ["Golf", "Reservoir", "Winery", "Downtown", "Logging"];
+  const COMING_SOON = ["Winery", "Reservoir", "Downtown", "Golf"];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
   const G = 9.81, K = 0.0026, MUZZLE = 4.1, MAX_PSI = 120;
@@ -1578,7 +1585,7 @@ body.lab .stage > :not(canvas) { display: none; }
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
     const counts = lvl().gun ? Object.keys(RINGS).map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${S.gun.got.has(t) ? 1 : 0}/1</span>`).join("") +
-      `<span class="pz">🍕 ${S.gun.hits} hit of ${S.gun.launched} launched</span>` : Object.keys(RINGS).map((t) => {
+      `<span class="pz">${lvl().icon || "🍕"} ${S.gun.hits} hit of ${S.gun.launched} launched</span>` : Object.keys(RINGS).map((t) => {
       const all = S.rings.filter((r) => r.type === t).length, got = hits.filter((r) => r.type === t).length;
       return `<span style="color:${RINGS[t].edge}"><i></i>${got}/${all}</span>`;
     }).join("");
@@ -1669,7 +1676,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
     const spareRow = extra ? `<div class="trow bonus"><span>${lvl().gun ? "Spare barrels" : "Spare spuds"} <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
     const unlRow = unl ? `<div class="trow bonus"><span>Skeetzas not launched <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -1702,7 +1709,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.level !== sel || S.phase !== "title") { S.phase = "title"; previewLevel(sel); }
     showCard("Pneumatic potato launcher", "Pneuman", "Load, pump, aim and fire. Ten spuds per level; each target scores once. Pick a place:",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
-      ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">🍕 ${GUN.pts}</span>` : ""),
+      ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button>`, () => startLevel(startPick));
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
     el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
@@ -1866,7 +1873,8 @@ body.lab .stage > :not(canvas) { display: none; }
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // (indoors, the place draws its own walls and roof instead of sky, hills and the distance numbers)
-    if (!S.scene.indoor) {
+    // (a place that draws its own sky, Milling's overcast, skips this one)
+    if (!S.scene.indoor && !S.scene.ownSky) {
     // sky, deeper blue higher up
     const g = ctx.createLinearGradient(0, HZ - F * 0.6, 0, HZ);
     g.addColorStop(0, "#3d97da"); g.addColorStop(0.9, "#6cbdeb"); g.addColorStop(1, "#c4e8f8");
@@ -1900,7 +1908,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // distance numbers down the left side of the field
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     let lastY = Infinity;
-    for (let z = 10; z <= 120 && !S.scene.indoor; z += 10) {
+    for (let z = 10; z <= 120 && !S.scene.indoor && !S.scene.gun; z += 10) {
       const q = P(-z * 0.42 - 4, 0, z);
       if (q.behind || q.x < 24 || lastY - q.y < 26) continue;
       lastY = q.y;
@@ -2918,7 +2926,7 @@ body.lab .stage > :not(canvas) { display: none; }
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
-  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory() };
+  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory(), mill: () => buildMill() };
   const sceneFor = (L) => built[L.scene] || (built[L.scene] = SCENE_BUILD[L.scene]());
 
   // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
@@ -6295,6 +6303,12 @@ body.lab .stage > :not(canvas) { display: none; }
   const EXTRA_NAMES = { window: "a house window", bird: "a bird (a bird strike)" };
   function extrasFor(L) {
     // (Skeetza: a drone, +10, and a worker, −5, drawn by its own code)
+    // (Milling: its bonuses and penalties named for now; pictures to come)
+    if (L.scene === "mill") {
+      $("xPlus").innerHTML = `<small class="xmore">weather vane, Live Edge Charcuterie sign (+10 each)</small>`;
+      $("xMinus").innerHTML = `<small class="xmore">workers, windows, the deer, the terrier, birds</small>`;
+      return;
+    }
     if (L.gun) {
       const get = (k) => thumbs[k] || (thumbs[k] = gunThumb(k));
       $("xPlus").innerHTML = `<img src="${get("drone")}" alt="the drone" title="the drone"><small class="xmore">(+10)</small>`;
@@ -6367,7 +6381,9 @@ body.lab .stage > :not(canvas) { display: none; }
   const WORKER_SKIN = ["#e8b48f", "#c68a62", "#8d5a3b", "#f1c7a5"];
   const WORKER_SAYS = ["HEY!", "OI!", "WATCH IT!", "MY SHIRT!"];
   const TOPPINGS = [{ dot: "#c0392b", bit: "#2f7d32" }, { dot: "#2e2424", bit: "#3f9a3a" }, { dot: "#f2d04a", bit: "#e58a8a" }];
-  const PIZZA_POPS = ["SPLAT!", "KA-PIZZA!", "BOOM!", "SPLOOSH!"];
+  const PIZZA_POPS = ["SPLAT!", "KA-PIZZA!", "CHEESY!", "SPLOOSH!"];
+  // a whole round pizza, for the MP 10's box (the 🍕 emoji is a slice)
+  const PIZZA_ICON = `<svg class="pzi" viewBox="-10 -10 20 20" aria-hidden="true"><circle r="9.4" fill="#d9963f" stroke="#8a5420" stroke-width="1.2"/><circle r="7.2" fill="#f4d063"/><circle cx="-3.2" cy="-2.6" r="1.8" fill="#c8402c"/><circle cx="3.1" cy="-3.1" r="1.7" fill="#c8402c"/><circle cx="2.7" cy="3" r="1.8" fill="#c8402c"/><circle cx="-2.7" cy="3.3" r="1.5" fill="#c8402c"/><circle cx="0.3" cy="0.1" r="1.2" fill="#3f8a3a"/></svg>`;
 
   function buildFactory() {
     // (the long conveyors in four lengths each, so things beside them are drawn in the right order)
@@ -6620,8 +6636,9 @@ body.lab .stage > :not(canvas) { display: none; }
     S.gun = {
       phase: "wait", t: 0, pulls: 0, launched: 0, pull: null, hits: 0, yaw: 0, pitch: 0.2, guns: Array.from({ length: GUN.cases }, () => ({ ready: true })), hold: -1, up: 0, shards: [],
       shots: 0, timer: 0, pizzas: [], pellets: [], flops: [], booms: [], broken: {}, rec: null, flash: 0, kick: 0, mouse: null, slots: [],
-      drones: DRONE_ZONES.map(makeDrone), got: new Set(), workers: WORKER_ROUNDS.map(makeWorker),
+      drones: S.scene.gp ? [] : DRONE_ZONES.map(makeDrone), got: new Set(), workers: S.scene.gp ? [] : WORKER_ROUNDS.map(makeWorker),
     };
+    if (S.scene.gp && S.scene.gp.reset) S.scene.gp.reset();
   }
   function startGun() { S.phase = "gun"; S.gun.phase = "table"; hud(); }
   const gunButton = () => (S.gun && S.gun.phase === "table" ? "pick" : "trigger");
@@ -6657,18 +6674,25 @@ body.lab .stage > :not(canvas) { display: none; }
     g.pull = { hits: 0, by: new Set(), drone: false, call: 0 }; g.launched += 2;
     withSeed(seedFor(S.seed, SEED.pizza + g.pulls++), () => {
       const a = pick(L.filter((l) => l.x <= 0)), b = pick(L.filter((l) => l.x >= 0 && l !== a));
-      const C = [rnd(-3, 3), rnd(6, 10), Math.max(15, Math.min(34, (a.z + b.z) / 2 + rnd(-4, 3)))], tc = rnd(1.1, 1.6);
+      // (a place can say where a pair crosses: Milling's always comes toward you, out in front of both)
+      const C = S.scene.gp && S.scene.gp.cross ? S.scene.gp.cross(a, b) : [rnd(-3, 3), rnd(6, 10), Math.max(15, Math.min(34, (a.z + b.z) / 2 + rnd(-4, 3)))], tc = rnd(1.1, 1.6);
       // one of the pair carries a colour not hit yet, while there are any (picked at random from those)
       const need = Object.keys(RINGS).filter((t) => !g.got.has(t)), ring = need.length ? pick(need) : null, which = Math.random() < 0.5 ? 0 : 1;
       [[a, tc], [b, tc + rnd(-0.35, 0.35)]].forEach(([l, t], j) => {
         g.pizzas.push({ x: l.x, y: l.y, z: l.z, vx: (C[0] - l.x) / t, vy: (C[1] - l.y) / t + 0.5 * GUN.pg * t, vz: (C[2] - l.z) / t,
-          spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: pick(TOPPINGS), ring: j === which ? ring : null, done: false });
+          spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: pick(TOPPINGS), ring: j === which ? ring : null, done: false,
+          // (in a place of wood: a round cookie, or now and then a squarish slab; either way its own odd outline)
+          kind: S.scene.gp ? (Math.random() < 0.28 ? "slab" : "cookie") : null, shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)) });
       });
+      // (a place with wind: this pair's, from the round's seed)
+      if (S.scene.gp && S.scene.gp.newPair) S.scene.gp.newPair();
     });
     note("PULL!", 900); tone(160, 520, 0.28, 0.1, "sawtooth");
   }
+  // (where you stand and how you look: the place's own, if it has them, Skeetza's otherwise)
+  const gunEye = () => (S.scene && S.scene.eye) || GUN.eye, gunLook = () => (S.scene && S.scene.look != null ? S.scene.look : GUN.look);
   function aimDir() { const g = S.gun; return [Math.cos(g.pitch) * Math.sin(g.yaw), Math.sin(g.pitch), Math.cos(g.pitch) * Math.cos(g.yaw)]; }
-  const crossAt = () => { const d = aimDir(), e = GUN.eye; return P(e[0] + d[0] * 30, e[1] + d[1] * 30, e[2] + d[2] * 30); };
+  const crossAt = () => { const d = aimDir(), e = gunEye(); return P(e[0] + d[0] * 30, e[1] + d[1] * 30, e[2] + d[2] * 30); };
   // point the gun at a spot on the screen (the mouse): back through the camera into the hall
   function aimAtScreen(sx, sy) {
     const g = S.gun, X = (sx - W / 2) / F, Y = (CY - sy) / F;
@@ -6680,7 +6704,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.shots >= 2 || S.spudsLeft <= 0) return;
     g.shots++; S.spudsLeft--; g.flash = 1; g.kick = 1; sfx.fire(); gunPuff(g);
     // out of the barrels low on the right (where the gun's held), toward the crosshair, in a tight spread
-    const d = aimDir(), e = GUN.eye, rt = [Math.cos(g.yaw), 0, -Math.sin(g.yaw)];
+    const d = aimDir(), e = gunEye(), rt = [Math.cos(g.yaw), 0, -Math.sin(g.yaw)];
     const o = [e[0] + rt[0] * 0.22 + d[0] * 0.6, e[1] - 0.25 + d[1] * 0.6, e[2] + rt[2] * 0.22 + d[2] * 0.6], T = [e[0] + d[0] * 35, e[1] + d[1] * 35, e[2] + d[2] * 35];
     const len = Math.hypot(T[0] - o[0], T[1] - o[1], T[2] - o[2]), f = [(T[0] - o[0]) / len, (T[1] - o[1]) / len, (T[2] - o[2]) / len];
     const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl], up = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
@@ -6703,13 +6727,15 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun, pts = pizzaPts(p);
     g.hits++; S.score += pts; shot.scores++; shot.pizzas++;
     if (shot.pull) { shot.pull.hits++; shot.pull.by.add(shot); }
-    shot.items.push(p.ring ? `${cap(RINGS[p.ring].name)} skeetza! +${pts}` : `Skeetza! +${pts}`); shot.at = [p.x, p.y, p.z];
+    const noun = p.kind || "skeetza";
+    shot.items.push(p.ring ? `${cap(RINGS[p.ring].name)} ${noun}! +${pts}` : `${cap(noun)}! +${pts}`); shot.at = [p.x, p.y, p.z];
     if (p.ring) g.got.add(p.ring);
     burstPizza(p);
     hud();
   }
   // (what you see and hear of a hit, played again by Re-live it, which scores nothing)
   function burstPizza(p) {
+    if (p.kind) { burstWood(p); return; }
     p.done = true;
     sfx.splatT(); sfx.ring(pizzaPts(p));
     S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(PIZZA_POPS), t: 0 });
@@ -6758,6 +6784,7 @@ body.lab .stage > :not(canvas) { display: none; }
     hud();
   }
   function smashWindow(i, at) {
+    if (S.scene.gp && S.scene.gp.smash) { S.scene.gp.smash(i, at); return; }
     const w = FACTORY_WINDOWS[i], uv = w.side === "back" ? [at[0], at[1]] : [at[2], at[1]];
     S.gun.broken[i] = { u: uv[0], v: uv[1], rays: Array.from({ length: 9 }, (_, k) => [(k / 9) * Math.PI * 2 + rnd(-0.25, 0.25), rnd(0.35, 0.8)]) };
     sfx.glass(); S.pops.push({ x: at[0], y: at[1] - 0.6, z: at[2], text: "CRASH!", t: 0 });
@@ -6857,8 +6884,9 @@ body.lab .stage > :not(canvas) { display: none; }
       if (p.done) continue;
       const pd = sdt * GUN.pace;
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * sdt;
-      if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
-      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top, ring: p.ring }); }
+      if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
+      if (S.scene.gp) S.scene.gp.drift(p, sdt);
+      if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape }); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
     movePellets(g, sdt, REPLAY_HITS);
@@ -6871,7 +6899,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // where Re-live it's camera is for each pass: over the shoulder (as you aimed), from partway up the side wall
   // looking across at the shot, or just behind the middle of the mini spud cluster looking the way it flies
   function gunReliveCam() {
-    const R = S.gunReplay, g = S.gun, rec = R.rec, e = GUN.eye;
+    const R = S.gunReplay, g = S.gun, rec = R.rec, e = gunEye();
     const d = [Math.cos(rec.aim[1]) * Math.sin(rec.aim[0]), Math.sin(rec.aim[1]), Math.cos(rec.aim[1]) * Math.cos(rec.aim[0])];
     let pos, look, zoom = 1;
     if (R.pass === 0) { setGunView(); return 1; } // (just as you saw it)
@@ -6885,14 +6913,14 @@ body.lab .stage > :not(canvas) { display: none; }
       else if (live.length) T = live.reduce((a, p) => [a[0] + p.x / live.length, a[1] + p.y / live.length, a[2] + p.z / live.length], [0, 0, 0]);
       else if (g.endAt) T = g.endAt;
       else T = [e[0] + d[0] * 6, e[1] + d[1] * 6, e[2] + d[2] * 6];
-      const side = d[0] > 0 ? -1 : 1, want = [side * (HALL.x - 1.5), 4.5, clamp(T[2] - 6, HALL.z0 + 1, HALL.z1 - 3)];
+      const HL = S.scene.gp ? S.scene.gp.hall : HALL, side = d[0] > 0 ? -1 : 1, want = [side * (HL.x - 1.5), 4.5, clamp(T[2] - 6, HL.z0 + 1, HL.z1 - 3)];
       if (!R.side) R.side = { pos: want, look: T };
       const k = 0.14; // (eased, so it glides along rather than jumping)
       R.side.pos = R.side.pos.map((v, i) => v + (want[i] - v) * k); R.side.look = R.side.look.map((v, i) => v + (T[i] - v) * k);
       pos = R.side.pos; look = R.side.look; zoom = 0.9;
     } else {
       // (once they're all down, or a few metres short of a wall, it stays where it got to)
-      const live = g.pellets.length ? g.pellets : null, near = live && live.some((p) => p.z > HALL.z1 - 7 || Math.abs(p.x) > HALL.x - 5 || p.y > roofY(p.x) - 3);
+      const live = g.pellets.length ? g.pellets : null, HL = S.scene.gp ? S.scene.gp.hall : HALL, near = live && live.some((p) => p.z > HL.z1 - 7 || Math.abs(p.x) > HL.x - 5 || (!S.scene.gp && p.y > roofY(p.x) - 3));
       if (live && !near) {
         const n = live.length, c = live.reduce((a, p) => [a[0] + p.x / n, a[1] + p.y / n, a[2] + p.z / n, a[3] + p.vx / n, a[4] + p.vy / n, a[5] + p.vz / n], [0, 0, 0, 0, 0, 0]);
         const v = Math.hypot(c[3], c[4], c[5]) || 1, u = [c[3] / v, c[4] / v, c[5] / v];
@@ -6907,9 +6935,15 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the mini spuds in flight, in small steps so none slips through a skeetza. hits: what a hit does (scoring in
   // play; only the look and sound of it in Re-live it)
-  const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, done: shotDone };
+  // (an animal or bird of the place's: −5, its line in the note, and its own reaction)
+  function hitAnimal(a, shot) {
+    const lost = gunPenalty(a.name);
+    shot.items.push(`You hit ${a.the}! ${a.say} ${lost}`); shot.at = shot.at || a.at;
+    a.react(); hud();
+  }
+  const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, animal: hitAnimal, done: shotDone };
   const REPLAY_HITS = { pizza: (p) => burstPizza(p), drone: (dr) => downDrone(dr), worker: (w, shot) => { if (!shot.workers.has(w)) { shot.workers.add(w); duckWorker(w); } },
-    window: (i, at) => smashWindow(i, at), done() {} };
+    window: (i, at) => smashWindow(i, at), animal: (a) => a.react(), done() {} };
   function movePellets(g, dt, hits) {
     for (const pl of g.pellets) {
       for (let i = 0; i < 6 && !pl.dead; i++) {
@@ -6923,6 +6957,13 @@ body.lab .stage > :not(canvas) { display: none; }
         if (dr) { hits.drone(dr, pl.shot); hitHere(); break; }
         const wk = g.workers.find((w) => pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.8) && Math.hypot(pl.x - w.x, pl.z - w.z) < 0.35);
         if (wk) { hits.worker(wk, pl.shot); hitHere(); break; }
+        if (S.scene.gp) {
+          if (S.scene.gp.wind) { pl.vx += S.scene.gp.wind.x * 0.06 * h; pl.vz += S.scene.gp.wind.z * 0.06 * h; }
+          const res = S.scene.gp.pellet(pl, hits);
+          if (res === "hit") { hitHere(); break; }
+          if (res === "stop" || pl.t > 2.2) { pl.dead = true; g.endAt = [pl.x, Math.max(0, pl.y), pl.z]; }
+          continue;
+        }
         // into a wall: a window not yet broken breaks (−5)
         if (Math.abs(pl.x) > HALL.x || pl.z > HALL.z1) {
           const wi = windowAt(pl);
@@ -6953,7 +6994,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.mouse && S.phase === "gun") aimAtScreen(g.mouse.x, g.mouse.y);
     // (the sights stay on the screen: a finger or the arrow keys can't push them off its edges)
     const hx = Math.atan(W / 2 / F) * 0.96, hy = Math.atan(H / 2 / F) * 0.94;
-    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -GUN.look - hy, -GUN.look + hy);
+    g.yaw = clamp(g.yaw, -hx, hx); g.pitch = clamp(g.pitch, -gunLook() - hy, -gunLook() + hy);
     // the gun slides along the bottom after the crosshair, just a touch behind (see drawGunView)
     const cx = crossAt().x; g.gx = g.gx == null ? cx : g.gx + (cx - g.gx) * Math.min(1, dt * 14);
     const flying = g.pizzas.some((p) => !p.done), busy = g.pellets.length > 0;
@@ -6983,8 +7024,10 @@ body.lab .stage > :not(canvas) { display: none; }
       // (at GUN.pace: the same arc, flown slower; they spin at the usual rate)
       const pd = dt * GUN.pace;
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * dt;
-      if (Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
-      if (p.y <= 0.02) { p.done = true; g.flops.push({ x: p.x, z: p.z, a: p.spin, top: p.top, ring: p.ring }); sfx.splat(); }
+      if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
+      // (a place with wind: it pushes the wood along)
+      if (S.scene.gp) S.scene.gp.drift(p, dt);
+      if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape }); S.scene.gp ? sfx.thunk() : sfx.splat(); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
     movePellets(g, dt, LIVE_HITS);
@@ -7132,7 +7175,57 @@ body.lab .stage > :not(canvas) { display: none; }
     drawWorker2D(ctx, q.x, q.y, q.s, w);
   }
   // ---- a skeetza in the air: a pizza facing you, spinning, its toppings going round ----
+  // ---- Milling's wood: a flying cookie (round) or slab (squarish, its long sides the live edges, its ends cut
+  // straight), face to you, spinning slowly in its own plane. The live edge is dark bark, or painted in its colour;
+  // the face is pale with its rings (a slab: its grain); a coloured one has its number burned into the face ----
+  const WOOD_POPS = ["CRACK!", "THWACK!", "SPLINTERS!", "KER-CHUNK!"];
+  function woodOutline(p, r) {
+    const n = p.shape.length, at = (a) => { const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * n, i = Math.floor(u), f = u - i; return p.shape[i % n] * (1 - f) + p.shape[(i + 1) % n] * f; };
+    ctx.beginPath();
+    if (p.kind === "slab") {
+      const hw = r * 1.2, hh = r * 0.78;
+      for (let i = 0; i <= 16; i++) { const x = -hw + (2 * hw * i) / 16; ctx.lineTo(x, -hh * at(i * 0.4)); }
+      for (let i = 0; i <= 16; i++) { const x = hw - (2 * hw * i) / 16; ctx.lineTo(x, hh * at(3 + i * 0.4)); }
+    } else for (let i = 0; i < 36; i++) { const a = (i / 36) * Math.PI * 2; ctx.lineTo(Math.cos(a) * r * at(a), Math.sin(a) * r * at(a)); }
+    ctx.closePath();
+  }
+  function drawWood(p) {
+    const q = P(p.x, p.y, p.z), sh = P(p.x, 0, p.z);
+    if (q.behind) return;
+    const r = GUN.pizzaR * q.s, R = p.ring && RINGS[p.ring], slab = p.kind === "slab";
+    if (!sh.behind) { ctx.fillStyle = "rgba(60,72,84,.14)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(p.spin * 0.3); ctx.scale(1, 0.88 + 0.08 * Math.sin(p.spin * 0.7 + p.wob));
+    // the live edge, then the face inside it
+    woodOutline(p, r); ctx.fillStyle = R ? R.color : "#4b3a2d"; ctx.fill(); ctx.strokeStyle = R ? R.edge : "#2a1e16"; ctx.lineWidth = Math.max(1, 0.05 * r); ctx.stroke();
+    if (slab) { ctx.save(); ctx.scale(1, 0.72); woodOutline(p, r * 0.98); ctx.restore(); } else woodOutline(p, r * 0.8);
+    ctx.fillStyle = "#e3c493"; ctx.fill();
+    ctx.strokeStyle = "rgba(150,108,66,.5)"; ctx.lineWidth = Math.max(1, 0.025 * r);
+    if (slab) for (let k = -2; k <= 2; k++) { ctx.beginPath(); for (let i = 0; i <= 10; i++) { const x = -r * 1.1 + (2.2 * r * i) / 10; ctx.lineTo(x, k * r * 0.11 + Math.sin(i * 0.9 + k + p.wob) * r * 0.03); } ctx.stroke(); }
+    else for (const k of [0.55, 0.32, 0.12]) { ctx.beginPath(); ctx.ellipse(r * 0.04, 0, r * k, r * k * 0.95, 0, 0, 7); ctx.stroke(); }
+    ctx.restore();
+    // a coloured one: its number burned into the face (kept upright, so it can be read as it spins)
+    if (R) {
+      const fs = Math.max(8, r * 0.9);
+      ctx.save(); ctx.translate(q.x, q.y);
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(120,60,20,.55)"; ctx.shadowBlur = Math.max(1, fs * 0.15);
+      ctx.fillStyle = "#3b2112"; ctx.fillText(R.pts, 0, fs * 0.04);
+      ctx.restore();
+    }
+  }
+  function burstWood(p) {
+    p.done = true;
+    sfx.thunk(); sfx.ring(pizzaPts(p));
+    S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(WOOD_POPS), t: 0 });
+    S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
+    // it bursts: bark chips (a coloured one's in its paint), splinters of pale wood, a puff of sawdust
+    const bit = (kind, c, s, sp) => S.bits.push({ kind, x: p.x, y: p.y, z: p.z, vx: rnd(-sp, sp), vy: rnd(0.5, sp), vz: rnd(-sp, sp), a: rnd(0, 6), s, c, t: 0, ph: rnd(0, 6) });
+    for (let i = 0; i < 12; i++) bit("chunk", p.ring ? RINGS[p.ring].color : pick(["#4b3a2d", "#5c4636", "#3e2f25"]), rnd(0.08, 0.15), 5);
+    for (let i = 0; i < 12; i++) bit("chunk", pick(["#e3c493", "#d6b27c", "#f0d7a8"]), rnd(0.06, 0.14), 5);
+    for (let i = 0; i < 14; i++) bit("disc", "#ead2a2", rnd(0.03, 0.05), 3);
+  }
   function drawPizza(p) {
+    if (p.kind) { drawWood(p); return; }
     // (seen from anywhere but where you stand, in Re-live it, it's drawn as the disc it is)
     if (S.gunReplay && S.gunReplay.pass > 0) { drawPizza3D(p); return; }
     const q = P(p.x, p.y, p.z), sh = P(p.x, 0, p.z);
@@ -7168,7 +7261,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // a skeetza as a real disc with a crust edge, its face turned toward where you stand (wobbling a little as it
   // spins): from the side wall it's mostly a thin line of crust, with a sliver of its face or underside
   function drawPizza3D(p) {
-    const e = GUN.eye, nrm = (a) => { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); };
+    const e = gunEye(), nrm = (a) => { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); };
     const n = nrm([e[0] - p.x, e[1] - p.y + 1.5 * Math.sin(p.spin * 0.7 + p.wob), e[2] - p.z]);
     const u = nrm([n[2], 0, -n[0]]), v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
     const at = (a, r, off) => P(p.x + (u[0] * Math.cos(a) + v[0] * Math.sin(a)) * r + n[0] * off, p.y + (u[1] * Math.cos(a) + v[1] * Math.sin(a)) * r + n[1] * off, p.z + (u[2] * Math.cos(a) + v[2] * Math.sin(a)) * r + n[2] * off);
@@ -7420,12 +7513,13 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun;
     if (!g) return;
     const held = g.phase === "raise" || g.phase === "ready" || g.phase === "live";
-    $("gunOut").textContent = `pair ${Math.max(1, g.pulls)}/${GUN.pulls}`;
+    // (the skeetzas hit, as a round pizza and a count, beside the pair: the row below then has room to spare)
+    $("gunOut").innerHTML = `<span class="pz">${S.scene.gp ? lvl().icon + " " : PIZZA_ICON}${g.hits}</span><span class="sep"> · </span>pair ${Math.max(1, g.pulls)}/${GUN.pulls}`;
     // (the colours: a dot each, filled once that colour's skeetza is hit; then the skeetzas hit, and drones down)
     const down = g.drones.filter((d) => d.state !== "fly").length;
     $("gunRow").innerHTML = `<span>Barrels</span>${[0, 1].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span>` +
       Object.keys(RINGS).map((t) => `<span class="ringdot${g.got.has(t) ? " got" : ""}" style="--c:${RINGS[t].color};--e:${RINGS[t].edge}" title="${t} ${RINGS[t].pts}"></span>`).join("") +
-      `<span class="sep">·</span><span class="pz">🍕 ${g.hits}</span>` + (down ? `<span class="sep">·</span><span>drone${down > 1 ? "s" : ""} ${down}/${g.drones.length}</span>` : "");
+      (down ? `<span class="sep">·</span><span>drone${down > 1 ? "s" : ""} ${down}/${g.drones.length}</span>` : "");
   }
   // the start card's pictures: the drone and a worker
   function gunThumb(kind) {
@@ -7490,7 +7584,8 @@ body.lab .stage > :not(canvas) { display: none; }
   }, true);
   // the camera: where you stand, looking up the hall a little, and it stays still: only the sights move (a view
   // that turns with the aim is too much to watch)
-  function setGunView() { [CAM.x, CAM.y, CAM.z] = GUN.eye; CAM.yaw = 0; CAM.pitch = GUN.look; }
+  // (a place can look its own way: Milling looks nearly level, to take in its yard)
+  function setGunView() { [CAM.x, CAM.y, CAM.z] = (S.scene && S.scene.eye) || GUN.eye; CAM.yaw = 0; CAM.pitch = S.scene && S.scene.look != null ? S.scene.look : GUN.look; }
   function gunCam() {
     // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
     // still wide enough to see the machines they come from)
@@ -7502,6 +7597,1132 @@ body.lab .stage > :not(canvas) { display: none; }
     HZ = CY - F * Math.tan(CAM.pitch);
   }
 
+  // ================= Milling (level 6, being built): the place =================
+  // a winter sawmill yard deep in snow (images/milling/milling_base_image.jpg, turned to face you head-on, with more
+  // yard in front and the piles further back): a weathered board barn, its Z doors flung open (a light on inside, the
+  // woodstove burning on the back wall with Muskoka chairs, a coffee table, a bench and a sink round it, "The Mill"
+  // painted over the door under a window) joined to an open-front shed with the planer and, at the back right, the
+  // band saw cutting disks off a log; snow-loaded metal roofs with rounded edges and icicles; the orange bandsaw mill
+  // out front on the right, running: a worker pushes its head down the log, sawdust spewing out the near side, and a
+  // second carries each slab off to the slab stack; a firewood shed, a pallet of disks by the barn door, the log pile at
+  // the back right; snowy pines, bare hardwoods and birches all round. The snow is knee-deep (DEEP): the yard in front
+  // of the buildings, the ground round the mill and the paths between are trodden down to the ground, with rounded
+  // walls. Nothing to shoot yet: ?scene=mill shows it from where the MP 10 will stand
+  function buildMill() {
+    let sd = 11;
+    const r = (a = 0, b = 1) => { sd = (sd * 16807) % 2147483647; return a + (b - a) * ((sd - 1) / 2147483646); };
+    const mixHex = (a, b, t) => { const p = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16); return `rgb(${[0, 1, 2].map((i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t)).join(",")})`; };
+    const quad = (pts, fill, stroke, lw = 1) => { if (pathClip(pts)) { ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } } };
+    const seg = (a, b, color, w = 1) => { if (pathClip([a, b], false)) { ctx.strokeStyle = color; ctx.lineWidth = Math.max(0.6, w); ctx.lineCap = "round"; ctx.stroke(); } };
+    const wid = (x, y, z, m) => m * P(x, y, Math.max(z, CAM.z + 1)).s;
+    const ell = (cx, cz, rx, rz, y = 0.01, n = 28) => Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return [cx + Math.cos(a) * rx, y, cz + Math.sin(a) * rz]; });
+    const strip = (line, w, y = 0.012) => { const L = [], R = []; line.forEach(([x, z], i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = (-dz / l) * w / 2, nz = (dx / l) * w / 2; L.push([x + nx, y, z + nz]); R.push([x - nx, y, z - nz]); }); return [...L, ...R.reverse()]; };
+    const T = () => performance.now() / 1000;
+    const SNOW = "#f7fafc", ROOFTOP = "#edf2f6", BARK = "#4b3a2d", FLOOR = "#d4dce4";
+    const DEEP = 0.6;
+    let groundG = SNOW; // (the snow's own screen gradient, made each frame in millBack, so the backs of the path walls match it)
+
+    // ---- the numbers ----
+    const B = { x0: -12, x1: -3, zf: 31, zb: 39, eave: 5.2, ridge: 7.8, rz: 35 };
+    const SH = { x0: -3, x1: 9.6, zf: 31.4, zb: 38.6, eave: 3.6, ridge: 5.6, rz: 35 };
+    const DOOR = { x0: -9.6, x1: -5.4, top: 3.5, leaf: 2.1, open: 0.42 };
+    const STOVE = { x: -10.0, z: 38.0 };
+    const FW = { x0: -9.0, x1: -6.2, zf: 20.0, zb: 21.8, hf: 2.0, hb: 2.5 };
+    const SL = { x0: -3.4, x1: 0.2, zf: 18.6, zb: 20.9 };
+    const LOGS = { x0: 6.0, zf: 26.5, zb: 31.5 };
+    const MILL = { x0: -0.6, x1: 5.2, z: 14.6, lx0: 0.5, lx1: 3.7, lr: 0.32, ly: 0.8 };
+    const shade = Array.from({ length: 97 }, () => r(-0.09, 0.09));
+    const icicles = (x0, x1, y, z) => { const out = []; for (let x = x0 + 0.2; x < x1; x += r(0.18, 0.55)) out.push([x, y, z, r() < 0.25 ? r(0.35, 0.7) : r(0.08, 0.28)]); return out; };
+    const ICE = [...icicles(B.x0 - 0.3, B.x1 + 0.3, B.eave - 0.08, B.zf - 0.55), ...icicles(SH.x0, SH.x1 + 0.3, SH.eave - 0.08, SH.zf - 0.5), ...icicles(FW.x0 - 0.3, FW.x1 + 0.3, FW.hf - 0.08, FW.zf - 0.4)];
+    const lipNoise = Array.from({ length: 60 }, () => r(0, 1));
+    // the cookies' round: a third hand takes a stack of five off the shed's shelves, walks it out across the yard and
+    // round to the drying shelter on the left, lays it on and walks back (30 s). Six trips empty the low shelf and fill
+    // the shelter's stack up; then both start again
+    const DCYCLE = 30, DTRIPS = 6;
+    // the disk band saw, and where its hand stands to work it and the little shelf he stacks the cookies on
+    const SAW = { x: 7.0, z: 35.4, cycle: 12, home: [5.95, 35.75], shelf: [4.95, 37.6], sx: [4.6, 5.3], sy: 1.25 };
+    const DROUTE = [[-0.2, 37.5], [-0.2, 32.6], [-5.6, 28.9], [-5.6, 22.8], [-5.8, 20.5], [-7.4, 19.3]];
+    // the cookies on the shed's shelves: stacks of five, the low shelf's are the ones being carried out
+    const SHELF_STACKS = [1.65, 2.45].flatMap((y, row) => [-2.2, -1.2, -0.2, 0.8, 1.8, 2.8].map((x, j) => ({ x: x + r(-0.08, 0.08), y, row, j, list: Array.from({ length: 5 }, () => ({ rad: r(0.26, 0.32), dx: r(-0.07, 0.07), dz: r(-0.05, 0.05) })) })));
+    // a cookie lying flat: its dark live edge all round, a sliver of its pale face on top
+    function flatDisk(cx, cz, y0, rad, t = 0.06, face = "#e2c595") {
+      const q0 = P(cx, y0, cz), q1 = P(cx, y0 + t, cz); if (q0.behind) return;
+      const rx = rad * q0.s, ry = Math.max(0.6, Math.abs(P(cx, y0 + t, cz - rad).y - P(cx, y0 + t, cz + rad).y) / 2);
+      ctx.fillStyle = BARK; ctx.beginPath(); ctx.ellipse(q0.x, q0.y, rx, ry, 0, 0, 7); ctx.fill(); ctx.fillRect(q0.x - rx, q1.y, rx * 2, q0.y - q1.y);
+      ctx.fillStyle = face; ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx * 0.92, ry * 0.92, 0, 0, 7); ctx.fill();
+    }
+    // cookies stacked straight on one another (no stickers): a column of dark, rough live edges, each a slightly
+    // different bark, a dark crease where two meet, bark furrows; only the top one's pale face shows (if it's below eye
+    // height)
+    const BARKS = ["#4b3a2d", "#5c4636", "#3e2f25", "#54402f", "#463427"];
+    function cookieStack(cx, cz, y0, list, t = 0.065) {
+      list.forEach((d, i) => {
+        const x = cx + d.dx, z = cz + (d.dz || 0), y = y0 + i * t, q0 = P(x, y, z), q1 = P(x, y + t, z); if (q0.behind) return;
+        const rx = d.rad * q0.s, ry = Math.max(0.5, Math.abs(P(x, y + t, z - d.rad).y - P(x, y + t, z + d.rad).y) / 2);
+        ctx.fillStyle = BARKS[(i * 3 + Math.round(d.rad * 100)) % BARKS.length];
+        ctx.beginPath(); ctx.ellipse(q0.x, q0.y, rx, ry, 0, 0, Math.PI); ctx.lineTo(q1.x - rx, q1.y); ctx.lineTo(q1.x + rx, q1.y); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx, ry, 0, 0, 7); ctx.fill();
+        if (q0.y - q1.y > 2.5) {
+          ctx.strokeStyle = "rgba(20,12,8,.55)"; ctx.lineWidth = 1;
+          for (let k = 0; k < 7; k++) { const u = Math.sin(k * 2.3 + i * 1.7 + d.rad * 40) * 0.9; ctx.beginPath(); ctx.moveTo(q0.x + u * rx, q0.y); ctx.lineTo(q0.x + u * rx, q1.y + 1); ctx.stroke(); }
+        }
+        ctx.strokeStyle = "rgba(18,10,6,.7)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q0.x, q0.y, rx, ry, 0, 0, Math.PI); ctx.stroke();
+        if (i === list.length - 1 && y + t < CAM.y) {
+          ctx.fillStyle = "#e2c595"; ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx * 0.9, ry * 0.9, 0, 0, 7); ctx.fill();
+          ctx.strokeStyle = "rgba(150,110,70,.45)"; ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx * 0.45, ry * 0.45, 0, 0, 7); ctx.stroke();
+        }
+      });
+    }
+    // a deer, side on, walking (ph: the stride), facing dir (1 right, -1 left); x, y its feet on screen, s px per metre
+    function drawDeer2D(x, y, s, dir, ph) {
+      const X = (lx) => x + lx * s * dir, Y = (ly) => y - ly * s, sw = Math.sin(ph);
+      ctx.lineCap = "round"; ctx.strokeStyle = "#5e3d24"; ctx.lineWidth = Math.max(1, 0.07 * s);
+      for (const [hx, k] of [[0.42, 1], [0.32, -1], [-0.4, -1], [-0.5, 1]]) { ctx.beginPath(); ctx.moveTo(X(hx), Y(0.62)); ctx.lineTo(X(hx + sw * 0.12 * k), Y(0)); ctx.stroke(); }
+      ctx.fillStyle = "#8a5a36"; ctx.beginPath(); ctx.ellipse(X(0), Y(0.82), 0.62 * s, 0.24 * s, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#e9ddc8"; ctx.beginPath(); ctx.ellipse(X(0), Y(0.7), 0.45 * s, 0.09 * s, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#8a5a36"; ctx.lineWidth = Math.max(1, 0.16 * s); ctx.beginPath(); ctx.moveTo(X(0.45), Y(0.92)); ctx.lineTo(X(0.66), Y(1.3)); ctx.stroke();
+      ctx.fillStyle = "#7d5030"; ctx.beginPath(); ctx.ellipse(X(0.74), Y(1.32), 0.17 * s, 0.09 * s, dir * 0.35, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(X(0.6), Y(1.47), 0.04 * s, 0.09 * s, dir * -0.4, 0, 7); ctx.fill();
+      ctx.fillStyle = "#f4efe6"; ctx.beginPath(); ctx.ellipse(X(-0.6), Y(0.98), 0.06 * s, 0.1 * s, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#1a1210"; ctx.beginPath(); ctx.arc(X(0.88), Y(1.3), Math.max(0.6, 0.03 * s), 0, 7); ctx.fill();
+    }
+    // a black barn pendant on its rod: the gold inside of the shade and the bulb seen from below, a warm pool of light
+    function pendant(x, y, z, top) {
+      seg([x, top, z], [x, y + 0.28, z], "#121314", 1.2);
+      const q = P(x, y, z); if (q.behind) return; const s = q.s;
+      glow(x, y - 0.4, z, 2.4, "rgba(255,214,140,.5)");
+      ctx.fillStyle = "#151719";
+      ctx.fillRect(q.x - 0.045 * s, q.y - 0.32 * s, 0.09 * s, 0.14 * s);
+      ctx.beginPath(); ctx.moveTo(q.x - 0.26 * s, q.y); ctx.quadraticCurveTo(q.x - 0.22 * s, q.y - 0.18 * s, q.x - 0.06 * s, q.y - 0.2 * s); ctx.lineTo(q.x + 0.06 * s, q.y - 0.2 * s); ctx.quadraticCurveTo(q.x + 0.22 * s, q.y - 0.18 * s, q.x + 0.26 * s, q.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#c9a34e"; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.26 * s, Math.max(1, 0.04 * s), 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = "#fff6d6"; ctx.beginPath(); ctx.arc(q.x, q.y + 0.035 * s, Math.max(1.5, 0.065 * s), 0, 7); ctx.fill();
+    }
+    // the barn's back window, low and wide, six panes (and, later, breakable)
+    const BARN_WIN = { x0: -9.3, x1: -7.7, y0: 1.0, y1: 2.3, z: B.zb - 0.42 };
+
+    // ---- the mill running: a 22 s round. The head cuts the length of the log (0-8 s), comes back (9-12 s); the
+    // carrier walks over (8-14 s), lifts the slab (14.5 s), carries it to the stack (15-21 s) and lays it on. Each round
+    // takes one slab off the top; after four the log is a fresh one and the stack's new slabs go (to the planer) ----
+    const CYCLE = 22, SLAB_T = 0.075, TOP0 = MILL.ly + MILL.lr * 0.62, HEAD0 = MILL.lx0 - 0.6, HEAD1 = MILL.lx1 + 0.6;
+    const ROUTE = [[-1.6, 18.1], [-1.5, 16.0], [0.6, 13.75], [2.1, 13.75]];
+    const ease = (u) => u * u * (3 - 2 * u);
+    function along(pts, u) {
+      const L = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1])), tot = L.reduce((a, b) => a + b, 0);
+      let d = clamp(u, 0, 1) * tot;
+      for (let i = 0; i < L.length; i++) {
+        if (d <= L[i] || i === L.length - 1) { const k = L[i] ? Math.min(1, d / L[i]) : 0, a = pts[i], b = pts[i + 1]; return { x: a[0] + (b[0] - a[0]) * k, z: a[1] + (b[1] - a[1]) * k, dx: b[0] - a[0], dz: b[1] - a[1] }; }
+        d -= L[i];
+      }
+    }
+    const faceOf = (dx, dz) => (Math.abs(dx) > Math.abs(dz) * 0.7 ? Math.sign(dx) : 0);
+    let st = null;
+    function millState() {
+      const t = T(), n = Math.floor(t / CYCLE), c = t - n * CYCLE, k = n % 4;
+      const hx = c < 8 ? HEAD0 + (HEAD1 - HEAD0) * (c / 8) : c < 9 ? HEAD1 : c < 12 ? HEAD1 + (HEAD0 - HEAD1) * ease((c - 9) / 3) : HEAD0;
+      const picked = c >= 14.5;
+      const s = { t, c, k, hx, cutting: c < 8, top: TOP0 - k * SLAB_T - (picked ? SLAB_T : 0), kerf: picked ? null : c < 8 ? hx : MILL.lx1, stack: k + (c >= 21 ? 1 : 0) };
+      // the pusher, on the far side of the bed, walking the head down and back
+      const back = c >= 9 && c < 12;
+      s.pusher = { x: hx + (back ? 0.4 : -0.4), z: MILL.z + 1.05, face: back ? -1 : 1, walking: c < 8 || back, ph: t * 6, push: c < 8 };
+      // the carrier
+      let p;
+      if (c < 8) p = { ...along(ROUTE, 0), face: 0, walking: false };
+      else if (c < 14) { const a = along(ROUTE, (c - 8) / 6); p = { ...a, face: faceOf(a.dx, a.dz), walking: true }; }
+      else if (c < 15) p = { ...along(ROUTE, 1), face: 0, walking: false, carry: c >= 14.5 };
+      else if (c < 21) { const rv = [...ROUTE].reverse(), a = along(rv, (c - 15) / 6); p = { ...a, face: faceOf(a.dx, a.dz), walking: true, carry: true }; }
+      else p = { ...along(ROUTE, 0), face: 0, walking: false };
+      s.carrier = { ...p, ph: t * 7 };
+      // the cookie carrier: pick up (0-1 s), carry out to the shelter (1-15 s), lay them on (15-16 s), walk back
+      const dn = Math.floor(t / DCYCLE), dc = t - dn * DCYCLE, dk = dn % DTRIPS;
+      let d;
+      if (dc < 1) d = { ...along(DROUTE, 0), face: 0, walking: false };
+      else if (dc < 15) { const a = along(DROUTE, (dc - 1) / 14); d = { ...a, face: faceOf(a.dx, a.dz), walking: true, carry: true }; }
+      else if (dc < 16) d = { ...along(DROUTE, 1), face: 0, walking: false, carry: dc < 15.6 };
+      else { const a = along([...DROUTE].reverse(), (dc - 16) / 14); d = { ...a, face: faceOf(a.dx, a.dz), walking: true }; }
+      s.disker = { ...d, ph: t * 6.5 };
+      s.taken = dk + (dc >= 1 ? 1 : 0); s.stacked = dk + (dc >= 15.6 ? 1 : 0);
+      // the band saw hand (12 s), standing behind the table on the log's left, toward the back wall: he draws the jig
+      // (the log in its V, on a base, all sliding together) across the blade (0-4 s), lifts the cookie off the front of
+      // the base (4-5), carries it to the shelf by the saw (5-7.5), lays it on (7.5-8), comes back (8-10.5) and pushes
+      // the jig back across for the next (10.5-12)
+      const cn = Math.floor(t / SAW.cycle), cc = t - cn * SAW.cycle, sh = SAW.shelf;
+      s.sawOff = cc < 4 ? 0.45 - 0.9 * ease(cc / 4) : cc < 10.5 ? -0.45 : -0.45 + 0.9 * ease((cc - 10.5) / 1.5);
+      const handX = SAW.x - 0.05 + s.sawOff - 1.05, home = [SAW.x - 0.05 - 0.45 - 1.05, SAW.z + 1.0];
+      let cp;
+      if (cc < 4 || cc >= 10.5) cp = { x: handX, z: home[1], face: 1, walking: cc < 4 ? cc > 0.2 : cc < 11.8, ph: t * 6, push: true };
+      else if (cc < 5) cp = { x: home[0], z: home[1], face: 1, walking: false, carry: cc >= 4.5 };
+      else if (cc < 7.5) { const a = along([home, sh], (cc - 5) / 2.5); cp = { ...a, face: faceOf(a.dx, a.dz), walking: true, carry: true }; }
+      else if (cc < 8) cp = { x: sh[0], z: sh[1], face: 0, walking: false, carry: cc < 7.8 };
+      else { const a = along([sh, home], (cc - 8) / 2.5); cp = { ...a, face: faceOf(a.dx, a.dz), walking: true }; }
+      s.cutter = { ...cp, ph: t * 6 };
+      s.sawPile = (cn % SAW_STACK.length) + (cc >= 7.8 ? 1 : 0);
+      return s;
+    }
+    const mstate = () => st || millState();
+
+    // ---- helpers for the buildings ----
+    function boardWall(x0, x1, y0, y1, z, base, k0 = 0) {
+      quad([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], base);
+      let k = k0;
+      for (let x = x0 + 0.28; x < x1 + 0.01; x += 0.28) {
+        const sh = shade[k++ % shade.length], xa = Math.max(x0, x - 0.28), xb = Math.min(x1, x);
+        if (Math.abs(sh) > 0.035) quad([[xa, y0, z - 0.004], [xb, y0, z - 0.004], [xb, y1, z - 0.004], [xa, y1, z - 0.004]], sh > 0 ? `rgba(255,255,255,${sh.toFixed(3)})` : `rgba(0,0,0,${(-sh).toFixed(3)})`);
+        if (x < x1) seg([x, y0, z - 0.008], [x, y1, z - 0.008], "rgba(38,33,29,.38)", 1);
+      }
+    }
+    // the front edge of a roof's snow: the top rounds over (a bullnose) into a thick front face that overhangs the eave
+    // a little, its bottom edge wavy, the metal just showing under it
+    function snowLip(x0, x1, y, z, th = 0.48) {
+      quad([[x0, y - 0.16, z + 0.08], [x1, y - 0.16, z + 0.08], [x1, y, z + 0.08], [x0, y, z + 0.08]], "#848b91");
+      const R = Math.min(0.26, th * 0.55), yc = y + th - R, zc = z + R;
+      const prof = [0, 0.45, 0.9, 1.25, Math.PI / 2].map((a) => [yc + Math.cos(a) * R, zc - Math.sin(a) * R]);
+      const cols = ["#eef3f7", "#f6f9fb", "#fdfeff", "#fbfdfe"];
+      for (let i = 0; i < 4; i++) quad([[x0, prof[i][0], prof[i][1]], [x1, prof[i][0], prof[i][1]], [x1, prof[i + 1][0], prof[i + 1][1]], [x0, prof[i + 1][0], prof[i + 1][1]]], cols[i]);
+      const pts = [[x0, yc, z], [x1, yc, z]];
+      for (let i = 0; i <= 24; i++) { const x = x1 - ((x1 - x0) * i) / 24; pts.push([x, y - 0.1 - 0.12 * lipNoise[(i + Math.round(x0 * 7) + 600) % 60], z]); }
+      if (pathClip(pts)) {
+        const a = P(x0, yc, z), b = P(x0, y - 0.2, z), g = ctx.createLinearGradient(0, a.y, 0, b.y);
+        g.addColorStop(0, "#fbfdfe"); g.addColorStop(0.7, "#eef3f7"); g.addColorStop(1, "#c9d6e2"); ctx.fillStyle = g; ctx.fill();
+      }
+    }
+    // the snow seen end-on at a roof's side edge: solid from the roof up to the top of the snow, its top rounded
+    function snowEnd(x, pts) {
+      const P3 = pts.map(([y, z]) => [x, y, z]);
+      quad(P3, "#f2f6f9");
+      const top = P3.slice(Math.ceil(P3.length / 2));
+      if (pathClip(top, false)) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(1, wid(x, top[0][1], top[0][2], 0.14)); ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); }
+    }
+    function drawIcicles(list) {
+      ctx.fillStyle = "rgba(222,238,250,.95)";
+      for (const [x, y, z, len] of list) {
+        const a = P(x, y, z), b = P(x, y - len, z); if (a.behind) continue;
+        const w = Math.max(0.8, 0.035 * a.s);
+        ctx.beginPath(); ctx.moveTo(a.x - w, a.y); ctx.lineTo(a.x + w, a.y); ctx.lineTo(b.x, b.y); ctx.fill();
+      }
+    }
+    const glow = (x, y, z, rad, col) => { const q = P(x, y, z); if (q.behind) return; const R = rad * q.s, g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, R); g.addColorStop(0, col); g.addColorStop(1, "rgba(255,200,120,0)"); ctx.fillStyle = g; ctx.fillRect(q.x - R, q.y - R, R * 2, R * 2); };
+    const bulb = (x, y, z) => { glow(x, y, z, 1.8, "rgba(255,214,140,.55)"); const q = P(x, y, z); if (!q.behind) { ctx.fillStyle = "#fff4cf"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.5, 0.08 * q.s), 0, 7); ctx.fill(); } };
+    // a round of wood seen end-on: dark live edge (bark) round a pale face with its rings
+    function woodEnd(x, y, z, rad, faceCol = "#dcbd90") {
+      const q = P(x, y, z); if (q.behind) return; const R = rad * q.s;
+      ctx.fillStyle = BARK; ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, 7); ctx.fill();
+      ctx.fillStyle = faceCol; ctx.beginPath(); ctx.arc(q.x, q.y, R * 0.82, 0, 7); ctx.fill();
+      if (R > 3) { ctx.strokeStyle = "rgba(150,110,70,.55)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(q.x, q.y, R * 0.5, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(q.x, q.y, R * 0.18, 0, 7); ctx.stroke(); }
+    }
+
+    // "The Mill", painted in white straight onto the boards over the door: a steady hand, but no sign-writer
+    let signArt = null;
+    function millSignArt() {
+      const face = '400 40px "Lilita One"', ok = !document.fonts || document.fonts.check(face);
+      if (signArt && (signArt.ok || !ok)) return signArt.c;
+      if (!ok && !millSignArt.asked) { millSignArt.asked = true; document.fonts.load(face).catch(() => {}); }
+      const c = document.createElement("canvas"), g = c.getContext("2d"); c.width = 420; c.height = 120;
+      g.font = '400 86px "Lilita One", Nunito, sans-serif'; g.fillStyle = "#f3f0e8"; g.globalAlpha = 0.93;
+      const text = "The Mill", widths = [...text].map((ch) => g.measureText(ch).width), total = widths.reduce((a, b) => a + b, 0) + 5 * (text.length - 1);
+      let x = (c.width - total) / 2;
+      [...text].forEach((ch, i) => {
+        const j = ((i * 7 + 3) % 11) - 5;
+        g.save(); g.translate(x + widths[i] / 2, 92 + j * 0.9); g.rotate(j * 0.013); g.fillText(ch, -widths[i] / 2, 0); g.restore();
+        if (i === 1 || i === 5) { g.fillRect(x + widths[i] * 0.3, 90, 3.5, 14 + i); g.beginPath(); g.arc(x + widths[i] * 0.3 + 1.75, 104 + i, 2.6, 0, 7); g.fill(); }
+        x += widths[i] + 5;
+      });
+      signArt = { c, ok }; return c;
+    }
+
+    // ---- inside the barn: the woodstove on the back wall, a fire going behind its glass; two Muskoka chairs and a
+    // coffee table on a rug in front of it, a bench with a back beside it, a sink on the wall to the right ----
+    function drawStove() {
+      const t = T(), sx = STOVE.x, sz = STOVE.z - 0.35, w = 0.48;
+      glow(sx, 0.6, sz - 0.3, 4.2, `rgba(255,140,50,${(0.38 + 0.1 * Math.sin(t * 9)).toFixed(3)})`);
+      seg([sx, 1.0, STOVE.z], [sx, B.eave, STOVE.z], "#1a1a1a", wid(sx, 2, STOVE.z, 0.22));
+      quad([[sx - w, 1.0, sz], [sx + w, 1.0, sz], [sx + w, 1.0, sz + 0.7], [sx - w, 1.0, sz + 0.7]], "#2b2b2b");
+      quad([[sx - w, 0.15, sz], [sx + w, 0.15, sz], [sx + w, 1.0, sz], [sx - w, 1.0, sz]], "#171717", "#050505");
+      for (const dx of [-w + 0.05, w - 0.05]) seg([sx + dx, 0, sz + 0.05], [sx + dx, 0.15, sz + 0.05], "#111", wid(sx, 0, sz, 0.06));
+      // the glass: dark behind, the fire's tongues licking up, and the frame round it
+      const gx0 = sx - 0.3, gx1 = sx + 0.3, gy0 = 0.32, gy1 = 0.82;
+      const glass = [[gx0, gy0, sz - 0.01], [gx1, gy0, sz - 0.01], [gx1, gy1, sz - 0.01], [gx0, gy1, sz - 0.01]];
+      if (pathClip(glass)) {
+        ctx.save(); ctx.clip();
+        ctx.fillStyle = "#3a1206"; ctx.fill();
+        const a = P(gx0, gy0, sz), b = P(gx1, gy1, sz), wpx = b.x - a.x, hpx = a.y - b.y;
+        const eg = ctx.createLinearGradient(0, a.y, 0, a.y - hpx * 0.35); eg.addColorStop(0, "#ff5a14"); eg.addColorStop(1, "rgba(255,90,20,0)"); ctx.fillStyle = eg; ctx.fillRect(a.x, a.y - hpx * 0.35, wpx, hpx * 0.35);
+        // logs lying in the fire
+        ctx.fillStyle = "#2a1408"; ctx.fillRect(a.x + wpx * 0.12, a.y - hpx * 0.18, wpx * 0.76, hpx * 0.1);
+        for (const [col, sc] of [["#ff7a1a", 1], ["#ffb22e", 0.72], ["#fff0a0", 0.4]]) {
+          ctx.fillStyle = col;
+          for (let i = 0; i < 6; i++) {
+            const fx = a.x + wpx * (0.14 + i * 0.145), fh = hpx * sc * (0.55 + 0.25 * Math.sin(t * (7 + i) + i * 1.7) + 0.12 * Math.sin(t * 13 + i)), fw = wpx * 0.09 * sc + 1;
+            const sway = Math.sin(t * 5 + i * 2.1) * fw * 0.6;
+            ctx.beginPath(); ctx.moveTo(fx - fw, a.y - hpx * 0.12); ctx.quadraticCurveTo(fx - fw * 0.9, a.y - fh * 0.55, fx + sway, a.y - fh); ctx.quadraticCurveTo(fx + fw * 0.9, a.y - fh * 0.55, fx + fw, a.y - hpx * 0.12); ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+      quad(glass, "rgba(0,0,0,0)", "#5a5a5a", 2);
+      // a few splits stacked beside it
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3 - i; j++) woodEnd(sx + w + 0.35 + j * 0.2 + i * 0.1, 0.09 + i * 0.16, sz + 0.1, 0.09);
+    }
+    function muskoka(x, z, col, dark) {
+      const q = P(x, 0, z); if (q.behind) return; const s = q.s, X = (lx) => q.x + lx * s, Y = (ly) => q.y - ly * s;
+      ctx.fillStyle = dark;
+      for (const lx of [-0.36, 0.3]) ctx.fillRect(X(lx), Y(0.62), 0.06 * s, 0.62 * s);
+      // the fanned back, its slats rising to a rounded top, seen from behind
+      for (let i = 0; i < 6; i++) {
+        const u = (i - 2.5) / 2.5, xb = u * 0.2, xt = u * 0.33, top = 1.05 - 0.07 * u * u, wb = 0.032, wt = 0.045;
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(X(xb - wb), Y(0.3)); ctx.lineTo(X(xt - wt), Y(top - 0.02)); ctx.quadraticCurveTo(X(xt), Y(top + 0.03), X(xt + wt), Y(top - 0.02)); ctx.lineTo(X(xb + wb), Y(0.3)); ctx.fill();
+      }
+      ctx.fillStyle = dark; ctx.fillRect(X(-0.26), Y(0.55), 0.52 * s, Math.max(1, 0.05 * s)); ctx.fillRect(X(-0.3), Y(0.85), 0.6 * s, Math.max(1, 0.04 * s));
+      // the wide flat arms
+      ctx.fillStyle = col; ctx.fillRect(X(-0.46), Y(0.66), 0.92 * s, Math.max(1.5, 0.06 * s));
+    }
+    function drawBarnInside() {
+      const zb = B.zb - 0.4;
+      quad([[B.x0, 0, zb], [B.x1, 0, zb], [B.x1, B.eave, zb], [B.x0, B.eave, zb]], "#5d4636");
+      for (let x = B.x0 + 0.3; x < B.x1; x += 0.3) seg([x, 0, zb - 0.01], [x, B.eave, zb - 0.01], "rgba(30,22,18,.3)", 1);
+      quad([[B.x0, 0.005, B.zf], [B.x1, 0.005, B.zf], [B.x1, 0.005, zb], [B.x0, 0.005, zb]], "#7a634d");
+      quad([[B.x0, B.eave - 0.4, B.zf], [B.x1, B.eave - 0.4, B.zf], [B.x1, B.eave - 0.4, zb], [B.x0, B.eave - 0.4, zb]], "#35291f");
+      // a hooked rug before the stove
+      quad(ell(-9.7, 36.6, 1.6, 0.9, 0.01, 20), "#8a3a2c"); quad(ell(-9.7, 36.6, 1.3, 0.7, 0.012, 20), "#a8573f");
+      drawStove();
+      // (the window after the stove, so the fire's glow doesn't tint the snow outside)
+      // the big low window in the back wall, six panes, the snowy woods out behind
+      const Wn = BARN_WIN, wpts = [[Wn.x0, Wn.y0, Wn.z], [Wn.x1, Wn.y0, Wn.z], [Wn.x1, Wn.y1, Wn.z], [Wn.x0, Wn.y1, Wn.z]];
+      if (pathClip(wpts)) {
+        ctx.save(); ctx.clip();
+        const a = P(Wn.x0, Wn.y1, Wn.z), b = P(Wn.x1, Wn.y0, Wn.z), w = b.x - a.x, h = b.y - a.y;
+        const g = ctx.createLinearGradient(0, a.y, 0, b.y); g.addColorStop(0, "#c3ccd4"); g.addColorStop(0.65, "#e3e8ec"); g.addColorStop(1, "#f6f9fb");
+        ctx.fillStyle = g; ctx.fillRect(a.x - 2, a.y - 2, w + 4, h + 4);
+        // out back, as the woods behind the barn are: the feet of tall trees going up out of view (far ones grey in the
+        // haze, near ones dark: hardwood trunks, a birch, a pine's lowest snowy boughs), deep snow, and now and then a
+        // deer wandering past
+        const gy = a.y + h * 0.7, sw = w / 1.6;
+        ctx.fillStyle = "#b9c2c8"; for (const u of [0.05, 0.18, 0.37, 0.52, 0.66, 0.83, 0.95]) ctx.fillRect(a.x + u * w, a.y - 2, Math.max(1, 0.12 * sw), gy - a.y + 2);
+        ctx.fillStyle = "#f6f9fb"; ctx.fillRect(a.x - 2, gy, w + 4, b.y - gy + 2);
+        const dt = (T() % 34) / 10;
+        if (dt < 1) { const dir = Math.floor(T() / 34) % 2 ? -1 : 1, u = dir > 0 ? -0.35 + dt * 1.7 : 1.35 - dt * 1.7; drawDeer2D(a.x + u * w, gy + h * 0.1, sw * 0.42, dir, T() * 5); }
+        for (const [u, tw, kind] of [[0.12, 0.34, "hard"], [0.44, 0.26, "birch"], [0.72, 0.42, "pine"], [0.98, 0.3, "hard"]]) {
+          const px = a.x + u * w, half = tw * sw / 2;
+          if (kind === "pine") {
+            ctx.fillStyle = "#4a3b30"; ctx.fillRect(px - half, a.y - 2, half * 2, gy - a.y + 4);
+            for (const yy of [0.04]) { const by = a.y + h * yy; ctx.fillStyle = "#24362d"; ctx.beginPath(); ctx.moveTo(px - w * 0.17, by + h * 0.1); ctx.lineTo(px, by - h * 0.04); ctx.lineTo(px + w * 0.17, by + h * 0.1); ctx.fill(); ctx.fillStyle = "#f2f6f9"; ctx.beginPath(); ctx.moveTo(px - w * 0.15, by + h * 0.07); ctx.quadraticCurveTo(px, by - h * 0.06, px + w * 0.15, by + h * 0.07); ctx.quadraticCurveTo(px, by + h * 0.01, px - w * 0.15, by + h * 0.07); ctx.fill(); }
+          } else {
+            ctx.fillStyle = kind === "birch" ? "#ece8df" : "#5f5953"; ctx.fillRect(px - half, a.y - 2, half * 2, gy - a.y + 4);
+            if (kind === "birch") { ctx.fillStyle = "#2c2826"; for (const yy of [0.12, 0.3, 0.47, 0.6]) ctx.fillRect(px - half * (yy * 3 % 1), a.y + h * yy, half * 1.1, Math.max(1, h * 0.025)); }
+            else { ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillRect(px - half, a.y - 2, Math.max(1, half * 0.5), gy - a.y); }
+          }
+          ctx.fillStyle = "#f8fafc"; ctx.beginPath(); ctx.ellipse(px, gy + 1, half * 2.6, h * 0.06, 0, Math.PI, 0); ctx.fill();
+        }
+        ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.moveTo(a.x + w * 0.1, a.y); ctx.lineTo(a.x + w * 0.3, a.y); ctx.lineTo(a.x + w * 0.05, b.y); ctx.lineTo(a.x - w * 0.15, b.y); ctx.fill();
+        ctx.restore();
+      }
+      const ww = wid(-8.5, 1.6, Wn.z, 0.06);
+      for (const u of [1 / 3, 2 / 3]) seg([Wn.x0 + (Wn.x1 - Wn.x0) * u, Wn.y0, Wn.z - 0.01], [Wn.x0 + (Wn.x1 - Wn.x0) * u, Wn.y1, Wn.z - 0.01], "#3e3026", ww);
+      seg([Wn.x0, (Wn.y0 + Wn.y1) / 2, Wn.z - 0.01], [Wn.x1, (Wn.y0 + Wn.y1) / 2, Wn.z - 0.01], "#3e3026", ww);
+      quad(wpts, "rgba(0,0,0,0)", "#3e3026", Math.max(2, ww * 1.6));
+      drawBroken(1, Wn.z - 0.03);
+      quad([[Wn.x0 - 0.08, Wn.y0 - 0.08, Wn.z - 0.05], [Wn.x1 + 0.08, Wn.y0 - 0.08, Wn.z - 0.05], [Wn.x1 + 0.08, Wn.y0, Wn.z - 0.05], [Wn.x0 - 0.08, Wn.y0, Wn.z - 0.05]], "#6b5440");
+      // the sink on the back wall: an enamel basin on a little cupboard, a tap, a shelf with a mug over it
+      const kx = -7.25;
+      quad([[kx - 0.35, 0, zb - 0.45], [kx + 0.35, 0, zb - 0.45], [kx + 0.35, 0.82, zb - 0.45], [kx - 0.35, 0.82, zb - 0.45]], "#7d6248", "#3e2f23");
+      quad([[kx - 0.38, 0.82, zb - 0.48], [kx + 0.38, 0.82, zb - 0.48], [kx + 0.38, 0.95, zb - 0.48], [kx - 0.38, 0.95, zb - 0.48]], "#eef0f0", "#9aa0a4");
+      seg([kx, 0.95, zb - 0.1], [kx, 1.18, zb - 0.1], "#9aa3a8", 2); seg([kx, 1.18, zb - 0.1], [kx, 1.18, zb - 0.3], "#9aa3a8", 2);
+      quad([[kx - 0.4, 1.55, zb - 0.02], [kx + 0.4, 1.55, zb - 0.02], [kx + 0.4, 1.6, zb - 0.02], [kx - 0.4, 1.6, zb - 0.02]], "#6b5440");
+      quad([[kx + 0.1, 1.6, zb - 0.05], [kx + 0.22, 1.6, zb - 0.05], [kx + 0.22, 1.72, zb - 0.05], [kx + 0.1, 1.72, zb - 0.05]], "#2f6fa8");
+      // the bench with a back, against the wall between the stove and the sink
+      const bx0 = -9.0, bx1 = -7.8;
+      quad([[bx0, 0.95, zb - 0.02], [bx1, 0.95, zb - 0.02], [bx1, 0.45, zb - 0.06], [bx0, 0.45, zb - 0.06]], "#8a6a48", "#4a3828");
+      quad([[bx0, 0.45, zb - 0.45], [bx1, 0.45, zb - 0.45], [bx1, 0.45, zb - 0.06], [bx0, 0.45, zb - 0.06]], "#9c7a54");
+      quad([[bx0, 0.38, zb - 0.45], [bx1, 0.38, zb - 0.45], [bx1, 0.45, zb - 0.45], [bx0, 0.45, zb - 0.45]], "#6e5338");
+      for (const x of [bx0 + 0.05, bx1 - 0.05]) seg([x, 0, zb - 0.42], [x, 0.38, zb - 0.42], "#4a3828", wid(x, 0, zb, 0.05));
+      // the coffee table, then the chairs facing the fire
+      quad([[-10.15, 0.42, 36.2], [-9.45, 0.42, 36.2], [-9.45, 0.42, 36.7], [-10.15, 0.42, 36.7]], "#a07a50");
+      quad([[-10.15, 0.36, 36.2], [-9.45, 0.36, 36.2], [-9.45, 0.42, 36.2], [-10.15, 0.42, 36.2]], "#6b5036");
+      for (const x of [-10.1, -9.5]) seg([x, 0, 36.22], [x, 0.36, 36.22], "#5a4330", wid(x, 0, 36, 0.05));
+      muskoka(-10.9, 35.7, "#c0392b", "#7d2219"); muskoka(-8.7, 35.6, "#2d7d8c", "#1b4f59");
+      // the light: a black pendant hanging over the chairs
+      pendant(-8.0, 3.05, 35.0, B.eave - 0.4);
+    }
+
+    // ---- the open shed: the planer and lumber on the left, leaning slabs, and at the back right the band saw with a
+    // log on its cradle, cutting the disks ----
+    const SHELF = [];
+    for (const y of [1.65, 2.45]) for (let x = SH.x0 + 0.6; x < 3.6; x += r(0.5, 1.1)) SHELF.push({ x, y, h: 0.12 + r(0, 0.18), c: r() < 0.5 ? "#a8835a" : "#93714c" });
+    // the charcuterie slabs leaning on the back wall: wide, squat and no two the same shape, their live edges dark
+    const BOARDS = Array.from({ length: 5 }, (_, i) => {
+      const w = r(0.45, 0.62), h = r(1.0, 1.4), x0 = SH.x0 + 0.35 + i * 0.62, n = 7;
+      const L = [], R = [];
+      for (let k = 0; k <= n; k++) { const v = k / n; L.push([x0 + r(-0.05, 0.05) + 0.04 * Math.sin(v * 5 + i), v]); R.push([x0 + w + r(-0.05, 0.05) + 0.05 * Math.sin(v * 4 + i * 2), v]); }
+      return { L, R, h, c: ["#d4b07e", "#c49c6a", "#ddbb8a", "#caa271", "#b98f60"][i] };
+    });
+    function drawShedInside() {
+      const open = [[SH.x0, 0, SH.zf], [SH.x1, 0, SH.zf], [SH.x1, SH.eave, SH.zf], [SH.x0, SH.eave, SH.zf]];
+      if (!pathClip(open)) return;
+      ctx.save(); ctx.clip();
+      ctx.fillStyle = "#2a211b"; ctx.fillRect(0, 0, W, H);
+      quad([[SH.x0, 0, SH.zb], [SH.x1, 0, SH.zb], [SH.x1, SH.ridge, SH.zb], [SH.x0, SH.ridge, SH.zb]], "#5d4838");
+      for (let x = SH.x0 + 0.3; x < SH.x1; x += 0.3) seg([x, 0, SH.zb - 0.01], [x, SH.ridge, SH.zb - 0.01], "rgba(30,22,18,.35)", 1);
+      quad([[SH.x1, 0, SH.zf], [SH.x1, 0, SH.zb], [SH.x1, SH.ridge, SH.zb], [SH.x1, SH.eave, SH.zf]], "#4b3c31");
+      quad([[SH.x0, 0.005, SH.zf], [SH.x1, 0.005, SH.zf], [SH.x1, 0.005, SH.zb], [SH.x0, 0.005, SH.zb]], "#9b8466");
+      quad([[SH.x0, SH.eave, SH.zf], [SH.x1, SH.eave, SH.zf], [SH.x1, SH.ridge, SH.rz], [SH.x0, SH.ridge, SH.rz]], "#3a2e26");
+      for (let x = SH.x0 + 1; x < SH.x1; x += 1.05) seg([x, SH.eave, SH.zf], [x, SH.ridge, SH.rz], "#2a201a", wid(x, SH.eave, SH.rz, 0.1));
+      // the shelves, stacked with cookies (lily pads) waiting to go out to dry; the low shelf's go first
+      const ms = mstate();
+      for (const y of [1.65, 2.45]) {
+        quad([[SH.x0 + 0.3, y, SH.zb - 0.7], [3.4, y, SH.zb - 0.7], [3.4, y, SH.zb - 0.05], [SH.x0 + 0.3, y, SH.zb - 0.05]], "#6b5440");
+        quad([[SH.x0 + 0.3, y - 0.06, SH.zb - 0.7], [3.4, y - 0.06, SH.zb - 0.7], [3.4, y, SH.zb - 0.7], [SH.x0 + 0.3, y, SH.zb - 0.7]], "#3c2f26");
+        for (const x of [SH.x0 + 0.35, 1.0, 3.35]) seg([x, y - 0.06, SH.zb - 0.68], [x, y - 0.8, SH.zb - 0.68], "#3c2f26", wid(x, y, SH.zb, 0.05));
+      }
+      for (const stk of SHELF_STACKS) {
+        if (stk.row === 0 && stk.j < ms.taken) continue;
+        cookieStack(stk.x, SH.zb - 0.38, stk.y + 0.005, stk.list);
+      }
+      // the slabs leaning on the wall
+      for (const b of BOARDS) {
+        const pt = ([x, v]) => [x, v * b.h, SH.zb - 0.45 + v * 0.35];
+        const outline = [...b.L.map(pt), ...[...b.R].reverse().map(pt)];
+        quad(outline, BARK);
+        const inner = [...b.L.map(([x, v]) => pt([x + 0.06, v])), ...[...b.R].reverse().map(([x, v]) => pt([x - 0.06, v]))];
+        quad(inner, b.c);
+      }
+      // the planer
+      quad([[0.4, 0.95, 34.3], [2.0, 0.95, 34.3], [2.0, 0.95, 35.3], [0.4, 0.95, 35.3]], "#8a949a");
+      quad([[0.4, 0, 34.3], [2.0, 0, 34.3], [2.0, 0.95, 34.3], [0.4, 0.95, 34.3]], "#3d7a52", "#21422d");
+      // the disk saw, cutting as in images (a log end-on on the table, the blade slicing a cookie off its end): its
+      // wheels face you, the log lies on the table pointing back into the shed, its end toward you just past the blade
+      const bx = SAW.x, bz = SAW.z, ty = 1.0, lr = 0.3, by = ty + 0.05, vy = by + 0.4, ly = by + 0.47;
+      const cu = ms.cutter, lx = bx - 0.05 + ms.sawOff, jx0 = lx - 0.45, jx1 = lx + 0.45, jz0 = bz - 0.2, jz1 = SH.zb - 0.3;
+      const wheel = (y) => { const q = P(bx + 0.1, y, bz + 0.02); if (!q.behind) { ctx.fillStyle = "#7fa9b4"; ctx.strokeStyle = "#3b5c66"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(q.x, q.y, 0.46 * q.s, 0, 7); ctx.fill(); ctx.stroke(); } };
+      wheel(0.5);
+      quad([[bx + 0.55, 0, bz + 0.05], [bx + 0.78, 0, bz + 0.05], [bx + 0.78, 2.85, bz + 0.05], [bx + 0.55, 2.85, bz + 0.05]], "#6f97a2", "#3b5c66");
+      // the little shelf on the back wall by the saw, where its hand stacks each cookie as it comes off (drawn before
+      // him: he's always in front of it)
+      quad([[SAW.sx[0] - 0.35, SAW.sy, SH.zb - 0.6], [SAW.sx[1] + 0.35, SAW.sy, SH.zb - 0.6], [SAW.sx[1] + 0.35, SAW.sy, SH.zb - 0.05], [SAW.sx[0] - 0.35, SAW.sy, SH.zb - 0.05]], "#6b5440");
+      quad([[SAW.sx[0] - 0.35, SAW.sy - 0.06, SH.zb - 0.6], [SAW.sx[1] + 0.35, SAW.sy - 0.06, SH.zb - 0.6], [SAW.sx[1] + 0.35, SAW.sy, SH.zb - 0.6], [SAW.sx[0] - 0.35, SAW.sy, SH.zb - 0.6]], "#3c2f26");
+      const half = Math.ceil(SAW_STACK.length / 2);
+      if (ms.sawPile) cookieStack(SAW.sx[0], SH.zb - 0.32, SAW.sy + 0.005, SAW_STACK.slice(0, Math.min(ms.sawPile, half)));
+      if (ms.sawPile > half) cookieStack(SAW.sx[1], SH.zb - 0.32, SAW.sy + 0.005, SAW_STACK.slice(half, ms.sawPile));
+      // its hand, behind the table (so the table hides what it should of him)
+      drawHand(cu, CREW.cutter);
+      if (cu.carry) cookieStack(cu.x + (cu.face || 0) * 0.3, cu.z - (cu.face ? 0 : 0.25), 0.95, [SAW_STACK[ms.sawPile % SAW_STACK.length]]);
+      // the table, with the rail the jig runs on
+      quad([[bx - 0.7, ty, bz - 0.45], [bx + 0.7, ty, bz - 0.45], [bx + 0.7, ty, bz + 0.7], [bx - 0.7, ty, bz + 0.7]], "#a7b0b4", "#59636a");
+      quad([[bx - 0.7, ty - 0.06, bz - 0.45], [bx + 0.7, ty - 0.06, bz - 0.45], [bx + 0.7, ty, bz - 0.45], [bx - 0.7, ty, bz - 0.45]], "#6b757b");
+      quad([[bx - 1.3, ty + 0.005, bz + 0.45], [bx + 1.0, ty + 0.005, bz + 0.45], [bx + 1.0, ty + 0.005, bz + 0.55], [bx - 1.3, ty + 0.005, bz + 0.55]], "#3d4348");
+      // the jig: a plywood base, two V-blocks fixed on it (one just behind the blade, one at the back), the log lying
+      // in the Vs; base, Vs and log slide as one, so everything below moves with lx
+      const vBlock = (z) => quad([[jx0, by, z], [jx1, by, z], [jx1, vy, z], [lx + lr * 0.78, vy, z], [lx, by + 0.06, z], [lx - lr * 0.78, vy, z], [jx0, vy, z]], "#c9a46a", "#7a5f3a", 1);
+      quad([[jx0, by, jz0], [jx1, by, jz0], [jx1, by, jz1], [jx0, by, jz1]], "#bf9a62", "#7a5f3a", 1);
+      quad([[jx0, ty, jz0], [jx1, ty, jz0], [jx1, by, jz0], [jx0, by, jz0]], "#8f7046");
+      vBlock(jz1 - 0.2);
+      quad([[lx - lr, ly, bz], [lx - lr, ly, jz1 - 0.05], [lx, ly + lr, jz1 - 0.05], [lx, ly + lr, bz]], "#55463a");
+      // the push handle at the base's back left, where his hands are
+      seg([jx0 + 0.05, by, bz + 1.0], [jx0 + 0.05, by + 0.75, bz + 1.0], "#5a4630", wid(jx0, 1.4, bz + 1, 0.06));
+      seg([jx0 + 0.05, by + 0.75, bz + 1.0], [jx0 - 0.15, by + 0.75, bz + 1.0], "#2a2d30", wid(jx0, 1.8, bz + 1, 0.05));
+      vBlock(bz + 0.12);
+      // the blade, down from its upper guide, then the cookie being cut off the log's end (in front of the blade,
+      // standing on the front of the base): dark live edge, dark heartwood inside a paler ring
+      seg([bx - 0.05, 1.98, bz], [bx - 0.05, ty, bz], "#dfe4e8", 1.5);
+      woodEnd(lx, ly, bz - 0.07, lr, "#b07c50");
+      const ce = P(lx, ly, bz - 0.08); if (!ce.behind) { ctx.fillStyle = "rgba(120,72,40,.75)"; ctx.beginPath(); ctx.arc(ce.x, ce.y, lr * 0.58 * ce.s, 0, 7); ctx.fill(); }
+      quad([[bx - 0.18, 1.96, bz - 0.05], [bx + 0.08, 1.96, bz - 0.05], [bx + 0.08, 2.16, bz - 0.05], [bx - 0.18, 2.16, bz - 0.05]], "#9aa3a8", "#4d555a");
+      wheel(2.55);
+      for (const x of [-1, 3, 7]) pendant(x, SH.eave - 0.55, 33.4, SH.eave + 1.1);
+      // the cookie carrier, while still inside
+      if (ms.disker.z > SH.zf) drawDisker(ms.disker);
+      ctx.restore();
+    }
+
+    // ---- the barn and the open shed, as one thing ----
+    function drawBuilding() {
+      // the stovepipe, up through the barn's back slope (the roof hides its foot)
+      seg([STOVE.x, 5.6, STOVE.z], [STOVE.x, 9.6, STOVE.z], "#26282a", wid(STOVE.x, 9, STOVE.z, 0.24));
+      quad([[STOVE.x - 0.28, 9.6, STOVE.z], [STOVE.x + 0.28, 9.6, STOVE.z], [STOVE.x + 0.2, 9.85, STOVE.z], [STOVE.x - 0.2, 9.85, STOVE.z]], "#1d1f21");
+      quad([[STOVE.x - 0.32, 9.85, STOVE.z], [STOVE.x + 0.32, 9.85, STOVE.z], [STOVE.x + 0.2, 10.08, STOVE.z], [STOVE.x - 0.2, 10.08, STOVE.z]], SNOW);
+      // the barn's gable end over the shed (x = B.x1), then its roof heaped with snow: the top, the rounded front edge,
+      // and the snow seen end-on along the gable
+      quad([[B.x1, 0, B.zf], [B.x1, B.eave, B.zf], [B.x1, B.ridge, B.rz], [B.x1, B.eave, B.zb], [B.x1, 0, B.zb]], "#77716a");
+      for (let z = B.zf + 0.3; z < B.zb; z += 0.3) seg([B.x1 + 0.01, 0, z], [B.x1 + 0.01, z < B.rz ? B.eave + ((z - B.zf) / (B.rz - B.zf)) * (B.ridge - B.eave) : B.eave + ((B.zb - z) / (B.zb - B.rz)) * (B.ridge - B.eave), z], "rgba(38,33,29,.3)", 1);
+      quad([[B.x0 - 0.35, B.eave + 0.5, B.zf - 0.55 + 0.26], [B.x1 + 0.35, B.eave + 0.5, B.zf - 0.55 + 0.26], [B.x1 + 0.35, B.ridge + 0.6, B.rz], [B.x0 - 0.35, B.ridge + 0.6, B.rz]], ROOFTOP);
+      snowEnd(B.x1 + 0.35, [[B.eave - 0.16, B.zf - 0.55], [B.ridge - 0.1, B.rz], [B.eave - 0.16, B.zb + 0.5], [B.eave + 0.5, B.zb + 0.5], [B.ridge + 0.6, B.rz], [B.eave + 0.5, B.zf - 0.29], [B.eave + 0.24, B.zf - 0.55]]);
+
+      // the open shed: inside, then the posts, then its roof
+      drawShedInside();
+      quad([[SH.x0, SH.eave - 0.32, SH.zf - 0.05], [SH.x1 + 0.1, SH.eave - 0.32, SH.zf - 0.05], [SH.x1 + 0.1, SH.eave, SH.zf - 0.05], [SH.x0, SH.eave, SH.zf - 0.05]], "#625a52");
+      for (const x of [1.2, 5.4, SH.x1]) {
+        quad([[x - 0.12, 0, SH.zf - 0.06], [x + 0.12, 0, SH.zf - 0.06], [x + 0.12, SH.eave - 0.3, SH.zf - 0.06], [x - 0.12, SH.eave - 0.3, SH.zf - 0.06]], "#6e665e", "#3e3832");
+        for (const s of [-1, 1]) if (x + s * 0.9 < SH.x1 + 0.1) seg([x, SH.eave - 1.15, SH.zf - 0.07], [x + s * 0.95, SH.eave - 0.32, SH.zf - 0.07], "#5a524b", wid(x, 2, SH.zf, 0.13));
+      }
+      quad([[SH.x0, SH.eave + 0.45, SH.zf - 0.5 + 0.25], [SH.x1 + 0.35, SH.eave + 0.45, SH.zf - 0.5 + 0.25], [SH.x1 + 0.35, SH.ridge + 0.5, SH.rz], [SH.x0, SH.ridge + 0.5, SH.rz]], ROOFTOP);
+      snowLip(SH.x0, SH.x1 + 0.35, SH.eave, SH.zf - 0.5, 0.45);
+
+      // the barn's front: boards, the doorway (and the room inside), the Z doors swung right back, the window up top
+      // and the painted name between them
+      boardWall(B.x0, B.x1, 0, B.eave, B.zf, "#857f78");
+      const door = [[DOOR.x0, 0, B.zf - 0.01], [DOOR.x1, 0, B.zf - 0.01], [DOOR.x1, DOOR.top, B.zf - 0.01], [DOOR.x0, DOOR.top, B.zf - 0.01]];
+      if (pathClip(door)) { ctx.save(); ctx.clip(); ctx.fillStyle = "#2b2019"; ctx.fillRect(0, 0, W, H); drawBarnInside(); ctx.restore(); }
+      seg([DOOR.x0, 0, B.zf - 0.02], [DOOR.x0, DOOR.top, B.zf - 0.02], "#4b453f", wid(DOOR.x0, 1, B.zf, 0.12));
+      seg([DOOR.x1, 0, B.zf - 0.02], [DOOR.x1, DOOR.top, B.zf - 0.02], "#4b453f", wid(DOOR.x1, 1, B.zf, 0.12));
+      seg([DOOR.x0, DOOR.top, B.zf - 0.02], [DOOR.x1, DOOR.top, B.zf - 0.02], "#4b453f", wid(-7.5, 3, B.zf, 0.14));
+      for (const s of [-1, 1]) {
+        const hx = s < 0 ? DOOR.x0 : DOOR.x1, ex = hx + s * DOOR.leaf * Math.cos(DOOR.open), ez = B.zf - DOOR.leaf * Math.sin(DOOR.open);
+        const L = (u, y) => [hx + (ex - hx) * u, y, B.zf - 0.03 + (ez - B.zf) * u];
+        quad([L(0, 0), L(1, 0), L(1, DOOR.top), L(0, DOOR.top)], "#8e8880", "#3f3a35");
+        for (let u = 0.14; u < 1; u += 0.14) seg(L(u, 0.05), L(u, DOOR.top - 0.05), "rgba(38,33,29,.35)", 1);
+        for (const [a, b] of [[L(0.04, DOOR.top - 0.25), L(0.96, DOOR.top - 0.25)], [L(0.04, 0.3), L(0.96, 0.3)], [L(0.08, 0.35), L(0.92, DOOR.top - 0.3)]]) seg(a, b, "#a39d94", wid(hx, 1.5, B.zf, 0.16));
+      }
+      const wy0 = 4.2, wy1 = 4.95, wx0 = -8.1, wx1 = -6.9;
+      glow(-7.5, 4.6, B.zf - 0.05, 1.4, "rgba(255,210,130,.35)");
+      quad([[wx0, wy0, B.zf - 0.02], [wx1, wy0, B.zf - 0.02], [wx1, wy1, B.zf - 0.02], [wx0, wy1, B.zf - 0.02]], "#f2c97c", "#4a443e", 2);
+      seg([-7.5, wy0, B.zf - 0.03], [-7.5, wy1, B.zf - 0.03], "#4a443e", 2); seg([wx0, (wy0 + wy1) / 2, B.zf - 0.03], [wx1, (wy0 + wy1) / 2, B.zf - 0.03], "#4a443e", 2);
+      quad([[wx0 - 0.1, wy0 - 0.06, B.zf - 0.06], [wx1 + 0.1, wy0 - 0.06, B.zf - 0.06], [wx1 + 0.08, wy0 + 0.07, B.zf - 0.06], [wx0 - 0.08, wy0 + 0.07, B.zf - 0.06]], SNOW);
+      drawBroken(0, B.zf - 0.04);
+      wallPaint(millSignArt(), (u, v) => [-8.85 + 2.7 * u, 4.12 - 0.62 * v, B.zf - 0.02], 18);
+      snowLip(B.x0 - 0.35, B.x1 + 0.35, B.eave, B.zf - 0.55, 0.5);
+      drawIcicles(ICE);
+    }
+
+    // ---- the firewood shed: rounds stacked under a lean-to roof heaped with snow ----
+    const rounds = [];
+    for (let row = 0; row < 4; row++) for (let x = FW.x0 + 0.35 + (row % 2) * 0.26; x < FW.x1 - 0.25; x += 0.52) rounds.push([x + r(-0.04, 0.04), 0.3 + row * 0.47, r(0.21, 0.27)]);
+    const CARRY5 = Array.from({ length: 5 }, () => ({ rad: r(0.23, 0.28), dx: r(-0.05, 0.05), dz: r(-0.04, 0.04) }));
+    const SAW_STACK = Array.from({ length: 14 }, () => ({ rad: r(0.25, 0.31), dx: r(-0.07, 0.07), dz: r(-0.05, 0.05) }));
+    const DRY = Array.from({ length: 72 }, () => ({ rad: r(0.25, 0.31), dx: r(-0.04, 0.04), dz: r(-0.05, 0.05) }));
+    function drawFirewood() {
+      boardWall(FW.x0, FW.x1, 0, FW.hb, FW.zb, "#6f6962", 31);
+      quad([[FW.x1, 0, FW.zf], [FW.x1, 0, FW.zb], [FW.x1, FW.hb, FW.zb], [FW.x1, FW.hf, FW.zf]], "#7b756d");
+      for (let y = 0.2; y < FW.hf; y += 0.32) seg([FW.x1 + 0.01, y, FW.zf], [FW.x1 + 0.01, y, FW.zb], "rgba(38,33,29,.35)", 1);
+      // the cookies drying: laid flat, four across, in layers on stickers, on a pallet (like images: the sticker pile);
+      // each trip in from the shed adds five
+      quad([[FW.x0 + 0.05, 0.12, FW.zf + 0.15], [FW.x1 - 0.05, 0.12, FW.zf + 0.15], [FW.x1 - 0.05, 0.12, FW.zb - 0.1], [FW.x0 + 0.05, 0.12, FW.zb - 0.1]], "#8e7c60");
+      quad([[FW.x0 + 0.05, 0, FW.zf + 0.15], [FW.x1 - 0.05, 0, FW.zf + 0.15], [FW.x1 - 0.05, 0.12, FW.zf + 0.15], [FW.x0 + 0.05, 0.12, FW.zf + 0.15]], "#6f5f48");
+      const count = 40 + 5 * mstate().stacked, cols = 4, cz = FW.zf + 0.62;
+      for (let i = 0; i < count; i++) {
+        const layer = Math.floor(i / cols), col = i % cols, d = DRY[i % DRY.length], y = 0.13 + layer * 0.088;
+        flatDisk(FW.x0 + 0.42 + col * 0.69 + d.dx, cz + d.dz, y, d.rad, 0.055);
+        // the stickers laid across each finished layer, their ends sticking out front
+        if (col === cols - 1) quad([[FW.x0 + 0.08, y + 0.056, cz - 0.4], [FW.x1 - 0.08, y + 0.056, cz - 0.4], [FW.x1 - 0.08, y + 0.082, cz - 0.4], [FW.x0 + 0.08, y + 0.082, cz - 0.4]], "#d9c497", "rgba(120,96,60,.6)");
+      }
+      for (const x of [FW.x0, (FW.x0 + FW.x1) / 2, FW.x1]) quad([[x - 0.08, 0, FW.zf], [x + 0.08, 0, FW.zf], [x + 0.08, FW.hf, FW.zf], [x - 0.08, FW.hf, FW.zf]], "#6a625a", "#3e3832");
+      quad([[FW.x0 - 0.3, FW.hf + 0.45, FW.zf - 0.4 + 0.25], [FW.x1 + 0.3, FW.hf + 0.45, FW.zf - 0.4 + 0.25], [FW.x1 + 0.3, FW.hb + 0.5, FW.zb + 0.3], [FW.x0 - 0.3, FW.hb + 0.5, FW.zb + 0.3]], ROOFTOP);
+      snowEnd(FW.x1 + 0.3, [[FW.hf - 0.16, FW.zf - 0.4], [FW.hb - 0.12, FW.zb + 0.3], [FW.hb + 0.5, FW.zb + 0.3], [FW.hf + 0.45, FW.zf - 0.15], [FW.hf + 0.2, FW.zf - 0.4]]);
+      snowLip(FW.x0 - 0.3, FW.x1 + 0.3, FW.hf, FW.zf - 0.4, 0.45);
+      // the snow drifted up against its foot, either side of the trodden path
+      for (const [x0, x1] of [[FW.x0 - 0.8, FW.x0 + 0.2], [FW.x1 - 0.2, FW.x1 + 0.4]]) drawBank({ x0, x1, z: FW.zf - 0.3, h: 0.4, x: (x0 + x1) / 2, n: lipNoise.slice(0, 17).map((v) => v * 0.2 - 0.1) });
+    }
+
+    // ---- the slab stack: live-edge slabs laid up on stickers, the mill's new ones going on top (so no snow on it):
+    // their long live edges dark, the end grain to the right ----
+    const slabs = Array.from({ length: 12 }, (_, i) => ({ y: 0.1 + i * 0.115, j0: r(-0.25, 0.1), j1: r(-0.15, 0.3), jz: r(-0.07, 0.07), c: i % 2 ? "#d8b583" : "#caa473", wave: r(0, 6) }));
+    function drawSlabs() {
+      const n = 7 + mstate().stack, top = slabs[n - 1];
+      for (let i = 0; i < n; i++) { const s = slabs[i]; quad([[SL.x1 + s.j1, s.y, SL.zf + s.jz], [SL.x1 + s.j1, s.y, SL.zb], [SL.x1 + s.j1, s.y + SLAB_T, SL.zb], [SL.x1 + s.j1, s.y + SLAB_T, SL.zf + s.jz]], "#dcbf90", "rgba(110,80,50,.5)"); }
+      for (let i = 0; i < n; i++) {
+        const s = slabs[i], z = SL.zf + s.jz, pts = [];
+        for (let k = 0; k <= 12; k++) { const x = SL.x0 + s.j0 + ((SL.x1 + s.j1 - SL.x0 - s.j0) * k) / 12; pts.push([x, s.y + SLAB_T + 0.012 * Math.sin(x * 2.3 + s.wave), z]); }
+        pts.push([SL.x1 + s.j1, s.y, z], [SL.x0 + s.j0, s.y, z]);
+        quad(pts, BARK);
+        quad([[SL.x0 + s.j0, s.y, z - 0.005], [SL.x1 + s.j1, s.y, z - 0.005], [SL.x1 + s.j1, s.y + 0.018, z - 0.005], [SL.x0 + s.j0, s.y + 0.018, z - 0.005]], "#e8cf9e");
+        for (const x of [SL.x0 + 0.4, (SL.x0 + SL.x1) / 2, SL.x1 - 0.4]) quad([[x - 0.05, s.y - 0.04, z - 0.01], [x + 0.05, s.y - 0.04, z - 0.01], [x + 0.05, s.y, z - 0.01], [x - 0.05, s.y, z - 0.01]], "#3e3229");
+      }
+      // the top slab's face, fresh
+      quad([[SL.x0 + top.j0, top.y + SLAB_T, SL.zf + top.jz], [SL.x1 + top.j1, top.y + SLAB_T, SL.zf + top.jz], [SL.x1 + top.j1, top.y + SLAB_T, SL.zb], [SL.x0 + top.j0, top.y + SLAB_T, SL.zb]], top.c);
+    }
+
+    // ---- the disks: rounds laid flat in stacks on a pallet by the barn door, so mostly their dark live edges show,
+    // with a sliver of each face ----
+    const DISKS = [[-4.9, 27.85, 8], [-4.25, 28.05, 7], [-3.65, 27.75, 5]].map(([x, z, n]) => ({ x, z, list: Array.from({ length: n }, () => ({ rad: r(0.24, 0.33), dx: r(-0.04, 0.04), dz: r(-0.04, 0.04) })) }));
+    function drawDisks() {
+      quad([[-5.3, 0.14, 27.3], [-3.2, 0.14, 27.3], [-3.2, 0.14, 28.4], [-5.3, 0.14, 28.4]], "#9a8a6e");
+      quad([[-5.3, 0, 27.3], [-3.2, 0, 27.3], [-3.2, 0.14, 27.3], [-5.3, 0.14, 27.3]], "#7e6d55");
+      for (const stack of [...DISKS].sort((a, b) => b.z - a.z)) stack.list.forEach((d, i) => {
+        const cx = stack.x + d.dx, cz = stack.z + d.dz, y0 = 0.15 + i * 0.07, y1 = y0 + 0.062;
+        const q0 = P(cx, y0, cz), q1 = P(cx, y1, cz); if (q0.behind) return;
+        const rx = d.rad * q0.s, ry = Math.max(0.8, Math.abs(P(cx, y1, cz - d.rad).y - P(cx, y1, cz + d.rad).y) / 2);
+        ctx.fillStyle = BARK; ctx.beginPath(); ctx.ellipse(q0.x, q0.y, rx, ry, 0, 0, 7); ctx.fill(); ctx.fillRect(q0.x - rx, q1.y, rx * 2, q0.y - q1.y);
+        ctx.fillStyle = "#e2c595"; ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx * 0.93, ry * 0.93, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = "rgba(150,110,70,.45)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q1.x, q1.y, rx * 0.45, ry * 0.45, 0, 0, 7); ctx.stroke();
+      });
+    }
+
+    // ---- the log pile: logs laid lengthways, their ends to you, a deep blanket of snow draped over the top ----
+    const logs = [];
+    [[5, 0.34], [4, 0.33], [3, 0.31], [2, 0.3]].forEach(([n, rad], row) => {
+      for (let i = 0; i < n; i++) logs.push({ x: LOGS.x0 + rad + row * rad + i * rad * 2.05 + r(-0.05, 0.05), y: rad + row * rad * 1.72, rad: rad * r(0.9, 1.08), z: LOGS.zf + r(-0.2, 0.25), row });
+    });
+    const pileX0 = Math.min(...logs.map((l) => l.x - l.rad)), pileX1 = Math.max(...logs.map((l) => l.x + l.rad));
+    const pileTop = (x) => Math.max(0, ...logs.map((l) => (Math.abs(x - l.x) < l.rad ? l.y + Math.sqrt(l.rad * l.rad - (x - l.x) ** 2) : 0)));
+    // the blanket: over each log's top, smoothed over the hollows between them, thickest on top
+    const blanket = Array.from({ length: 41 }, (_, i) => { const x = pileX0 - 0.1 + ((pileX1 - pileX0 + 0.2) * i) / 40; return [x, pileTop(x)]; }).map(([x, y], i, a) => {
+      const nb = a.slice(Math.max(0, i - 2), i + 3).map((p) => p[1]), sm = Math.max(y, nb.reduce((s, v) => s + v, 0) / nb.length);
+      return [x, sm + 0.12 + 0.2 * (sm / 2.2), y];
+    });
+    function drawLogs() {
+      for (const l of logs) quad([[l.x - l.rad, l.y, l.z], [l.x - l.rad, l.y, LOGS.zb], [l.x, l.y + l.rad, LOGS.zb], [l.x, l.y + l.rad, l.z]], "#54463b");
+      for (const l of logs) woodEnd(l.x, l.y, l.z, l.rad, "#d6b88a");
+      // (snow lodged on the lower logs' ends)
+      for (const l of logs) if (l.row < 2) { const q = P(l.x, l.y, l.z - 0.02); if (!q.behind) { ctx.fillStyle = SNOW; ctx.beginPath(); ctx.ellipse(q.x, q.y - l.rad * q.s * 0.84, l.rad * q.s * 0.7, l.rad * q.s * 0.18, 0, Math.PI, 0); ctx.fill(); } }
+      // the blanket's front, hanging down over the top logs' ends in soft scallops, then its rounded top edge
+      const zf = LOGS.zf - 0.3, top = blanket.map(([x, y]) => [x, y, zf]), bottom = blanket.map(([x, , y0]) => [x, Math.max(0.2, y0 - 0.1 - 0.06 * Math.abs(Math.sin(x * 9))), zf]).reverse();
+      if (pathClip([...top, ...bottom])) {
+        const a = P(pileX0, 2.4, zf), b = P(pileX0, 1.2, zf), g = ctx.createLinearGradient(0, a.y, 0, b.y);
+        g.addColorStop(0, "#fdfeff"); g.addColorStop(1, "#dbe4ec"); ctx.fillStyle = g; ctx.fill();
+      }
+      if (pathClip(top, false)) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(1, wid(pileX0, 2, zf, 0.12)); ctx.lineJoin = "round"; ctx.stroke(); }
+    }
+
+    // ---- the orange bandsaw mill on its green track, running ----
+    const MD = { o: "#ef6a1c", od: "#a8430c", gr: "#2f6b48" };
+    function drawMillLog(s) {
+      const M = MILL, lr = M.lr, ly = M.ly, top = s.top, ang = Math.asin(clamp((top - ly) / lr, -1, 1));
+      const pt = (a, x) => [x, ly + Math.sin(a) * lr, M.z - Math.cos(a) * lr];
+      // the round side in bands, lit from above, with bark furrows along it, up to the flat
+      for (const [a0, a1, col] of [[-1.45, -0.5, "#4f3f33"], [-0.5, 0.3, "#665343"], [0.3, ang, "#7a6552"]]) if (a1 > a0) quad([pt(a0, M.lx0), pt(a0, M.lx1), pt(a1, M.lx1), pt(a1, M.lx0)], col);
+      for (let i = 0; i < 4; i++) { const a = -1.1 + i * 0.45; if (a < ang) seg([M.lx0 + 0.1, ...pt(a, 0).slice(1)], [M.lx1 - 0.1, ...pt(a, 0).slice(1)], "rgba(30,20,14,.4)", 1); }
+      // the flat top: fresh wood
+      const hw = Math.sqrt(Math.max(0, lr * lr - (top - ly) ** 2));
+      quad([[M.lx0, top, M.z - hw], [M.lx1, top, M.z - hw], [M.lx1, top, M.z + hw], [M.lx0, top, M.z + hw]], "#e8cb98");
+      // the cut under the slab, as far as the blade has gone
+      if (s.kerf != null) { const ky = top - SLAB_T, kw = Math.sqrt(Math.max(0, lr * lr - (ky - ly) ** 2)); seg([M.lx0, ky, M.z - kw - 0.01], [clamp(s.kerf, M.lx0, M.lx1), ky, M.z - kw - 0.01], "#2a1c12", 1.6); }
+      // the end: the round cut off flat at the top, its live edge dark
+      const endPts = []; for (let i = 0; i <= 20; i++) { const a = Math.PI - ang + ((Math.PI + 2 * ang) * i) / 20; endPts.push([M.lx0, ly + Math.sin(a) * lr, M.z + Math.cos(a) * lr]); }
+      quad(endPts, "#dcbe90", BARK, Math.max(1.5, wid(M.lx0, ly, M.z, 0.05)));
+    }
+    function drawMillRig() {
+      const M = MILL, s = mstate(), hx = s.hx, o = MD.o, od = MD.od;
+      // the sawdust: a long low heap down the near side, the whole length of the bed (it spews out that side)
+      const heap = []; for (let i = 0; i <= 18; i++) { const u = i / 18; heap.push([M.x0 + 0.4 + (M.x1 - M.x0 - 0.8) * u, 0.28 * Math.pow(Math.sin(Math.PI * u), 0.35) * (1 + 0.15 * Math.sin(u * 23)), M.z - 1.0]); }
+      quad([[M.x0, 0.32, M.z + 0.5], [M.x1, 0.32, M.z + 0.5], [M.x1, 0.47, M.z + 0.5], [M.x0, 0.47, M.z + 0.5]], MD.gr, "#1b3d29");
+      for (let x = M.x0 + 0.2; x < M.x1; x += 1.2) {
+        seg([x, 0, M.z + 0.5], [x, 0.32, M.z + 0.5], "#24533a", wid(x, 0, M.z, 0.07));
+        quad([[x - 0.08, 0.48, M.z - 0.5], [x + 0.08, 0.48, M.z - 0.5], [x + 0.08, 0.48, M.z + 0.5], [x - 0.08, 0.48, M.z + 0.5]], "#1f4a33");
+      }
+      // the back upright, the log, then the rest of the head
+      quad([[hx - 0.12, 0.3, M.z + 0.68], [hx + 0.12, 0.3, M.z + 0.68], [hx + 0.12, 2.45, M.z + 0.68], [hx - 0.12, 2.45, M.z + 0.68]], od);
+      drawMillLog(s);
+      quad([[hx - 0.28, 2.1, M.z - 0.8], [hx - 0.28, 2.1, M.z + 0.8], [hx - 0.28, 2.5, M.z + 0.8], [hx - 0.28, 2.5, M.z - 0.8]], o, od);
+      quad([[hx - 0.28, 2.5, M.z - 0.8], [hx + 0.28, 2.5, M.z - 0.8], [hx + 0.28, 2.5, M.z + 0.8], [hx - 0.28, 2.5, M.z + 0.8]], "#f58a4a");
+      // the motor: black, with its silver pull-start and a red switch
+      // (sitting up on top of the head, like images: a chunky black engine, cooling fins, the silver pull-start
+      // facing you, the air filter on its side and a white fuel jug strapped on behind)
+      const ex0 = hx - 0.4, ex1 = hx + 0.4, ez0 = M.z - 0.38, ez1 = M.z + 0.38, ey0 = 2.5, ey1 = 3.2;
+      quad([[ex0, ey1, ez0], [ex1, ey1, ez0], [ex1, ey1, ez1], [ex0, ey1, ez1]], "#30353a");
+      if (CAM.x < ex0) quad([[ex0, ey0, ez0], [ex0, ey0, ez1], [ex0, ey1, ez1], [ex0, ey1, ez0]], "#16191c", "#050607");
+      quad([[ex0, ey0, ez0], [ex1, ey0, ez0], [ex1, ey1, ez0], [ex0, ey1, ez0]], "#1f2326", "#050607", 1.5);
+      for (let i = 1; i < 6; i++) seg([ex0 + 0.45, ey0 + i * 0.11, ez0 - 0.01], [ex1 - 0.04, ey0 + i * 0.11, ez0 - 0.01], "rgba(90,98,106,.6)", 1);
+      const pq = P(hx - 0.17, 2.84, ez0 - 0.02);
+      if (!pq.behind) {
+        ctx.fillStyle = "#b9c0c6"; ctx.strokeStyle = "#5c646b"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(pq.x, pq.y, 0.15 * pq.s, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#2b2f33"; ctx.beginPath(); ctx.arc(pq.x, pq.y, 0.04 * pq.s, 0, 7); ctx.fill();
+        ctx.fillStyle = "#d33"; ctx.fillRect(pq.x - 0.2 * pq.s, pq.y + 0.2 * pq.s, 0.08 * pq.s, 0.07 * pq.s);
+      }
+      quad([[ex1, 2.65, ez0 + 0.1], [ex1 + 0.14, 2.65, ez0 + 0.1], [ex1 + 0.14, 3.0, ez0 + 0.1], [ex1, 3.0, ez0 + 0.1]], "#2a2e32", "#050607");
+      quad([[hx - 0.05, ey1, M.z + 0.05], [hx + 0.3, ey1, M.z + 0.05], [hx + 0.3, ey1 + 0.34, M.z + 0.05], [hx - 0.05, ey1 + 0.34, M.z + 0.05]], "#eceee6", "#9a9d94");
+      quad([[hx - 0.05, ey1 + 0.34, M.z + 0.05], [hx + 0.3, ey1 + 0.34, M.z + 0.05], [hx + 0.3, ey1 + 0.34, M.z + 0.32], [hx - 0.05, ey1 + 0.34, M.z + 0.32]], "#f7f8f3");
+      // the blade housing: a silver diamond-plate box with rounded ends over the wheels, just above the cut
+      const hy = s.top + 0.42;
+      const hs = []; for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + (i / 10) * Math.PI; hs.push([hx - 0.32, hy + Math.sin(a) * 0.3, M.z + 0.75 + Math.cos(a) * 0.3]); }
+      for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 + (i / 10) * Math.PI; hs.push([hx - 0.32, hy + Math.sin(a) * 0.3, M.z - 0.75 + Math.cos(a) * 0.3]); }
+      quad(hs, "#c3c9cf", "#6b7278", 1.5);
+      for (let i = 0; i < 18; i++) { const z = M.z - 0.85 + (i % 6) * 0.34, y = hy - 0.18 + Math.floor(i / 6) * 0.17; seg([hx - 0.33, y, z], [hx - 0.33, y + 0.05, z + 0.08], "rgba(110,118,126,.7)", 1); }
+      seg([hx - 0.33, hy - 0.3, M.z - 0.75], [hx - 0.33, 2.1, M.z - 0.75], "#8a9298", wid(hx, 1.5, M.z, 0.05));
+      quad([[hx - 0.12, 0.3, M.z - 0.68], [hx + 0.12, 0.3, M.z - 0.68], [hx + 0.12, 2.45, M.z - 0.68], [hx - 0.12, 2.45, M.z - 0.68]], o, od);
+      // the push handle, out the far side toward the sawyer
+      seg([hx - 0.1, 1.15, M.z + 0.7], [hx - 0.4, 1.15, M.z + 0.95], "#2a2d30", wid(hx, 1, M.z, 0.05));
+      quad([[M.x0, 0.32, M.z - 0.5], [M.x1, 0.32, M.z - 0.5], [M.x1, 0.47, M.z - 0.5], [M.x0, 0.47, M.z - 0.5]], MD.gr, "#1b3d29");
+      for (let x = M.x0 + 0.2; x < M.x1; x += 1.2) seg([x, 0, M.z - 0.5], [x, 0.32, M.z - 0.5], "#24533a", wid(x, 0, M.z, 0.07));
+      // the sawdust heap, in front of it all
+      heap.push([M.x1 - 0.4, -0.02, M.z - 1.0], [M.x0 + 0.4, -0.02, M.z - 1.0]);
+      if (pathClip(heap)) { const a = P(2.3, 0.3, M.z - 1), b = P(2.3, 0, M.z - 1), g = ctx.createLinearGradient(0, a.y, 0, b.y); g.addColorStop(0, "#ecc996"); g.addColorStop(1, "#b88d5a"); ctx.fillStyle = g; ctx.fill(); }
+    }
+    // the sawdust spraying out of the cut, toward you, while the head runs
+    function drawSpray(s) {
+      if (!s.cutting) return;
+      ctx.fillStyle = "rgba(226,190,140,.9)";
+      for (let i = 0; i < 26; i++) {
+        const age = (s.t * 2.3 + i / 26 + (i * 0.37) % 0.1) % 1, dt = age * 0.5, ce = s.c - dt;
+        if (ce < 0) continue;
+        const ex = HEAD0 + (HEAD1 - HEAD0) * (ce / 8);
+        if (ex < MILL.lx0 || ex > MILL.lx1) continue;
+        const q = P(ex + ((i * 0.13) % 0.2) - 0.1, s.top - 0.05 + 0.9 * dt - 4.9 * dt * dt, MILL.z - 0.35 - 2.4 * dt * (0.7 + (i % 5) * 0.1));
+        if (q.behind) continue;
+        ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.8, 0.028 * q.s), 0, 7); ctx.fill();
+      }
+    }
+
+    // ---- the mill hands, dressed like the crew in images/milling/2024-01-28 14.17.36.jpg: the sawyer in navy
+    // coveralls with hi-vis stripes, an orange hard hat and ear muffs; the carrier in a red buffalo-check jacket, tan
+    // work pants and a yellow hard hat. Drawn upright on the spot, from where they stand ----
+    const CREW = {
+      pusher: { jacket: "#24324a", pants: "#24324a", stripes: true, hat: "#f07a1e", muffs: true, gloves: "#d8e04a" },
+      carrier: { jacket: "#c4232b", plaid: true, pants: "#a8783f", hat: "#f2c21b", gloves: "#e0b040" },
+      cutter: { jacket: "#cdb68b", pants: "#cdb68b", hat: "#2f6fd0", toque: true, gloves: "#3b3f44" },
+      disker: { jacket: "#1f2023", pants: "#c39a62", bib: true, hat: "#d63a2f", toque: true, gloves: "#e0b040" },
+    };
+    function drawHand(p, look) {
+      const q = P(p.x, 0, p.z); if (q.behind) return;
+      // (hit: they duck, arms up over their head, for a moment; and keep the splat on their coat)
+      const hk = CREWHIT[Object.keys(CREW).find((k) => CREW[k] === look)], duck = hk && hk.hit > 0 ? Math.min(1, hk.hit / 0.3, (2.4 - hk.hit) / 0.15 + 0.2) : 0;
+      const s = q.s, f = p.face, side = f !== 0, X = (lx) => q.x + lx * s, Y = (ly) => q.y - ly * (1 - 0.3 * duck) * s;
+      const sw = p.walking ? Math.sin(p.ph) : 0, lw = Math.max(1.2, 0.15 * s);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // legs and boots
+      const legs = side ? [[0, sw * 0.24], [0, -sw * 0.24]] : [[-0.09, 0], [0.09, 0]];
+      ctx.strokeStyle = look.pants; ctx.lineWidth = lw;
+      legs.forEach(([hx, fx], i) => { const lift = side ? 0 : Math.max(0, (i ? -sw : sw)) * 0.08; ctx.beginPath(); ctx.moveTo(X(hx), Y(0.9)); ctx.lineTo(X(hx + fx * (f || 1)), Y(0.12 + lift)); ctx.stroke(); });
+      ctx.fillStyle = "#2a2420";
+      legs.forEach(([hx, fx], i) => { const lift = side ? 0 : Math.max(0, (i ? -sw : sw)) * 0.08, bx = X(hx + fx * (f || 1)); ctx.fillRect(bx - (side ? (f < 0 ? 0.14 : 0.04) : 0.07) * s, Y(0.12 + lift), 0.18 * s, 0.12 * s); });
+      // body: the jacket (buffalo check for the carrier), hi-vis bands for the sawyer
+      const bw = side ? 0.15 : 0.22, by0 = 0.84, by1 = 1.5;
+      ctx.fillStyle = look.jacket; ctx.fillRect(X(-bw), Y(by1), 2 * bw * s, (by1 - by0) * s);
+      if (look.plaid) {
+        ctx.fillStyle = "rgba(20,14,14,.55)"; const cell = 0.11;
+        for (let yy = by0; yy < by1 - 0.01; yy += cell) for (let xx = -bw; xx < bw - 0.01; xx += cell) if ((Math.round((yy - by0) / cell) + Math.round((xx + bw) / cell)) % 2 === 0) ctx.fillRect(X(xx), Y(Math.min(by1, yy + cell)), cell * s * 0.98, Math.min(cell, by1 - yy) * s * 0.98);
+      }
+      // (bib overalls: the bib up the front over the hoodie, and its straps)
+      if (look.bib) { ctx.fillStyle = look.pants; ctx.fillRect(X(-bw * 0.8), Y(1.32), 1.6 * bw * s, (1.32 - by0) * s); ctx.fillRect(X(-bw), Y(by0 + 0.12), 2 * bw * s, 0.12 * s); if (!side) { for (const sx of [-0.13, 0.09]) ctx.fillRect(X(sx), Y(1.48), 0.04 * s, 0.16 * s); } }
+      if (look.stripes) { ctx.fillStyle = "#e8ef4a"; for (const yy of [1.05, 1.3]) ctx.fillRect(X(-bw), Y(yy + 0.035), 2 * bw * s, Math.max(1, 0.05 * s)); ctx.fillStyle = "#c9cfd4"; for (const yy of [1.05, 1.3]) ctx.fillRect(X(-bw), Y(yy + 0.012), 2 * bw * s, Math.max(0.6, 0.015 * s)); }
+      if (hk) for (const sp of hk.sauce) { ctx.fillStyle = "#d9a35a"; ctx.beginPath(); ctx.arc(X(sp.u * bw / 0.22), Y(sp.v), Math.max(1, 0.07 * s), 0, 7); ctx.fill(); ctx.fillStyle = "#b8823a"; ctx.beginPath(); ctx.arc(X(sp.u * bw / 0.22 + 0.04), Y(sp.v + 0.05), Math.max(0.6, 0.03 * s), 0, 7); ctx.fill(); }
+      // arms
+      const shoulders = side ? [[0, 1.44]] : [[-0.21, 1.44], [0.21, 1.44]];
+      const hands = duck ? shoulders.map(([x], i) => [side ? f * 0.05 + (i ? 0.1 : -0.1) : x * 0.8, 1.98]) : p.push ? shoulders.map(() => [f * 0.5, 1.12]) : p.carry ? shoulders.map(([x]) => [side ? f * 0.22 : x * 0.9, 0.98]) : shoulders.map(([x], i) => [x + (side ? -sw * 0.25 * f : 0) * (i ? -1 : 1), 0.86 + (side ? 0 : Math.abs(sw) * 0.04)]);
+      ctx.strokeStyle = look.jacket; ctx.lineWidth = lw * 0.85;
+      shoulders.forEach(([sx, sy], i) => { ctx.beginPath(); ctx.moveTo(X(sx), Y(sy)); ctx.lineTo(X(hands[i][0]), Y(hands[i][1])); ctx.stroke(); });
+      ctx.fillStyle = look.gloves; hands.forEach(([hx, hy]) => { ctx.beginPath(); ctx.arc(X(hx), Y(hy), Math.max(1, 0.055 * s), 0, 7); ctx.fill(); });
+      // head, hard hat (with ear muffs for the sawyer)
+      const hx = side ? f * 0.02 : 0;
+      ctx.fillStyle = "#e3b48f"; ctx.beginPath(); ctx.arc(X(hx), Y(1.63), 0.11 * s, 0, 7); ctx.fill();
+      ctx.fillStyle = look.hat;
+      if (look.toque) {
+        // a toque: a snug dome, a rolled cuff and a pompom
+        ctx.beginPath(); ctx.ellipse(X(hx), Y(1.67), 0.12 * s, 0.13 * s, 0, Math.PI, 0); ctx.fill();
+        ctx.fillRect(X(hx - 0.12), Y(1.68), 0.24 * s, 0.05 * s);
+        ctx.fillStyle = "#f2efe6"; ctx.beginPath(); ctx.arc(X(hx), Y(1.82), Math.max(1, 0.045 * s), 0, 7); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.ellipse(X(hx), Y(1.69), 0.135 * s, 0.11 * s, 0, Math.PI, 0); ctx.fill();
+        ctx.fillRect(X(hx - 0.16), Y(1.7), 0.32 * s, Math.max(1, 0.03 * s));
+      }
+      if (look.muffs) { ctx.fillStyle = "#2b2f33"; for (const sx of side ? [-f * 0.02] : [-0.12, 0.12]) { ctx.beginPath(); ctx.arc(X(hx + sx), Y(1.62), 0.05 * s, 0, 7); ctx.fill(); } }
+    }
+    const pusher = { x: 0, z: MILL.z + 1.05, draw: () => { const s = mstate(); drawHand(s.pusher, CREW.pusher); } };
+    const carrier = {
+      x: 0, z: 16, draw: () => {
+        const s = mstate(), c = s.carrier;
+        if (!c.carry) { drawHand(c, CREW.carrier); return; }
+        // the slab: carried on edge at his side, along the way he's walking (so going to or from the stack you see
+        // mostly its end), its live edges dark along top and bottom; drawn behind him or in front, whichever side is
+        // nearer you
+        const l = Math.hypot(c.dx || 0, c.dz || 0) || 1, ux = (c.dx || 0) / l, uz = (c.dx || c.dz ? c.dz || 0 : 1) / l, nx = uz, nz = -ux;
+        const L = (MILL.lx1 - MILL.lx0) / 2, cx = c.x + nx * 0.34, cz = c.z + nz * 0.34, y0 = 0.6, y1 = 1.04, th = 0.04;
+        const at = (a, y, o = 0) => [cx + ux * a + nx * o, y, cz + uz * a + nz * o];
+        const board = () => {
+          quad([at(-L, y0), at(L, y0), at(L, y1), at(-L, y1)], "#d9b98a", BARK, 1);
+          quad([at(-L, y1 - 0.06), at(L, y1 - 0.06), at(L, y1), at(-L, y1)], BARK);
+          quad([at(-L, y0), at(L, y0), at(L, y0 + 0.05), at(-L, y0 + 0.05)], BARK);
+          const near = Math.hypot(...[0, 2].map((i) => at(-L, 0)[i] - [CAM.x, 0, CAM.z][i])) < Math.hypot(...[0, 2].map((i) => at(L, 0)[i] - [CAM.x, 0, CAM.z][i])) ? -L : L;
+          quad([at(near, y0, -th), at(near, y0, th), at(near, y1, th), at(near, y1, -th)], "#e4c99a", BARK, 1);
+        };
+        const boardBehind = Math.hypot(cx - CAM.x, cz - CAM.z) > Math.hypot(c.x - CAM.x, c.z - CAM.z);
+        if (boardBehind) { board(); drawHand(c, CREW.carrier); } else { drawHand(c, CREW.carrier); board(); }
+      },
+    };
+    // the cookie carrier: black hoodie, tan bib overalls, a red toque; a stack of five held in front
+    function drawDisker(d) {
+      const look = CREW.disker, l = Math.hypot(d.dx || 0, d.dz || 0) || 1, ux = (d.dx || 0) / l, uz = (d.dz || 0) / l;
+      const stack = () => cookieStack(d.x + ux * 0.32, d.z + uz * 0.32, 0.92, CARRY5, 0.05);
+      const away = d.walking && uz > 0.3;
+      if (d.carry && away) stack();
+      drawHand(d, look);
+      if (d.carry && !away) stack();
+    }
+    const disker = { x: 0, z: 30, draw: () => { const d = mstate().disker; if (d.z <= SH.zf) drawDisker(d); } };
+
+    // ---- snowbanks and drifts heaped up on top of the deep snow, white on top shading to blue-grey at the foot ----
+    const banks = [
+      { x0: -7.4, x1: -1.6, z: 7.4, h: 0.5 }, { x0: 2.0, x1: 7.8, z: 8.2, h: 0.7 }, { x0: -13, x1: -9.4, z: 14, h: 0.85 },
+      { x0: -14.5, x1: -10.6, z: 20.8, h: 0.85 }, { x0: -12.9, x1: -9.75, z: 30.55, h: 0.95 },
+      { x0: 9.7, x1: 13.8, z: 31.0, h: 1.0 }, { x0: 9.4, x1: 14, z: 25.6, h: 0.9 },
+      { x0: -24, x1: -12.4, z: 40, h: 1.2 }, { x0: 10, x1: 26, z: 40.5, h: 1.1 }, { x0: 6.6, x1: 10.5, z: 19.5, h: 0.75 },
+      { x0: -4.2, x1: -1.0, z: 11.0, h: 0.6 },
+    ].map((b) => ({ ...b, x: (b.x0 + b.x1) / 2, n: Array.from({ length: 17 }, () => r(-0.14, 0.14)), draw: drawBank }));
+    function drawBank(b) {
+      const pts = [];
+      for (let i = 0; i <= 16; i++) { const u = i / 16; pts.push([b.x0 + (b.x1 - b.x0) * u, DEEP * 0.5 + b.h * Math.pow(Math.sin(Math.PI * u), 0.55) * (1 + b.n[i]), b.z]); }
+      pts.push([b.x1, 0, b.z], [b.x0, 0, b.z]);
+      const top = P(b.x, b.h + DEEP * 0.5, b.z), bot = P(b.x, 0, b.z);
+      if (top.behind || !pathClip(pts)) return;
+      const g = ctx.createLinearGradient(0, top.y, 0, bot.y); g.addColorStop(0, "#fcfdfe"); g.addColorStop(0.5, "#eef3f7"); g.addColorStop(1, "#d2dce6");
+      ctx.fillStyle = g; ctx.fill();
+    }
+
+    // ---- the woods: snow-loaded pines, bare hardwoods with snow along their limbs, white birches ----
+    function tree(x, z, kind = r() < 0.55 ? "pine" : r() < 0.5 ? "hard" : "birch", h) {
+      const t = { x, z, kind, h: h || (kind === "pine" ? r(15, 27) : kind === "hard" ? r(17, 25) : r(13, 21)), lean: r(-0.03, 0.03), draw: drawWoodsTree };
+      if (kind === "pine") {
+        const n = Math.round(t.h / 2.2), step = (t.h - 1.3) / n; t.tiers = [];
+        for (let i = 0; i < n; i++) { const y = 1.3 + i * step; t.tiers.push({ y, top: Math.min(t.h, y + step * 2), hw: (0.35 + t.h * 0.16 * Math.pow(1 - i / n, 0.85)) * r(0.85, 1.15), sk: r(-0.15, 0.15) }); }
+      } else {
+        const birch = kind === "birch"; t.br = []; t.top = t.h * (birch ? 0.78 : 0.62); t.w0 = birch ? 0.15 : r(0.2, 0.3);
+        const grow = (x0, y0, a, len, w, d) => { const x1 = x0 + Math.sin(a) * len, y1 = y0 + Math.cos(a) * len; t.br.push([x0, y0, x1, y1, w]); if (!d) return; const n = r() < 0.4 ? 3 : 2; for (let k = 0; k < n; k++) grow(x1, y1, a + r(-0.6, 0.6), len * r(0.55, 0.78), w * 0.6, d - 1); };
+        for (let k = 0; k < (birch ? 4 : 5); k++) { const y = t.top * r(0.5, 1); grow(t.lean * y, y, (k % 2 ? 1 : -1) * r(0.2, 0.75), t.h * r(0.14, 0.22), t.w0 * 0.55, birch ? 2 : 3); }
+        if (birch) t.marks = Array.from({ length: 16 }, () => [r(0.4, t.top), r(0.04, 0.14), r(-0.5, 0.5)]);
+      }
+      return t;
+    }
+    function drawWoodsTree(t) {
+      const q0 = P(t.x, 0, t.z); if (q0.behind) return;
+      const s = q0.s; if (q0.x + t.h * 0.45 * s < 0 || q0.x - t.h * 0.45 * s > W) return;
+      const hz = clamp((Math.hypot(t.x - CAM.x, t.z - CAM.z) - 24) / 55, 0, 0.72);
+      const X = (lx) => q0.x + lx * s, Y = (ly) => q0.y - ly * s;
+      if (t.far) {
+        // (the woods further out, only ever seen from a distance: a plainer pine, three snowy tiers)
+        const g = mixHex("#2a3d34", "#8d9896", hz), sn = mixHex("#f6f9fb", "#e1e6ea", hz);
+        for (let i = 0; i < 3; i++) {
+          const y0 = t.h * (0.12 + i * 0.25), y1 = t.h * (0.6 + i * 0.2), hw = t.h * 0.19 * (1 - i * 0.27);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(X(0), Y(y1)); ctx.lineTo(X(hw), Y(y0)); ctx.lineTo(X(-hw), Y(y0)); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = sn; ctx.beginPath(); ctx.moveTo(X(0), Y(y1 + 0.1)); ctx.lineTo(X(hw * 0.75), Y(y0 + (y1 - y0) * 0.28)); ctx.quadraticCurveTo(X(0), Y(y0 + (y1 - y0) * 0.5), X(-hw * 0.75), Y(y0 + (y1 - y0) * 0.28)); ctx.closePath(); ctx.fill();
+        }
+      } else if (t.kind === "pine") {
+        ctx.fillStyle = mixHex("#4a3b30", "#8d989a", hz); ctx.fillRect(X(-0.15), Y(2.2), 0.3 * s, 2.2 * s);
+        const g = mixHex("#1d3027", "#7f8b89", hz), sn = mixHex("#f8fbfd", "#dfe5ea", hz);
+        for (const tr of t.tiers) {
+          const hh = tr.top - tr.y, a = X(tr.sk * 0.3);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(a, Y(tr.top)); ctx.lineTo(X(tr.hw + tr.sk), Y(tr.y - 0.25)); ctx.lineTo(X(tr.hw * 0.45), Y(tr.y + 0.1)); ctx.lineTo(X(0), Y(tr.y - 0.05)); ctx.lineTo(X(-tr.hw * 0.45), Y(tr.y + 0.1)); ctx.lineTo(X(-tr.hw + tr.sk), Y(tr.y - 0.25)); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = sn; ctx.beginPath(); ctx.moveTo(a, Y(tr.top + 0.06));
+          ctx.lineTo(X((tr.hw + tr.sk) * 0.84), Y(tr.y + hh * 0.2));
+          ctx.quadraticCurveTo(X(tr.hw * 0.55), Y(tr.y + hh * 0.44), X(tr.hw * 0.25), Y(tr.y + hh * 0.31));
+          ctx.quadraticCurveTo(X(0), Y(tr.y + hh * 0.46), X(-tr.hw * 0.3), Y(tr.y + hh * 0.32));
+          ctx.quadraticCurveTo(X(-tr.hw * 0.6), Y(tr.y + hh * 0.44), X((-tr.hw + tr.sk) * 0.84), Y(tr.y + hh * 0.2));
+          ctx.closePath(); ctx.fill();
+        }
+      } else {
+        const birch = t.kind === "birch", bark = birch ? mixHex("#ece8df", "#ccd2d6", hz) : mixHex("#5f5953", "#a3abae", hz);
+        ctx.lineCap = "round"; ctx.strokeStyle = birch ? mixHex("#4a4643", "#a3abae", hz) : bark;
+        for (const [x0, y0, x1, y1, w] of t.br) { ctx.lineWidth = Math.max(0.5, w * s); ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke(); }
+        ctx.strokeStyle = mixHex("#ffffff", "#e3e8ec", hz);
+        for (const [x0, y0, x1, y1, w] of t.br) if (w > 0.045) { ctx.lineWidth = Math.max(0.5, w * s * 0.5); ctx.beginPath(); ctx.moveTo(X(x0), Y(y0) - w * s * 0.45); ctx.lineTo(X(x1), Y(y1) - w * s * 0.45); ctx.stroke(); }
+        ctx.fillStyle = bark; ctx.beginPath(); ctx.moveTo(X(-t.w0), Y(0)); ctx.lineTo(X(t.lean * t.top - 0.04), Y(t.top)); ctx.lineTo(X(t.lean * t.top + 0.04), Y(t.top)); ctx.lineTo(X(t.w0), Y(0)); ctx.fill();
+        if (birch) { ctx.fillStyle = mixHex("#2c2826", "#9aa2a6", hz); for (const [y, len, o] of t.marks) { const w = t.w0 * (1 - y / t.top) + 0.03; ctx.fillRect(X(t.lean * y + o * w - len / 2), Y(y), Math.max(1, len * s), Math.max(1, 0.035 * s)); } }
+      }
+      // standing in the deep snow: it's heaped round the trunk, well up the foot
+      ctx.fillStyle = mixHex("#f7fafc", "#e3e8ec", hz); ctx.beginPath(); ctx.ellipse(q0.x, q0.y, 1.3 * s, (DEEP + 0.25) * s, 0, Math.PI, 0); ctx.fill();
+    }
+    const trees = [tree(-13.4, 24.5, "birch", 21), tree(-15.5, 33, "pine", 24), tree(14.5, 34, "pine", 26), tree(-17, 14, "hard", 22)];
+    for (let i = 0; i < 80; i++) trees.push(tree(r(-50, 50), r(41.5, 74)));
+    for (let i = 0; i < 52; i++) { const sgn = i % 2 ? 1 : -1; trees.push(tree(sgn * r(14, 44), r(5, 41))); }
+    // (and on in every direction: behind where you stand, out to the sides and far back, so wherever Re-live it's
+    // camera goes it's snowy forest to the horizon. The ones further out are drawn plainer)
+    const farTrees = [];
+    for (let i = 0; i < 40; i++) { const sgn = i % 2 ? 1 : -1; trees.push(tree(sgn * r(9, 44), r(-40, 5))); }
+    for (let i = 0; i < 110; i++) { const sgn = i % 2 ? 1 : -1; farTrees.push({ ...tree(sgn * r(44, 110), r(-50, 125), "pine"), far: true }); }
+    for (let i = 0; i < 100; i++) farTrees.push({ ...tree(r(-110, 110), r(74, 125), "pine"), far: true });
+    for (let i = 0; i < 40; i++) farTrees.push({ ...tree(r(-44, 44), r(-60, -40), "pine"), far: true });
+    trees.push(...farTrees);
+
+    // ---- the deep snow, and where it's trodden down to the ground: the yard in front of the buildings and round the
+    // mill (PITS), and the paths between (PATHS). Their walls (each a short stretch, drawn among everything standing,
+    // so they hide the feet of what's beyond them) rise DEEP with a rounded lip; the face you can see is shaded blue,
+    // the back of one (seen from behind) is just more snow ----
+    const PITS = [{ cx: -1.5, cz: 29.6, rx: 12.2, rz: 3.7 }, { cx: 2.4, cz: 14.7, rx: 5.0, rz: 2.6 }];
+    const PATHS = [
+      { w: 3.0, pts: [[2.0, 16.6], [2.3, 22], [2.6, 26.6]], ruts: true },             // the tractor trail, mill to the shed
+      { w: 0.9, pts: [[0.3, 2.4], [0.4, 8], [0.7, 12.6]] },                           // a footpath in from where you stand
+      { w: 1.3, pts: [[-1.4, 16.0], [-1.6, 18.6]] },                                  // the mill to the slab stack
+      { w: 1.4, pts: [[7.0, 26.4], [6.2, 20.5], [5.4, 16.2]] },                       // logs dragged to the mill
+      { w: 1.0, pts: [[-3.5, 19.4], [-5.4, 19.2], [-7.6, 19.3]] },                    // past the slabs to the drying shelter
+      { w: 1.1, pts: [[-5.5, 27.0], [-5.6, 22.8], [-5.8, 20.5], [-7.0, 19.4]] },      // the yard round to the shelter's front
+    ];
+    const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1, u = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / l2, 0, 1); return Math.hypot(x - a[0] - dx * u, z - a[1] - dz * u); };
+    const inPit = (x, z, skip) => PITS.some((p, i) => i !== skip && ((x - p.cx) / p.rx) ** 2 + ((z - p.cz) / p.rz) ** 2 < 1);
+    const inPath = (x, z, skip) => PATHS.some((p, i) => i !== skip && p.pts.some((a, j) => j < p.pts.length - 1 && segDist(x, z, a, p.pts[j + 1]) < p.w / 2));
+    const resample = (pts, step) => { const out = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const [ax, az] = pts[i], [bx, bz] = pts[i + 1], n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / step)); for (let k = 1; k <= n; k++) out.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]); } return out; };
+    const walls = [];
+    const addWall = (a, b, n) => { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dx = b[0] - a[0], dz = b[1] - a[1]; walls.push({ a: [a[0] - dx * 0.04, a[1] - dz * 0.04], b: [b[0] + dx * 0.04, b[1] + dz * 0.04], n, m, x: m[0], z: m[1], h: DEEP * r(0.9, 1.1), draw: drawWall }); };
+    PATHS.forEach((p, pi) => {
+      const line = resample(p.pts, 0.45);
+      for (const side of [-1, 1]) {
+        const edge = line.map(([x, z], i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, off = p.w / 2 + r(-0.06, 0.06); return [x - (dz / l) * off * side, z + (dx / l) * off * side, dz / l * side, -dx / l * side]; });
+        for (let i = 0; i < edge.length - 1; i++) { const a = edge[i], b = edge[i + 1], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (inPit(mx, mz, -1) || inPath(mx, mz, pi)) continue; addWall(a, b, [a[2], a[3]]); }
+      }
+    });
+    PITS.forEach((p, pi) => {
+      const n = 72, pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2, k = 1 + r(-0.015, 0.015); return [p.cx + Math.cos(a) * p.rx * k, p.cz + Math.sin(a) * p.rz * k]; });
+      for (let i = 0; i < n; i++) {
+        const a = pts[i], b = pts[(i + 1) % n], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+        // (none behind the buildings' fronts, under them)
+        if (inPit(mx, mz, pi) || inPath(mx, mz, -1) || (mz > B.zf - 0.3 && mx > B.x0 - 0.5 && mx < SH.x1 + 0.4)) continue;
+        const nx = p.cx - mx, nz = (p.cz - mz) * (p.rx / p.rz) ** 2, l = Math.hypot(nx, nz) || 1; addWall(a, b, [nx / l, nz / l]);
+      }
+    });
+    function drawWall(w) {
+      const [ax, az] = w.a, [bx, bz] = w.b, h = w.h;
+      const faces = (CAM.x - w.m[0]) * w.n[0] + (CAM.z - w.m[1]) * w.n[1] > 0;
+      if (!pathClip([[ax, -0.03, az], [bx, -0.03, bz], [bx, h, bz], [ax, h, az]])) return;
+      if (faces) { const t = P(w.m[0], h, w.m[1]), b = P(w.m[0], 0, w.m[1]), g = ctx.createLinearGradient(0, t.y, 0, b.y); g.addColorStop(0, "#f3f7fa"); g.addColorStop(0.3, "#dde7ef"); g.addColorStop(1, "#b7c7d6"); ctx.fillStyle = g; }
+      else ctx.fillStyle = groundG;
+      ctx.fill();
+      if (!faces) return;
+      // the rounded lip along the top, with a little shadow under it
+      const lw = wid(w.m[0], h, w.m[1], 0.16);
+      if (pathClip([[ax, h - 0.09, az], [bx, h - 0.09, bz]], false)) { ctx.strokeStyle = "rgba(150,172,194,.55)"; ctx.lineWidth = Math.max(1, Math.min(lw, 9) * 0.55); ctx.lineCap = "butt"; ctx.stroke(); }
+      if (pathClip([[ax, h, az], [bx, h, bz]], false)) { ctx.strokeStyle = "#fbfdfe"; ctx.lineWidth = Math.max(1.2, Math.min(lw, 9)); ctx.lineCap = "butt"; ctx.stroke(); }
+    }
+
+    const drifts = Array.from({ length: 22 }, () => ({ x: r(-30, 30), z: r(5, 42), rx: r(1.5, 4.5), rz: r(0.5, 1.4) })).filter((d) => !inPit(d.x, d.z, -1) && !inPath(d.x, d.z, -1));
+    const sawdust = Array.from({ length: 9 }, () => ({ x: r(MILL.x0 + 0.3, MILL.x1 - 0.3), z: MILL.z - r(0.7, 1.9), rx: r(0.4, 1.3), rz: r(0.15, 0.45) }));
+    function millBack() {
+      st = millState();
+      const g = ctx.createLinearGradient(0, Math.min(0, HZ - F * 0.7), 0, Math.max(1, HZ));
+      g.addColorStop(0, "#aeb6be"); g.addColorStop(0.55, "#cfd4d9"); g.addColorStop(1, "#e9ebed");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, HZ) + 2);
+      ctx.fillStyle = "rgba(150,158,166,.14)";
+      for (const [az, el, k] of [[-0.5, 0.42, 1.3], [0.15, 0.5, 1.6], [0.55, 0.36, 1.1], [-0.1, 0.3, 0.9]]) { const q = dirP(az, el); if (q.behind) continue; const R = F * 0.06 * k; ctx.beginPath(); ctx.ellipse(q.x, q.y, R * 2.2, R * 0.6, 0, 0, 7); ctx.ellipse(q.x + R, q.y - R * 0.3, R * 1.3, R * 0.55, 0, 0, 7); ctx.fill(); }
+      const woods = (color, base, amp, freq, seed) => {
+        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, HZ + 2);
+        for (let x = 0; x <= W + 3; x += 3) {
+          const az = CAM.yaw + Math.atan((x - W / 2) / F), n = az * freq + seed, k = Math.floor(n), f = n - k;
+          ctx.lineTo(x, dirP(az, base + amp * (0.5 + 0.5 * Math.abs(Math.sin(k * 12.9898 + seed))) * (1 - Math.abs(f * 2 - 1))).y);
+        }
+        ctx.lineTo(W + 3, HZ + 2); ctx.fill();
+      };
+      // (thick and unbroken, all the way round: forest as far as the eye can see)
+      woods("#b4bcbf", 0.1, 0.06, 110, 2.9); woods("#9aa4a6", 0.075, 0.07, 80, 1.3); woods("#7c8986", 0.05, 0.065, 62, 4.1); woods("#62716a", 0.03, 0.055, 48, 7.7); woods("#506058", 0.012, 0.045, 36, 5.3);
+      // the snow
+      groundG = ctx.createLinearGradient(0, HZ, 0, H); groundG.addColorStop(0, "#e4eaef"); groundG.addColorStop(1, "#fafcfd");
+      ctx.fillStyle = groundG; ctx.fillRect(0, Math.max(0, HZ), W, H - Math.max(0, HZ));
+      for (const d of drifts) quad(ell(d.x, d.z, d.rx, d.rz), "rgba(196,210,224,.35)");
+      // the trodden ground, down in the yards and paths
+      for (const p of PITS) quad(ell(p.cx, p.cz, p.rx, p.rz, 0.01, 48), FLOOR);
+      for (const p of PATHS) quad(strip(p.pts, p.w + 0.1), FLOOR);
+      for (const off of [-0.75, 0.75]) quad(strip(PATHS[0].pts.map(([x, z]) => [x + off, z]), 0.32, 0.014), "rgba(150,160,170,.32)");
+      for (const d of sawdust) quad(ell(d.x, d.z, d.rx, d.rz, 0.014, 16), "rgba(214,174,124,.8)");
+      quad(ell(SL.x1 - 1.6, SL.zf - 0.4, 1.4, 0.4, 0.014, 16), "rgba(214,174,124,.5)");
+      quad(ell(-7.5, 29.9, 2.4, 1.3, 0.016), "rgba(255,198,120,.26)");
+      quad(ell(3.2, 30.4, 6.4, 1.3, 0.016), "rgba(255,206,140,.2)");
+    }
+    function millFront() {
+      const t = T(), x0 = STOVE.x, y0 = 10.1, z0 = STOVE.z;
+      for (let k = 0; k < 12; k++) {
+        // (it leans with the pair's wind while you're playing; a gentle drift to the right otherwise)
+        const w = gp.wind.kmh ? gp.wind : { x: 2.7, z: 0.7 }, age = (t * 0.18 + k / 12) % 1, q = P(x0 + age * age * w.x * 2.2, y0 + age * 7, z0 + age * age * w.z * 2.2);
+        if (q.behind) continue;
+        ctx.fillStyle = `rgba(120,126,132,${(0.34 * (1 - age) * Math.min(1, age * 6)).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(q.x, q.y, (0.35 + age * 2.4) * q.s, 0, 7); ctx.fill();
+      }
+      drawSpray(mstate());
+    }
+
+    // (the two hands move, so where they stand is updated each frame for the drawing order)
+    const things = [
+      { x: -1.2, z: 35.2, draw: drawBuilding }, { x: (FW.x0 + FW.x1) / 2, z: FW.zf + 1, draw: drawFirewood },
+      { x: (SL.x0 + SL.x1) / 2, z: SL.zf + 1, draw: drawSlabs }, { x: -4.3, z: 27.9, draw: drawDisks },
+      { x: 8.2, z: LOGS.zf + 1.5, draw: drawLogs }, { x: 2.1, z: MILL.z, draw: drawMillRig }, pusher, carrier, disker,
+    ];
+    const standing = [...trees, ...banks, ...walls, ...things];
+    // ---- the penalties (−5 each): the four hands, the barn's two windows, the deer, the terrier, birds ----
+    // the hands: hit, they duck with their arms up and yell, keep a spud splat on their coat, then carry on
+    const CREW_KEYS = ["pusher", "carrier", "disker", "cutter"];
+    const CREWHIT = Object.fromEntries(CREW_KEYS.map((k) => [k, { hit: 0, say: "", sauce: [], x: 0, z: 0 }]));
+    // the animals and birds, timed by the round's clock (g.t) and its seed, so Re-live it and a challenge see them
+    // the same: the deer crossing the yard every 40-60 s, the terrier trotting round the yard all the time with its
+    // stick, a few crows over now and then
+    const wild = { deer: [], crows: [], dogScare: -9 };
+    function scheduleWild() {
+      withSeed(seedFor(S.seed || 1, 800), () => {
+        wild.deer = []; let t = rnd(7, 16);
+        while (t < 1200) { wild.deer.push({ t0: t, dir: Math.random() < 0.5 ? 1 : -1, z: pick([10.6, 23.5]), dur: rnd(16, 21), hitAt: null, xHit: 0 }); t += rnd(40, 60); }
+        wild.crows = []; t = rnd(10, 20);
+        while (t < 1200) { const n = 2 + (Math.random() < 0.4 ? 1 : 0); wild.crows.push({ t0: t, dir: Math.random() < 0.5 ? 1 : -1, y: rnd(11, 16), z: rnd(20, 34), dur: rnd(7, 10), birds: Array.from({ length: n }, (_, i) => ({ dx: -i * rnd(1.2, 2), dy: rnd(-0.6, 0.6), ph: rnd(0, 6), down: null })) }); t += rnd(14, 26); }
+      });
+      wild.dogScare = -9;
+    }
+    const gt = () => (S.gun ? S.gun.t : T());
+    function deerNow() {
+      const t = gt(), c = wild.deer.find((d) => t >= d.t0 && t < d.t0 + (d.hitAt != null ? d.hitAt - d.t0 + 4 : d.dur));
+      if (!c) return null;
+      const u = (t - c.t0) / c.dur;
+      let x = c.dir > 0 ? -24 + 48 * u : 24 - 48 * u, run = false;
+      if (c.hitAt != null && t > c.hitAt) { x = c.xHit + c.dir * (t - c.hitAt) * 7; run = true; }
+      return { c, x, z: c.z, y: inPit(x, c.z, -1) || inPath(x, c.z, -1) ? 0 : DEEP - 0.15, dir: c.dir, ph: t * (run ? 15 : 5) };
+    }
+    function dogNow() {
+      const t = gt(), scared = t - wild.dogScare < 2.5;
+      // round in front of the buildings, a pause to sit now and then (not while it's running off a fright)
+      const sit = !scared && Math.sin(t * 0.13 + 1) > 0.88, th = t * (scared ? 0.75 : 0.32) - (sit ? 0 : 0);
+      const cx = -1.2, cz = 29.4, rx = 6.6, rz = 1.35, x = cx + rx * Math.cos(th), z = cz + rz * Math.sin(th);
+      return { x, z, dir: Math.sin(th) > 0 ? -1 : 1, ph: t * (scared ? 18 : 11), sit, scared };
+    }
+    function crowsNow() {
+      const t = gt(), out = [];
+      for (const f of wild.crows) {
+        if (t < f.t0 || t > f.t0 + f.dur + 4) continue;
+        const u = (t - f.t0) / f.dur;
+        for (const b of f.birds) {
+          let x = (f.dir > 0 ? -28 + 56 * u : 28 - 56 * u) + b.dx * f.dir, y = f.y + b.dy + 0.25 * Math.sin(t * 2 + b.ph);
+          if (b.down) { const d = t - b.down.t; x = b.down.x + f.dir * d * 2; y = Math.max(DEEP, b.down.y - 4.9 * d * d); }
+          else if (u > 1) continue;
+          out.push({ f, b, x, y, z: f.z, dir: f.dir, ph: t * 9 + b.ph });
+        }
+      }
+      return out;
+    }
+    // a Boston terrier, side on, trotting with its stick (or sitting); a crow, flapping
+    function drawTerrier2D(x, y, s, dir, ph, sit) {
+      const X = (lx) => x + lx * s * dir, Y = (ly) => y - ly * s, sw = sit ? 0 : Math.sin(ph);
+      ctx.lineCap = "round"; ctx.strokeStyle = "#16181a"; ctx.lineWidth = Math.max(1, 0.06 * s);
+      for (const [hx, k] of [[0.17, 1], [0.1, -1], [-0.14, -1], [-0.2, 1]]) { ctx.beginPath(); ctx.moveTo(X(hx), Y(sit && hx < 0 ? 0.1 : 0.22)); ctx.lineTo(X(hx + sw * 0.07 * k), Y(0)); ctx.stroke(); }
+      ctx.fillStyle = "#16181a"; ctx.beginPath(); ctx.ellipse(X(0), Y(sit ? 0.22 : 0.3), 0.24 * s, 0.11 * s, dir * (sit ? -0.5 : 0), 0, 7); ctx.fill();
+      ctx.fillStyle = "#f4f1ea"; ctx.beginPath(); ctx.ellipse(X(0.17), Y(sit ? 0.28 : 0.27), 0.07 * s, 0.08 * s, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#16181a"; ctx.beginPath(); ctx.arc(X(0.3), Y(sit ? 0.5 : 0.44), 0.1 * s, 0, 7); ctx.fill();
+      for (const ex of [0.25, 0.33]) { ctx.beginPath(); ctx.moveTo(X(ex - 0.04), Y((sit ? 0.56 : 0.5))); ctx.lineTo(X(ex), Y((sit ? 0.68 : 0.62))); ctx.lineTo(X(ex + 0.04), Y((sit ? 0.56 : 0.5))); ctx.fill(); }
+      ctx.fillStyle = "#f4f1ea"; ctx.beginPath(); ctx.ellipse(X(0.38), Y(sit ? 0.47 : 0.41), 0.05 * s, 0.04 * s, 0, 0, 7); ctx.fill(); ctx.fillRect(X(0.3) - 0.01 * s, Y(sit ? 0.58 : 0.52), 0.02 * s, 0.09 * s);
+      // the stick, crosswise in its mouth
+      ctx.strokeStyle = "#6b4a2b"; ctx.lineWidth = Math.max(1, 0.035 * s); ctx.beginPath(); ctx.moveTo(X(0.22), Y(sit ? 0.42 : 0.37)); ctx.lineTo(X(0.62), Y(sit ? 0.47 : 0.42)); ctx.stroke();
+    }
+    function drawCrow2D(x, y, s, dir, ph) {
+      const X = (lx) => x + lx * s * dir, Y = (ly) => y - ly * s, f = Math.sin(ph) * 0.22;
+      ctx.fillStyle = "#1c1e21"; ctx.strokeStyle = "#1c1e21"; ctx.lineWidth = Math.max(1, 0.05 * s); ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.ellipse(X(0), Y(0), 0.2 * s, 0.07 * s, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(X(0.2), Y(0.03), 0.06 * s, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(X(-0.05), Y(0.02)); ctx.lineTo(X(-0.15), Y(0.25 + f)); ctx.lineTo(X(0.08), Y(0.02)); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(X(-0.18), Y(0)); ctx.lineTo(X(-0.3), Y(0.04)); ctx.lineTo(X(-0.3), Y(-0.04)); ctx.fill();
+    }
+    const deerThing = { x: 0, z: 99, draw: () => { const d = deerNow(); if (!d) return; const q = P(d.x, d.y, d.z); if (!q.behind) drawDeer2D(q.x, q.y, q.s, d.dir, d.ph); } };
+    const dogThing = { x: 0, z: 29, draw: () => { const d = dogNow(), q = P(d.x, 0, d.z); if (!q.behind) drawTerrier2D(q.x, q.y, q.s, d.dir, d.ph, d.sit); } };
+    const crowThing = { x: 0, z: 30, draw: () => { for (const c of crowsNow()) { const q = P(c.x, c.y, c.z); if (!q.behind) drawCrow2D(q.x, q.y, Math.max(6, q.s), c.dir, c.ph); } } };
+    // what's hit: an animal or bird's reaction (in play and in Re-live it), and its line in the shot's note
+    const animal = (name, the, say, at, react) => ({ name, the, say, at, react });
+    // the barn's windows: 0, over the door; 1, the big one in the back wall. Hit: a hole, cracks running out
+    function smashMillWindow(i, at) {
+      S.gun.broken[i] = { u: at[0], v: at[1], rays: Array.from({ length: 9 }, (_, k) => [(k / 9) * Math.PI * 2 + rnd(-0.25, 0.25), rnd(0.2, 0.5)]) };
+      sfx.glass(); S.pops.push({ x: at[0], y: at[1] - 0.4, z: at[2], text: "CRASH!", t: 0 });
+      for (let k = 0; k < 12; k++) S.bits.push({ kind: "glass", x: at[0], y: at[1], z: at[2] + 0.1, vx: rnd(-0.6, 0.6), vy: rnd(0, 1.2), vz: rnd(0.2, 1.2), a: rnd(0, 6), s: rnd(0.05, 0.1), c: "rgba(215,235,245,.9)", t: 0, ph: rnd(0, 6) });
+    }
+    // (drawn over a window: the hole and the cracks)
+    function drawBroken(i, z) {
+      const b = S.gun && S.gun.broken[i]; if (!b) return;
+      const c = P(b.u, b.v, z); if (c.behind) return;
+      ctx.fillStyle = "rgba(30,36,42,.75)"; ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, 0.07 * c.s), 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(245,250,255,.9)"; ctx.lineWidth = 1;
+      for (const [a, l] of b.rays) { const e = P(b.u + Math.cos(a) * l, b.v + Math.sin(a) * l * 0.8, z); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(e.x, e.y); ctx.stroke(); }
+    }
+
+    // ---- played with the MP 10 (gp: the hooks the gun's code asks a place for) ----
+    // where the wood goes up from: behind the log pile, the slab stack, the drying shelter, the barn and the shed
+    const launchers = [
+      { x: 7.8, y: 0.8, z: 32.8 }, { x: -1.4, y: 0.6, z: 21.9 }, { x: -7.6, y: 0.8, z: 22.7 },
+      { x: -10.4, y: 3, z: 40.6 }, { x: -5.6, y: 3, z: 40.6 }, { x: 0.6, y: 2.6, z: 40.2 }, { x: 5.4, y: 2.6, z: 40.2 },
+    ];
+    const roofAt = (o, z) => o.eave + (z < o.rz ? (z - o.zf) / (o.rz - o.zf) : (o.zb - z) / (o.zb - o.rz)) * (o.ridge - o.eave) + 0.5;
+    const inBox = (pl, x0, x1, z0, z1, top) => pl.x > x0 && pl.x < x1 && pl.z > z0 && pl.z < z1 && pl.y < top;
+    const gp = {
+      wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 16, z0: 2, z1: 44 },
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } },
+      smash: smashMillWindow,
+      // (the hands come back up after a duck)
+      tick(dt) { for (const w of Object.values(CREWHIT)) w.hit = Math.max(0, w.hit - dt); },
+      // where a pair crosses: in the middle of the yard, out in front of where both went up, 5-9 m up
+      cross: (a, b) => [rnd(-2.5, 2.5), rnd(5, 9), clamp(Math.min(a.z, b.z) - rnd(4, 9), 13, 30)],
+      // each pair's wind, from the round's seed (called inside its seeded draw): mostly across the yard, a little
+      // toward or away from you
+      newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
+      // the wind pushes the wood (light and flat) along as it flies
+      drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * GUN.pace; p.vz += gp.wind.z * 0.16 * dt * GUN.pace; },
+      // where wood comes down: on the trodden ground, or on top of the deep snow
+      floor: (p) => (inPit(p.x, p.z, -1) || inPath(p.x, p.z, -1) ? 0.06 : DEEP - 0.12),
+      // a mini spud: does it stop here? (into the snow, a building, a pile, the mill, the woods). Through the barn's
+      // doorway and the shed's open front it goes on in, to the back wall
+      pellet(pl, hits) {
+        // the hands (each once a shot)
+        const ms = mstate();
+        for (const k of CREW_KEYS) {
+          const p = ms[k], w = CREWHIT[k];
+          if (k === "cutter" && pl.z < SH.zf) continue;
+          if (pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.85) && Math.hypot(pl.x - p.x, pl.z - p.z) < 0.38) {
+            w.x = p.x; w.z = p.z;
+            if (!pl.shot.workers.has(w)) { hits.worker(w, pl.shot); S.pops.push({ x: p.x, y: 1.95, z: p.z, text: w.say, t: 0 }); }
+            return "hit";
+          }
+        }
+        // the deer, the terrier, a crow
+        const d = deerNow();
+        if (d && d.c.hitAt == null && Math.abs(pl.x - d.x) < 0.75 && Math.abs(pl.z - d.z) < 0.4 && pl.y > d.y + 0.45 && pl.y < d.y + 1.6) {
+          hits.animal(animal("deer", "the deer", "It bolts!", [d.x, d.y + 1, d.z], () => { d.c.hitAt = gt(); d.c.xHit = d.x; S.pops.push({ x: d.x, y: d.y + 1.6, z: d.z, text: "SNORT!", t: 0 }); tone(520, 260, 0.25, 0.08, "triangle"); }), pl.shot);
+          return "hit";
+        }
+        const dog = dogNow();
+        if (gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < 0.6) {
+          hits.animal(animal("terrier", "the terrier", "YIP!", [dog.x, 0.5, dog.z], () => { wild.dogScare = gt(); S.pops.push({ x: dog.x, y: 0.9, z: dog.z, text: "YIP!", t: 0 }); tone(980, 1400, 0.12, 0.08, "triangle"); }), pl.shot);
+          return "hit";
+        }
+        for (const c of crowsNow()) {
+          if (c.b.down || Math.hypot(pl.x - c.x, pl.y - c.y, pl.z - c.z) > 0.42) continue;
+          hits.animal(animal("bird", "a crow", "CAW!", [c.x, c.y, c.z], () => { c.b.down = { t: gt(), x: c.x, y: c.y }; S.pops.push({ x: c.x, y: c.y + 0.4, z: c.z, text: "CAW!", t: 0 }); tone(420, 300, 0.18, 0.08, "sawtooth");
+            for (let k = 0; k < 8; k++) S.bits.push({ kind: "chunk", x: c.x, y: c.y, z: c.z, vx: rnd(-1, 1), vy: rnd(-0.2, 1), vz: rnd(-1, 1), a: rnd(0, 6), s: rnd(0.05, 0.09), c: "#2a2c30", t: 0, ph: rnd(0, 6) }); }), pl.shot);
+          return "hit";
+        }
+        // the barn's windows: over the door, and (through the doorway) the big one in the back wall
+        if (!S.gun.broken[0] && pl.z >= B.zf - 0.05 && pl.z < B.zf + 0.4 && pl.x > -8.1 && pl.x < -6.9 && pl.y > 4.2 && pl.y < 4.95) { hits.window(0, [pl.x, pl.y, B.zf - 0.05], pl.shot); return "hit"; }
+        if (!S.gun.broken[1] && pl.inBarn && pl.z >= BARN_WIN.z - 0.08 && pl.x > BARN_WIN.x0 && pl.x < BARN_WIN.x1 && pl.y > BARN_WIN.y0 && pl.y < BARN_WIN.y1) { hits.window(1, [pl.x, pl.y, BARN_WIN.z - 0.05], pl.shot); return "hit"; }
+        if (pl.y <= gp.floor(pl)) return "stop";
+        if (pl.x > B.x0 && pl.x < B.x1 && pl.z > B.zf && pl.z < B.zb && pl.y < roofAt(B, pl.z)) {
+          const inDoor = pl.x > DOOR.x0 && pl.x < DOOR.x1 && pl.y < DOOR.top;
+          if (!(pl.inBarn || (inDoor && pl.z < B.zf + 0.6)) || pl.z > B.zb - 0.45 || pl.y > B.eave - 0.4) return "stop";
+          pl.inBarn = true;
+        }
+        if (pl.x > SH.x0 && pl.x < SH.x1 && pl.z > SH.zf && pl.z < SH.zb && pl.y < roofAt(SH, pl.z)) {
+          if (pl.y > SH.eave - 0.3 || pl.z > SH.zb - 0.3) return "stop";
+        }
+        if (inBox(pl, FW.x0 - 0.3, FW.x1 + 0.3, FW.zf - 0.4, FW.zb + 0.3, FW.hb + 0.5) || inBox(pl, SL.x0 - 0.2, SL.x1 + 0.3, SL.zf, SL.zb, 1.4) ||
+          inBox(pl, LOGS.x0, pileX1 + 0.1, LOGS.zf - 0.3, LOGS.zb, 2.5) || inBox(pl, MILL.x0, MILL.x1, MILL.z - 0.6, MILL.z + 0.6, 1.15) ||
+          inBox(pl, mstate().hx - 0.45, mstate().hx + 0.45, MILL.z - 0.8, MILL.z + 0.8, 3.3)) return "stop";
+        if (pl.z > 41 && pl.y < 22) return "stop"; // (the woods)
+        if (Math.abs(pl.x) > 40 || pl.z > 80) return "stop";
+        return null;
+      },
+    };
+    // what's come down: cookies and slabs lying in the snow (half sunk in it) or on the trodden ground
+    function drawFallen() {
+      for (const f of (S.gun && S.gun.flops) || []) {
+        if (!f.kind) continue;
+        const y = (f.y != null ? Math.max(0.02, f.y) : 0.05), rx = f.kind === "slab" ? 0.72 : GUN.pizzaR, rz = f.kind === "slab" ? 0.45 : GUN.pizzaR;
+        quad(ell(f.x, f.z, rx, rz, y, 18), f.ring ? RINGS[f.ring].color : BARK);
+        quad(ell(f.x, f.z, rx * 0.84, rz * 0.8, y + 0.01, 18), "#e3c493");
+        quad(ell(f.x + 0.1, f.z - 0.05, rx * 0.9, rz * 0.5, y + 0.02, 12), "rgba(250,252,253,.55)");
+      }
+    }
+    // the wind, for the player: an arrow the way it blows and how hard, up in the corner (and the smoke leans with it)
+    function drawWindChip() {
+      if (!S.gun || !gp.wind.kmh) return;
+      // (bottom left: clear of the shot note and Re-live it up top, and of the barrels in the middle)
+      const x = 62, y = H - 26, a = Math.atan2(-gp.wind.z * 0.5, gp.wind.x);
+      ctx.save(); ctx.fillStyle = "rgba(35,48,58,.72)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 50, y - 16, 104, 32, 10) : ctx.rect(x - 50, y - 16, 104, 32); ctx.fill();
+      ctx.translate(x - 28, y); ctx.rotate(a); ctx.strokeStyle = "#fffaf0"; ctx.fillStyle = "#fffaf0"; ctx.lineWidth = 3; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(8, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(5, -6); ctx.lineTo(5, 6); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.font = "800 13px Nunito, sans-serif"; ctx.fillStyle = "#fffaf0"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(`${gp.wind.kmh} km/h`, x - 10, y + 1);
+    }
+    return { ...FLAT, eye: [0, 1.65, 2], look: -0.05, skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
+      back() { millBack(); drawFallen(); },
+      front() { millFront(); drawWindChip(); },
+      dyn: gunThings,
+      update(dt) {
+        const s = mstate(); pusher.x = s.pusher.x; pusher.z = s.pusher.z; carrier.x = s.carrier.x; carrier.z = s.carrier.z; disker.x = s.disker.x; disker.z = s.disker.z;
+        const d = deerNow(); deerThing.x = d ? d.x : 0; deerThing.z = d ? d.z : 99; const dg = dogNow(); dogThing.x = dg.x; dogThing.z = dg.z;
+        if (dt) { updateGun(dt); gp.tick(dt); }
+      },
+      reset: resetGun, free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {} };
+  }
+  // the place on its own, from where the MP 10 will stand (?scene=mill): sky, ground, everything standing far to
+  // near, then the smoke
+  function drawPlaceOnly() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S.scene.back();
+    S.scene.update(0); // (things that move: where they are now, for the drawing order)
+    const d = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z);
+    [...S.scene.standing].sort((a, b) => d(b) - d(a)).forEach((s) => s.draw(s));
+    S.scene.front();
+  }
+
   // ================= go =================
   // a shared link (?level=culdesac) opens on that level's start card, ready to play
   const linked = Math.max(0, LEVELS.findIndex((L) => L.id === new URLSearchParams(location.search).get("level")));
@@ -7510,6 +8731,13 @@ body.lab .stage > :not(canvas) { display: none; }
     document.body.classList.add("lab"); $("overlay").hidden = true;
     cv.addEventListener("click", labClick);
     (function labFrame() { drawLab(); requestAnimationFrame(labFrame); })();
+    return;
+  }
+  // ?scene=mill: the Milling yard on its own, filling the window (it's being built)
+  if (new URLSearchParams(location.search).get("scene") === "mill") {
+    document.body.classList.add("lab"); $("overlay").hidden = true;
+    S.scene = sceneFor({ scene: "mill" });
+    (function placeFrame() { requestAnimationFrame(placeFrame); try { gunCam(); drawPlaceOnly(); } catch (err) { console.error(err); } })();
     return;
   }
   // a challenge link opens on its challenge card; anything else on the start card
