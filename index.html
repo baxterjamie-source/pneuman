@@ -8555,7 +8555,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const u = (t - c.t0) / c.dur;
       let x = c.dir > 0 ? -24 + 48 * u : 24 - 48 * u, run = false;
       if (c.hitAt != null && t > c.hitAt) { x = c.xHit + c.dir * (t - c.hitAt) * 7; run = true; }
-      return { c, x, z: c.z, y: inPit(x, c.z, -1) || inPath(x, c.z, -1) ? 0 : DEEP - 0.15, dir: c.dir, ph: t * (run ? 15 : 5) };
+      return { c, x, z: c.z, y: 0, dir: c.dir, ph: t * (run ? 15 : 5) };
     }
     function dogNow() {
       const t = gt(), scared = t - wild.dogScare < 2.5;
@@ -8571,7 +8571,7 @@ body.lab .stage > :not(canvas) { display: none; }
         const u = (t - f.t0) / f.dur;
         for (const b of f.birds) {
           let x = (f.dir > 0 ? -28 + 56 * u : 28 - 56 * u) + b.dx * f.dir, y = f.y + b.dy + 0.25 * Math.sin(t * 2 + b.ph);
-          if (b.down) { const d = t - b.down.t; x = b.down.x + f.dir * d * 2; y = Math.max(DEEP, b.down.y - 4.9 * d * d); }
+          if (b.down) { const d = t - b.down.t; x = b.down.x + f.dir * d * 2; y = Math.max(0.08, b.down.y - 4.9 * d * d); }
           else if (u > 1) continue;
           out.push({ f, b, x, y, z: f.z, dir: f.dir, ph: t * 9 + b.ph });
         }
@@ -8710,7 +8710,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // the wind pushes the wood (light and flat) along as it flies
       drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * GUN.pace; p.vz += gp.wind.z * 0.16 * dt * GUN.pace; },
       // where wood comes down: on the trodden ground, or on top of the deep snow
-      floor: (p) => (inPit(p.x, p.z, -1) || inPath(p.x, p.z, -1) ? 0.06 : DEEP - 0.12),
+      // (on the snow as you see it, everywhere: nothing comes to rest in the air)
+      floor: () => 0.03,
       // a mini spud: does it stop here? (into the snow, a building, a pile, the mill, the woods). Through the barn's
       // doorway and the shed's open front it goes on in, to the back wall
       pellet(pl, hits) {
