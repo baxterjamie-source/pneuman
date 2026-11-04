@@ -3985,13 +3985,17 @@ body.lab .stage > :not(canvas) { display: none; }
   const PROP_DRAW = { dog: drawDog, neighbour: drawNeighbour, upNeighbour: drawNeighbour, leaves: drawLeafPile, mailbox: drawMailbox, trampoline: drawTrampoline, mower: drawMower };
 
   // ---- flying bits: leaves from the pile, letters from the mailbox, glass from a window ----
+  // (in Milling, the chips and splinters that come down on the snow fade away after BIT_REST seconds there, over a
+  // second: hundreds lying about, each drawn every frame, slowed a laptop down. Skeetza's factory floor keeps its mess)
+  const BIT_REST = 5;
+  const bitFade = (b) => (b.rest && S.scene.gp ? clamp(1 - (b.t - b.restT - BIT_REST), 0, 1) : 1);
   function updateBits(dt) {
     for (const b of S.bits || []) {
       b.t += dt;
       // smoke rises, spreads and drifts with the wind
       if (b.kind === "smoke") { if (b.t > 0) { b.y += 0.9 * dt; b.s += 0.3 * dt; b.x += (b.vx + S.wind.x * 0.5) * dt; b.z += (b.vz + S.wind.z * 0.5) * dt; } continue; }
       const floor = b.kind === "chunk" || S.scene.indoor ? S.scene.groundY(b.x, b.z) + 0.02 : 0.02;
-      if (b.y <= floor && b.vy <= 0) { b.rest = true; continue; }
+      if (b.y <= floor && b.vy <= 0) { if (!b.rest) b.restT = b.t; b.rest = true; continue; }
       const flutter = b.kind === "leaf" || b.kind === "letter";
       b.vy -= (flutter ? 2.4 : G) * dt;
       if (flutter) { b.vy = Math.max(b.vy, -0.9); b.vx *= 0.985; b.vz *= 0.985; }
@@ -4000,7 +4004,7 @@ body.lab .stage > :not(canvas) { display: none; }
       b.y = Math.max(floor, b.y + b.vy * dt); b.a += dt * (flutter ? 4 : 9);
       if (b.y <= floor) b.vy = 0;
     }
-    if (S.bits) S.bits = S.bits.filter((b) => b.kind !== "smoke" || b.t < 3);
+    if (S.bits) S.bits = S.bits.filter((b) => (b.kind !== "smoke" || b.t < 3) && !(b.rest && S.scene.gp && b.t - b.restT > BIT_REST + 1));
     if (S.bits && S.bits.length > 260) S.bits.splice(0, S.bits.length - 260);
   }
 
@@ -5142,7 +5146,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (b.rest && b.y < 0.1 && S.scene.indoor) continue; // (drawn with the floor: see factoryBack)
       const r = Math.max(1.2, b.s * q.s), flying = b.y > 0.05;
       if (b.kind === "smoke") { if (b.t > 0) { ctx.fillStyle = `rgba(110,114,118,${0.55 * (1 - b.t / 3)})`; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 7); ctx.fill(); } continue; }
-      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(b.a); ctx.fillStyle = b.c;
+      const fade = bitFade(b); if (fade <= 0) continue;
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(b.a); ctx.fillStyle = b.c; ctx.globalAlpha = fade;
       if (b.kind === "chunk") { ctx.beginPath(); ctx.moveTo(-r, -r * 0.4); ctx.lineTo(r * 0.6, -r * 0.8); ctx.lineTo(r, r * 0.5); ctx.lineTo(-r * 0.3, r * 0.7); ctx.closePath(); ctx.fill(); }
       else if (b.kind === "letter") { ctx.fillRect(-r, -r * 0.65, r * 2, r * 1.3); ctx.strokeStyle = "rgba(60,70,80,.5)"; ctx.lineWidth = 0.6; ctx.strokeRect(-r, -r * 0.65, r * 2, r * 1.3); }
       else if (b.kind === "glass") { ctx.beginPath(); ctx.moveTo(-r, r * 0.6); ctx.lineTo(r, r * 0.3); ctx.lineTo(0, -r); ctx.closePath(); ctx.fill(); }
@@ -7965,13 +7970,19 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function drawBarnInside() {
       const zb = B.zb - 0.4;
+      // (the room, still; the fire, live; then the window and what's in front of it, still unless the deer's going
+      // past outside or the window's been broken)
+      stillPart("barnRoom", 0, BOX_BARN_IN, () => {
       quad([[B.x0, 0, zb], [B.x1, 0, zb], [B.x1, B.eave, zb], [B.x0, B.eave, zb]], "#5d4636");
       for (let x = B.x0 + 0.3; x < B.x1; x += 0.3) seg([x, 0, zb - 0.01], [x, B.eave, zb - 0.01], "rgba(30,22,18,.3)", 1);
       quad([[B.x0, 0.005, B.zf], [B.x1, 0.005, B.zf], [B.x1, 0.005, zb], [B.x0, 0.005, zb]], "#7a634d");
       quad([[B.x0, B.eave - 0.4, B.zf], [B.x1, B.eave - 0.4, B.zf], [B.x1, B.eave - 0.4, zb], [B.x0, B.eave - 0.4, zb]], "#35291f");
       // a hooked rug before the stove
       quad(ell(-9.7, 36.6, 1.6, 0.9, 0.01, 20), "#8a3a2c"); quad(ell(-9.7, 36.6, 1.3, 0.7, 0.012, 20), "#a8573f");
+      });
       drawStove();
+      const deerOut = (T() % 34) / 10 < 1 && S.animals;
+      stillPart("barnWin", deerOut ? null : broke(1), BOX_BARN_IN, () => {
       // (the window after the stove, so the fire's glow doesn't tint the snow outside)
       // the big low window in the back wall, six panes, the snowy woods out behind
       const Wn = BARN_WIN, wpts = [[Wn.x0, Wn.y0, Wn.z], [Wn.x1, Wn.y0, Wn.z], [Wn.x1, Wn.y1, Wn.z], [Wn.x0, Wn.y1, Wn.z]];
@@ -8034,6 +8045,7 @@ body.lab .stage > :not(canvas) { display: none; }
       muskoka(-10.9, 35.7, "#c0392b", "#7d2219"); muskoka(-8.7, 35.6, "#2d7d8c", "#1b4f59");
       // the light: a black pendant hanging over the chairs
       pendant(-8.0, 3.05, 35.0, B.eave - 0.4);
+      });
     }
 
     // ---- the open shed: the planer and lumber on the left, leaning slabs, and at the back right the band saw with a
@@ -8051,7 +8063,13 @@ body.lab .stage > :not(canvas) { display: none; }
       const open = [[SH.x0, 0, SH.zf], [SH.x1, 0, SH.zf], [SH.x1, SH.eave, SH.zf], [SH.x0, SH.eave, SH.zf]];
       if (!pathClip(open)) return;
       ctx.save(); ctx.clip();
-      ctx.fillStyle = "#2a211b"; ctx.fillRect(0, 0, W, H);
+      const ms = mstate();
+      const bx = SAW.x, bz = SAW.z, ty = 1.0, lr = 0.3, by = ty + 0.05, vy = by + 0.4, ly = by + 0.47;
+      const cu = ms.cutter, lx = bx - 0.05 + ms.sawOff, jx0 = lx - 0.45, jx1 = lx + 0.45, jz0 = bz - 0.2, jz1 = SH.zb - 0.3;
+      const wheel = (y) => { const q = P(bx + 0.1, y, bz + 0.02); if (!q.behind) { ctx.fillStyle = "#7fa9b4"; ctx.strokeStyle = "#3b5c66"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(q.x, q.y, 0.46 * q.s, 0, 7); ctx.fill(); ctx.stroke(); } };
+      // (everything back here that only changes as cookies are taken off the shelves or stacked by the saw)
+      stillPart("shedIn", `${ms.taken}|${ms.sawPile}`, BOX_SHED_IN, () => {
+      ctx.fillStyle = "#2a211b"; ctx.fillRect(-W, -H, W * 3, H * 3);
       quad([[SH.x0, 0, SH.zb], [SH.x1, 0, SH.zb], [SH.x1, SH.ridge, SH.zb], [SH.x0, SH.ridge, SH.zb]], "#5d4838");
       for (let x = SH.x0 + 0.3; x < SH.x1; x += 0.3) seg([x, 0, SH.zb - 0.01], [x, SH.ridge, SH.zb - 0.01], "rgba(30,22,18,.35)", 1);
       quad([[SH.x1, 0, SH.zf], [SH.x1, 0, SH.zb], [SH.x1, SH.ridge, SH.zb], [SH.x1, SH.eave, SH.zf]], "#4b3c31");
@@ -8059,7 +8077,6 @@ body.lab .stage > :not(canvas) { display: none; }
       quad([[SH.x0, SH.eave, SH.zf], [SH.x1, SH.eave, SH.zf], [SH.x1, SH.ridge, SH.rz], [SH.x0, SH.ridge, SH.rz]], "#3a2e26");
       for (let x = SH.x0 + 1; x < SH.x1; x += 1.05) seg([x, SH.eave, SH.zf], [x, SH.ridge, SH.rz], "#2a201a", wid(x, SH.eave, SH.rz, 0.1));
       // the shelves, stacked with cookies (lily pads) waiting to go out to dry; the low shelf's go first
-      const ms = mstate();
       for (const y of [1.65, 2.45]) {
         quad([[SH.x0 + 0.3, y, SH.zb - 0.7], [3.4, y, SH.zb - 0.7], [3.4, y, SH.zb - 0.05], [SH.x0 + 0.3, y, SH.zb - 0.05]], "#6b5440");
         quad([[SH.x0 + 0.3, y - 0.06, SH.zb - 0.7], [3.4, y - 0.06, SH.zb - 0.7], [3.4, y, SH.zb - 0.7], [SH.x0 + 0.3, y, SH.zb - 0.7]], "#3c2f26");
@@ -8082,9 +8099,6 @@ body.lab .stage > :not(canvas) { display: none; }
       quad([[0.4, 0, 34.3], [2.0, 0, 34.3], [2.0, 0.95, 34.3], [0.4, 0.95, 34.3]], "#3d7a52", "#21422d");
       // the disk saw, cutting as in images (a log end-on on the table, the blade slicing a cookie off its end): its
       // wheels face you, the log lies on the table pointing back into the shed, its end toward you just past the blade
-      const bx = SAW.x, bz = SAW.z, ty = 1.0, lr = 0.3, by = ty + 0.05, vy = by + 0.4, ly = by + 0.47;
-      const cu = ms.cutter, lx = bx - 0.05 + ms.sawOff, jx0 = lx - 0.45, jx1 = lx + 0.45, jz0 = bz - 0.2, jz1 = SH.zb - 0.3;
-      const wheel = (y) => { const q = P(bx + 0.1, y, bz + 0.02); if (!q.behind) { ctx.fillStyle = "#7fa9b4"; ctx.strokeStyle = "#3b5c66"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(q.x, q.y, 0.46 * q.s, 0, 7); ctx.fill(); ctx.stroke(); } };
       wheel(0.5);
       quad([[bx + 0.55, 0, bz + 0.05], [bx + 0.78, 0, bz + 0.05], [bx + 0.78, 2.85, bz + 0.05], [bx + 0.55, 2.85, bz + 0.05]], "#6f97a2", "#3b5c66");
       // the little shelf on the back wall by the saw, where its hand stacks each cookie as it comes off (drawn before
@@ -8094,6 +8108,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const half = Math.ceil(SAW_STACK.length / 2);
       if (ms.sawPile) cookieStack(SAW.sx[0], SH.zb - 0.32, SAW.sy + 0.005, SAW_STACK.slice(0, Math.min(ms.sawPile, half)));
       if (ms.sawPile > half) cookieStack(SAW.sx[1], SH.zb - 0.32, SAW.sy + 0.005, SAW_STACK.slice(half, ms.sawPile));
+      });
       // its hand, behind the table (so the table hides what it should of him)
       drawHand(cu, CREW.cutter);
       if (cu.carry) cookieStack(cu.x + (cu.face || 0) * 0.3, cu.z - (cu.face ? 0 : 0.25), 0.95, [SAW_STACK[ms.sawPile % SAW_STACK.length]]);
@@ -8119,14 +8134,33 @@ body.lab .stage > :not(canvas) { display: none; }
       const ce = P(lx, ly, bz - 0.08); if (!ce.behind) { ctx.fillStyle = "rgba(120,72,40,.75)"; ctx.beginPath(); ctx.arc(ce.x, ce.y, lr * 0.58 * ce.s, 0, 7); ctx.fill(); }
       quad([[bx - 0.18, 1.96, bz - 0.05], [bx + 0.08, 1.96, bz - 0.05], [bx + 0.08, 2.16, bz - 0.05], [bx - 0.18, 2.16, bz - 0.05]], "#9aa3a8", "#4d555a");
       wheel(2.55);
-      for (const x of [-1, 3, 7]) pendant(x, SH.eave - 0.55, 33.4, SH.eave + 1.1);
+      stillPart("shedLights", 0, [-3.5, 9.5, SH.eave - 3.4, SH.eave + 1.5, 33.4, 33.4], () => { for (const x of [-1, 3, 7]) pendant(x, SH.eave - 0.55, 33.4, SH.eave + 1.1); });
       // the cookie carrier, while still inside
       if (ms.disker.z > SH.zf) drawDisker(ms.disker);
       ctx.restore();
     }
 
     // ---- the barn and the open shed, as one thing ----
+    // (each still part's box: [x0, x1, y0, y1, z0, z1], everything it draws inside it)
+    const BOX_BARN_BACK = [B.x0 - 0.5, SH.x0 + 0.5, 0, 10.2, B.zf - 0.7, B.zb + 0.6];
+    const BOX_SHED_IN = [SH.x0, SH.x1, 0, SH.ridge, SH.zf, SH.zb];
+    const BOX_SHED_FRONT = [B.x0 - 0.1, SH.x1 + 0.5, 0, SH.ridge + 0.6, SH.zf - 0.6, SH.rz];
+    // (the icicles drawn with the barn's front take in the firewood shed's too, out in front)
+    const BOX_BARN_FRONT = [B.x0 - 1.5, SH.x1 + 0.5, 0, B.eave + 1, FW.zf - 0.8, B.zf + 0.1];
+    const BOX_BARN_IN = [B.x0, B.x1, 0, B.eave, B.zf, B.zb];
+    const broke = (i) => (S.gun && S.gun.broken[i] ? 1 : 0);
     function drawBuilding() {
+      stillPart("barnBack", 0, BOX_BARN_BACK, drawBarnBack);
+      // the open shed: inside, then the posts, then its roof
+      drawShedInside();
+      stillPart("shedFront", 0, BOX_SHED_FRONT, drawShedFront);
+      // the barn's front: boards, the doorway (and the room inside), the Z doors swung right back, the window up top
+      // and the painted name between them
+      const door = [[DOOR.x0, 0, B.zf - 0.01], [DOOR.x1, 0, B.zf - 0.01], [DOOR.x1, DOOR.top, B.zf - 0.01], [DOOR.x0, DOOR.top, B.zf - 0.01]];
+      if (pathClip(door)) { ctx.save(); ctx.clip(); ctx.fillStyle = "#2b2019"; ctx.fillRect(-W, -H, W * 3, H * 3); drawBarnInside(); ctx.restore(); }
+      stillPart("barnFront", broke(0), BOX_BARN_FRONT, drawBarnFront);
+    }
+    function drawBarnBack() {
       // the stovepipe, up through the barn's back slope (the roof hides its foot)
       seg([STOVE.x, 5.6, STOVE.z], [STOVE.x, 9.6, STOVE.z], "#26282a", wid(STOVE.x, 9, STOVE.z, 0.24));
       quad([[STOVE.x - 0.28, 9.6, STOVE.z], [STOVE.x + 0.28, 9.6, STOVE.z], [STOVE.x + 0.2, 9.85, STOVE.z], [STOVE.x - 0.2, 9.85, STOVE.z]], "#1d1f21");
@@ -8137,9 +8171,9 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let z = B.zf + 0.3; z < B.zb; z += 0.3) seg([B.x1 + 0.01, 0, z], [B.x1 + 0.01, z < B.rz ? B.eave + ((z - B.zf) / (B.rz - B.zf)) * (B.ridge - B.eave) : B.eave + ((B.zb - z) / (B.zb - B.rz)) * (B.ridge - B.eave), z], "rgba(38,33,29,.3)", 1);
       quad([[B.x0 - 0.35, B.eave + 0.5, B.zf - 0.55 + 0.26], [B.x1 + 0.35, B.eave + 0.5, B.zf - 0.55 + 0.26], [B.x1 + 0.35, B.ridge + 0.6, B.rz], [B.x0 - 0.35, B.ridge + 0.6, B.rz]], ROOFTOP);
       snowEnd(B.x1 + 0.35, [[B.eave - 0.16, B.zf - 0.55], [B.ridge - 0.1, B.rz], [B.eave - 0.16, B.zb + 0.5], [B.eave + 0.5, B.zb + 0.5], [B.ridge + 0.6, B.rz], [B.eave + 0.5, B.zf - 0.29], [B.eave + 0.24, B.zf - 0.55]]);
-
-      // the open shed: inside, then the posts, then its roof
-      drawShedInside();
+    }
+    // the shed's posts and roof, and the barn's board front (the doorway's drawn over it)
+    function drawShedFront() {
       quad([[SH.x0, SH.eave - 0.32, SH.zf - 0.05], [SH.x1 + 0.1, SH.eave - 0.32, SH.zf - 0.05], [SH.x1 + 0.1, SH.eave, SH.zf - 0.05], [SH.x0, SH.eave, SH.zf - 0.05]], "#625a52");
       for (const x of [1.2, 5.4, SH.x1]) {
         quad([[x - 0.12, 0, SH.zf - 0.06], [x + 0.12, 0, SH.zf - 0.06], [x + 0.12, SH.eave - 0.3, SH.zf - 0.06], [x - 0.12, SH.eave - 0.3, SH.zf - 0.06]], "#6e665e", "#3e3832");
@@ -8147,12 +8181,10 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       quad([[SH.x0, SH.eave + 0.45, SH.zf - 0.5 + 0.25], [SH.x1 + 0.35, SH.eave + 0.45, SH.zf - 0.5 + 0.25], [SH.x1 + 0.35, SH.ridge + 0.5, SH.rz], [SH.x0, SH.ridge + 0.5, SH.rz]], ROOFTOP);
       snowLip(SH.x0, SH.x1 + 0.35, SH.eave, SH.zf - 0.5, 0.45);
-
-      // the barn's front: boards, the doorway (and the room inside), the Z doors swung right back, the window up top
-      // and the painted name between them
       boardWall(B.x0, B.x1, 0, B.eave, B.zf, "#857f78");
-      const door = [[DOOR.x0, 0, B.zf - 0.01], [DOOR.x1, 0, B.zf - 0.01], [DOOR.x1, DOOR.top, B.zf - 0.01], [DOOR.x0, DOOR.top, B.zf - 0.01]];
-      if (pathClip(door)) { ctx.save(); ctx.clip(); ctx.fillStyle = "#2b2019"; ctx.fillRect(0, 0, W, H); drawBarnInside(); ctx.restore(); }
+    }
+    // the doorway's frame, the doors swung back, the window up top, the painted name, the snow lip and icicles
+    function drawBarnFront() {
       seg([DOOR.x0, 0, B.zf - 0.02], [DOOR.x0, DOOR.top, B.zf - 0.02], "#4b453f", wid(DOOR.x0, 1, B.zf, 0.12));
       seg([DOOR.x1, 0, B.zf - 0.02], [DOOR.x1, DOOR.top, B.zf - 0.02], "#4b453f", wid(DOOR.x1, 1, B.zf, 0.12));
       seg([DOOR.x0, DOOR.top, B.zf - 0.02], [DOOR.x1, DOOR.top, B.zf - 0.02], "#4b453f", wid(-7.5, 3, B.zf, 0.14));
@@ -8180,7 +8212,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const CARRY5 = Array.from({ length: 5 }, () => ({ rad: r(0.23, 0.28), dx: r(-0.05, 0.05), dz: r(-0.04, 0.04) }));
     const SAW_STACK = Array.from({ length: 14 }, () => ({ rad: r(0.25, 0.31), dx: r(-0.07, 0.07), dz: r(-0.05, 0.05) }));
     const DRY = Array.from({ length: 72 }, () => ({ rad: r(0.25, 0.31), dx: r(-0.04, 0.04), dz: r(-0.05, 0.05) }));
-    function drawFirewood() {
+    // (still, but for the cookies stacked in it, five more each trip)
+    function drawFirewood() { stillPart("firewood", mstate().stacked, [FW.x0 - 0.9, FW.x1 + 0.6, 0, FW.hb + 0.7, FW.zf - 0.6, FW.zb + 0.4], drawFirewoodNow); }
+    function drawFirewoodNow() {
       boardWall(FW.x0, FW.x1, 0, FW.hb, FW.zb, "#6f6962", 31);
       quad([[FW.x1, 0, FW.zf], [FW.x1, 0, FW.zb], [FW.x1, FW.hb, FW.zb], [FW.x1, FW.hf, FW.zf]], "#7b756d");
       for (let y = 0.2; y < FW.hf; y += 0.32) seg([FW.x1 + 0.01, y, FW.zf], [FW.x1 + 0.01, y, FW.zb], "rgba(38,33,29,.35)", 1);
@@ -8206,7 +8240,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // ---- the slab stack: live-edge slabs laid up on stickers, the mill's new ones going on top (so no snow on it):
     // their long live edges dark, the end grain to the right ----
     const slabs = Array.from({ length: 12 }, (_, i) => ({ y: 0.1 + i * 0.115, j0: r(-0.25, 0.1), j1: r(-0.15, 0.3), jz: r(-0.07, 0.07), c: i % 2 ? "#d8b583" : "#caa473", wave: r(0, 6) }));
-    function drawSlabs() {
+    // (still, but for the slabs going on top)
+    function drawSlabs() { stillPart("slabs", mstate().stack, [SL.x0 - 0.4, SL.x1 + 0.5, 0, 1.7, SL.zf - 0.15, SL.zb + 0.05], drawSlabsNow); }
+    function drawSlabsNow() {
       const n = 7 + mstate().stack, top = slabs[n - 1];
       for (let i = 0; i < n; i++) { const s = slabs[i]; quad([[SL.x1 + s.j1, s.y, SL.zf + s.jz], [SL.x1 + s.j1, s.y, SL.zb], [SL.x1 + s.j1, s.y + SLAB_T, SL.zb], [SL.x1 + s.j1, s.y + SLAB_T, SL.zf + s.jz]], "#dcbf90", "rgba(110,80,50,.5)"); }
       for (let i = 0; i < n; i++) {
@@ -8224,7 +8260,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // ---- the disks: rounds laid flat in stacks on a pallet by the barn door, so mostly their dark live edges show,
     // with a sliver of each face ----
     const DISKS = [[-4.9, 27.85, 8], [-4.25, 28.05, 7], [-3.65, 27.75, 5]].map(([x, z, n]) => ({ x, z, list: Array.from({ length: n }, () => ({ rad: r(0.24, 0.33), dx: r(-0.04, 0.04), dz: r(-0.04, 0.04) })) }));
-    function drawDisks() {
+    function drawDisks() { stillPart("disks", 0, [-5.5, -3.0, 0, 0.9, 27.1, 28.6], drawDisksNow); }
+    function drawDisksNow() {
       quad([[-5.3, 0.14, 27.3], [-3.2, 0.14, 27.3], [-3.2, 0.14, 28.4], [-5.3, 0.14, 28.4]], "#9a8a6e");
       quad([[-5.3, 0, 27.3], [-3.2, 0, 27.3], [-3.2, 0.14, 27.3], [-5.3, 0.14, 27.3]], "#7e6d55");
       for (const stack of [...DISKS].sort((a, b) => b.z - a.z)) stack.list.forEach((d, i) => {
@@ -8249,7 +8286,8 @@ body.lab .stage > :not(canvas) { display: none; }
       const nb = a.slice(Math.max(0, i - 2), i + 3).map((p) => p[1]), sm = Math.max(y, nb.reduce((s, v) => s + v, 0) / nb.length);
       return [x, sm + 0.12 + 0.2 * (sm / 2.2), y];
     });
-    function drawLogs() {
+    function drawLogs() { stillPart("logs", 0, [pileX0 - 0.3, pileX1 + 0.3, 0, 2.8, LOGS.zf - 0.5, LOGS.zb + 0.1], drawLogsNow); }
+    function drawLogsNow() {
       for (const l of logs) quad([[l.x - l.rad, l.y, l.z], [l.x - l.rad, l.y, LOGS.zb], [l.x, l.y + l.rad, LOGS.zb], [l.x, l.y + l.rad, l.z]], "#54463b");
       for (const l of logs) woodEnd(l.x, l.y, l.z, l.rad, "#d6b88a");
       // (snow lodged on the lower logs' ends)
@@ -8466,19 +8504,30 @@ body.lab .stage > :not(canvas) { display: none; }
     function drawWoodsTree(t) {
       const q0 = P(t.x, 0, t.z); if (q0.behind) return;
       const s = q0.s; if (q0.x + t.h * 0.45 * s < 0 || q0.x - t.h * 0.45 * s > W) return;
-      const hz = clamp((Math.hypot(t.x - CAM.x, t.z - CAM.z) - 24) / 55, 0, 0.72);
+      // (its colours, hazed with distance, worked out again only when the haze has changed a little: there are
+      // hundreds of these trees, so they're kept cheap to draw)
+      const hz = Math.round(clamp((Math.hypot(t.x - CAM.x, t.z - CAM.z) - 24) / 55, 0, 0.72) * 50) / 50;
+      if (!t.col || t.col.hz !== hz) {
+        const birch = t.kind === "birch";
+        t.col = { hz, foot: mixHex("#f7fafc", "#e3e8ec", hz) };
+        if (t.far) Object.assign(t.col, { g: mixHex("#2a3d34", "#8d9896", hz), sn: mixHex("#f6f9fb", "#e1e6ea", hz) });
+        else if (t.kind === "pine") Object.assign(t.col, { trunk: mixHex("#4a3b30", "#8d989a", hz), g: mixHex("#1d3027", "#7f8b89", hz), sn: mixHex("#f8fbfd", "#dfe5ea", hz) });
+        else Object.assign(t.col, { bark: birch ? mixHex("#ece8df", "#ccd2d6", hz) : mixHex("#5f5953", "#a3abae", hz), line: birch ? mixHex("#4a4643", "#a3abae", hz) : null,
+          snow: mixHex("#ffffff", "#e3e8ec", hz), mark: mixHex("#2c2826", "#9aa2a6", hz) });
+      }
+      const C = t.col;
       const X = (lx) => q0.x + lx * s, Y = (ly) => q0.y - ly * s;
       if (t.far) {
         // (the woods further out, only ever seen from a distance: a plainer pine, three snowy tiers)
-        const g = mixHex("#2a3d34", "#8d9896", hz), sn = mixHex("#f6f9fb", "#e1e6ea", hz);
+        const g = C.g, sn = C.sn;
         for (let i = 0; i < 3; i++) {
           const y0 = t.h * (0.12 + i * 0.25), y1 = t.h * (0.6 + i * 0.2), hw = t.h * 0.19 * (1 - i * 0.27);
           ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(X(0), Y(y1)); ctx.lineTo(X(hw), Y(y0)); ctx.lineTo(X(-hw), Y(y0)); ctx.closePath(); ctx.fill();
           ctx.fillStyle = sn; ctx.beginPath(); ctx.moveTo(X(0), Y(y1 + 0.1)); ctx.lineTo(X(hw * 0.75), Y(y0 + (y1 - y0) * 0.28)); ctx.quadraticCurveTo(X(0), Y(y0 + (y1 - y0) * 0.5), X(-hw * 0.75), Y(y0 + (y1 - y0) * 0.28)); ctx.closePath(); ctx.fill();
         }
       } else if (t.kind === "pine") {
-        ctx.fillStyle = mixHex("#4a3b30", "#8d989a", hz); ctx.fillRect(X(-0.15), Y(2.2), 0.3 * s, 2.2 * s);
-        const g = mixHex("#1d3027", "#7f8b89", hz), sn = mixHex("#f8fbfd", "#dfe5ea", hz);
+        ctx.fillStyle = C.trunk; ctx.fillRect(X(-0.15), Y(2.2), 0.3 * s, 2.2 * s);
+        const g = C.g, sn = C.sn;
         for (const tr of t.tiers) {
           const hh = tr.top - tr.y, a = X(tr.sk * 0.3);
           ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(a, Y(tr.top)); ctx.lineTo(X(tr.hw + tr.sk), Y(tr.y - 0.25)); ctx.lineTo(X(tr.hw * 0.45), Y(tr.y + 0.1)); ctx.lineTo(X(0), Y(tr.y - 0.05)); ctx.lineTo(X(-tr.hw * 0.45), Y(tr.y + 0.1)); ctx.lineTo(X(-tr.hw + tr.sk), Y(tr.y - 0.25)); ctx.closePath(); ctx.fill();
@@ -8490,16 +8539,19 @@ body.lab .stage > :not(canvas) { display: none; }
           ctx.closePath(); ctx.fill();
         }
       } else {
-        const birch = t.kind === "birch", bark = birch ? mixHex("#ece8df", "#ccd2d6", hz) : mixHex("#5f5953", "#a3abae", hz);
-        ctx.lineCap = "round"; ctx.strokeStyle = birch ? mixHex("#4a4643", "#a3abae", hz) : bark;
-        for (const [x0, y0, x1, y1, w] of t.br) { ctx.lineWidth = Math.max(0.5, w * s); ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke(); }
-        ctx.strokeStyle = mixHex("#ffffff", "#e3e8ec", hz);
-        for (const [x0, y0, x1, y1, w] of t.br) if (w > 0.045) { ctx.lineWidth = Math.max(0.5, w * s * 0.5); ctx.beginPath(); ctx.moveTo(X(x0), Y(y0) - w * s * 0.45); ctx.lineTo(X(x1), Y(y1) - w * s * 0.45); ctx.stroke(); }
+        const birch = t.kind === "birch", bark = C.bark;
+        // (the limbs come in only a few thicknesses, one for each fork down from the trunk, so they're stroked a
+        // thickness at a time, all of it in one go, rather than one by one: a few strokes a tree, not a hundred and more)
+        if (!t.byW) { const m = new Map(); for (const b of t.br) { if (!m.has(b[4])) m.set(b[4], []); m.get(b[4]).push(b); } t.byW = [...m].sort((a, b) => b[0] - a[0]); }
+        ctx.lineCap = "round"; ctx.strokeStyle = C.line || bark;
+        for (const [w, list] of t.byW) { ctx.lineWidth = Math.max(0.5, w * s); ctx.beginPath(); for (const [x0, y0, x1, y1] of list) { ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); } ctx.stroke(); }
+        ctx.strokeStyle = C.snow;
+        for (const [w, list] of t.byW) if (w > 0.045) { const up = w * s * 0.45; ctx.lineWidth = Math.max(0.5, w * s * 0.5); ctx.beginPath(); for (const [x0, y0, x1, y1] of list) { ctx.moveTo(X(x0), Y(y0) - up); ctx.lineTo(X(x1), Y(y1) - up); } ctx.stroke(); }
         ctx.fillStyle = bark; ctx.beginPath(); ctx.moveTo(X(-t.w0), Y(0)); ctx.lineTo(X(t.lean * t.top - 0.04), Y(t.top)); ctx.lineTo(X(t.lean * t.top + 0.04), Y(t.top)); ctx.lineTo(X(t.w0), Y(0)); ctx.fill();
-        if (birch) { ctx.fillStyle = mixHex("#2c2826", "#9aa2a6", hz); for (const [y, len, o] of t.marks) { const w = t.w0 * (1 - y / t.top) + 0.03; ctx.fillRect(X(t.lean * y + o * w - len / 2), Y(y), Math.max(1, len * s), Math.max(1, 0.035 * s)); } }
+        if (birch) { ctx.fillStyle = C.mark; ctx.beginPath(); for (const [y, len, o] of t.marks) { const w = t.w0 * (1 - y / t.top) + 0.03; ctx.rect(X(t.lean * y + o * w - len / 2), Y(y), Math.max(1, len * s), Math.max(1, 0.035 * s)); } ctx.fill(); }
       }
       // standing in the deep snow: it's heaped round the trunk, well up the foot
-      ctx.fillStyle = mixHex("#f7fafc", "#e3e8ec", hz); ctx.beginPath(); ctx.ellipse(q0.x, q0.y, 1.3 * s, (DEEP + 0.25) * s, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = C.foot; ctx.beginPath(); ctx.ellipse(q0.x, q0.y, 1.3 * s, (DEEP + 0.25) * s, 0, Math.PI, 0); ctx.fill();
     }
     const trees = [tree(-13.4, 24.5, "birch", 21), tree(-15.5, 33, "pine", 24), tree(14.5, 34, "pine", 26), tree(-17, 14, "hard", 22)];
     for (let i = 0; i < 80; i++) trees.push(tree(r(-50, 50), r(41.5, 74)));
@@ -8533,14 +8585,16 @@ body.lab .stage > :not(canvas) { display: none; }
     const walls = [];
     const addWall = (a, b, n) => { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dx = b[0] - a[0], dz = b[1] - a[1]; walls.push({ a: [a[0] - dx * 0.04, a[1] - dz * 0.04], b: [b[0] + dx * 0.04, b[1] + dz * 0.04], n, m, x: m[0], z: m[1], h: DEEP * r(0.9, 1.1), draw: drawWall }); };
     PATHS.forEach((p, pi) => {
-      const line = resample(p.pts, 0.45);
+      // (in short lengths, so what walks along a path sorts right against its walls: but not too short, as each is
+      // its own few draws, and there are a lot of them)
+      const line = resample(p.pts, 0.9);
       for (const side of [-1, 1]) {
         const edge = line.map(([x, z], i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, off = p.w / 2 + r(-0.06, 0.06); return [x - (dz / l) * off * side, z + (dx / l) * off * side, dz / l * side, -dx / l * side]; });
         for (let i = 0; i < edge.length - 1; i++) { const a = edge[i], b = edge[i + 1], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (inPit(mx, mz, -1) || inPath(mx, mz, pi)) continue; addWall(a, b, [a[2], a[3]]); }
       }
     });
     PITS.forEach((p, pi) => {
-      const n = 72, pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2, k = 1 + r(-0.015, 0.015); return [p.cx + Math.cos(a) * p.rx * k, p.cz + Math.sin(a) * p.rz * k]; });
+      const n = 48, pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2, k = 1 + r(-0.015, 0.015); return [p.cx + Math.cos(a) * p.rx * k, p.cz + Math.sin(a) * p.rz * k]; });
       for (let i = 0; i < n; i++) {
         const a = pts[i], b = pts[(i + 1) % n], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
         // (none behind the buildings' fronts, under them)
@@ -8549,10 +8603,19 @@ body.lab .stage > :not(canvas) { display: none; }
       }
     });
     function drawWall(w) {
+      if (!w.box) w.box = [Math.min(w.a[0], w.b[0]), Math.max(w.a[0], w.b[0]), -0.05, w.h + 0.15, Math.min(w.a[1], w.b[1]), Math.max(w.a[1], w.b[1])];
+      stillPart(w, 0, w.box, () => drawWallNow(w));
+    }
+    function drawWallNow(w) {
       const [ax, az] = w.a, [bx, bz] = w.b, h = w.h;
       const faces = (CAM.x - w.m[0]) * w.n[0] + (CAM.z - w.m[1]) * w.n[1] > 0;
       if (!pathClip([[ax, -0.03, az], [bx, -0.03, bz], [bx, h, bz], [ax, h, az]])) return;
-      if (faces) { const t = P(w.m[0], h, w.m[1]), b = P(w.m[0], 0, w.m[1]), g = ctx.createLinearGradient(0, t.y, 0, b.y); g.addColorStop(0, "#f3f7fa"); g.addColorStop(0.3, "#dde7ef"); g.addColorStop(1, "#b7c7d6"); ctx.fillStyle = g; }
+      // (its shading kept from frame to frame, and made again only once it has moved on the screen)
+      if (faces) {
+        const t = P(w.m[0], h, w.m[1]), b = P(w.m[0], 0, w.m[1]), ty = Math.round(t.y), by = Math.round(b.y);
+        if (!w.g || w.gy0 !== ty || w.gy1 !== by) { w.g = ctx.createLinearGradient(0, ty, 0, by); w.g.addColorStop(0, "#f3f7fa"); w.g.addColorStop(0.3, "#dde7ef"); w.g.addColorStop(1, "#b7c7d6"); w.gy0 = ty; w.gy1 = by; }
+        ctx.fillStyle = w.g;
+      }
       else ctx.fillStyle = groundG;
       ctx.fill();
       if (!faces) return;
@@ -8565,7 +8628,6 @@ body.lab .stage > :not(canvas) { display: none; }
     const drifts = Array.from({ length: 22 }, () => ({ x: r(-30, 30), z: r(5, 42), rx: r(1.5, 4.5), rz: r(0.5, 1.4) })).filter((d) => !inPit(d.x, d.z, -1) && !inPath(d.x, d.z, -1));
     const sawdust = Array.from({ length: 9 }, () => ({ x: r(MILL.x0 + 0.3, MILL.x1 - 0.3), z: MILL.z - r(0.7, 1.9), rx: r(0.4, 1.3), rz: r(0.15, 0.45) }));
     function millBack() {
-      st = millState();
       const g = ctx.createLinearGradient(0, Math.min(0, HZ - F * 0.7), 0, Math.max(1, HZ));
       g.addColorStop(0, "#aeb6be"); g.addColorStop(0.55, "#cfd4d9"); g.addColorStop(1, "#e9ebed");
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, Math.max(0, HZ) + 2);
@@ -8612,7 +8674,85 @@ body.lab .stage > :not(canvas) { display: none; }
       { x: (SL.x0 + SL.x1) / 2, z: SL.zf + 1, draw: drawSlabs }, { x: -4.3, z: 27.9, draw: drawDisks },
       { x: 8.2, z: LOGS.zf + 1.5, draw: drawLogs }, { x: 2.1, z: MILL.z, draw: drawMillRig }, pusher, carrier, disker,
     ];
-    const standing = [...trees, ...banks, ...walls, ...things];
+    // the backdrop: the sky, the far woods and the snow (millBack), and every tree out behind the buildings or far off,
+    // none of which ever moves or has anything moving behind it. From where you stand it's drawn once into a picture
+    // of its own and that's put up each frame (one draw instead of thousands: hundreds of trees, stroke by stroke,
+    // were what slowed Milling right down on a laptop's wide field). As the view tilts and turns to follow the wood
+    // the picture slides with it, and is drawn again once it has turned a degree or so. Re-live it's other cameras,
+    // which move about the yard, draw it all as it is
+    // (and the ones well out to the sides beyond where the deer crosses and the wood flies: nothing passes behind them)
+    const backTrees = trees.filter((t) => t.far || t.z > 41.5 || (t.z > 25 && Math.abs(t.x) > 15));
+    // (the nearer trees, among everything standing, each a still part of its own on a wide field)
+    const nearTrees = trees.filter((t) => !backTrees.includes(t));
+    // (a tree's drawn flat, scaled from its foot: so its rectangle on the screen is too)
+    const treeRect = (t) => () => { const q = P(t.x, 0, t.z); if (q.behind) return null; const s = q.s, hw = (t.h * 0.62 + 1.4) * s; return [q.x - hw, q.y - (t.h + 0.8) * s, q.x + hw, q.y + 0.2 * s]; };
+    for (const t of nearTrees) { const rect = treeRect(t); t.draw = () => stillPart(t, 0, rect, () => drawWoodsTree(t)); }
+    const standing = [...nearTrees, ...banks, ...walls, ...things];
+    function drawBackdrop() {
+      millBack();
+      const d = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z);
+      backTrees.sort((a, b) => d(b) - d(a));
+      for (const t of backTrees) drawWoodsTree(t);
+    }
+    const BD = { c: null, key: "", yaw: 0, pitch: 0, hz: 0, mx: 0, my: 0, live: false };
+    // ---- still parts, on a wide field (a laptop's: a phone's narrow one is quick enough drawn as it is) ----
+    // a part of the yard that only changes when its key does (a stack growing, a window broken) is drawn once into a
+    // picture of its own, just the size of the box it fills on screen, and that's put up in its place from then on,
+    // at the same point in the drawing order (so whatever's in front of or behind it still is). It's drawn again as
+    // the backdrop is: when the camera has turned a degree or so, or moved. key null: draw it live this frame
+    const STILL = new Map();
+    function stillPart(id, key, box, draw) {
+      if (key == null || !BD.live || W <= H) { draw(); return; }
+      let sp = STILL.get(id);
+      const ok = sp && sp.key === key && sp.cam === BD.key && Math.abs(CAM.yaw - sp.yaw) <= 0.02 && Math.abs(CAM.pitch - sp.pitch) <= 0.06;
+      if (!ok) {
+        // (where its box comes on screen, padded, and no further out than the backdrop's margin; or, for a part drawn
+        // flat to the screen as the trees are, the screen rectangle it gives)
+        let ax = Infinity, ay = Infinity, bx = -Infinity, by = -Infinity;
+        if (typeof box === "function") { const rc = box(); if (!rc) { draw(); return; } [ax, ay, bx, by] = rc; }
+        else {
+          const [x0, x1, y0, y1, z0, z1] = box;
+          for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) {
+            const q = P(x, y, z); if (q.behind) { draw(); return; }
+            ax = Math.min(ax, q.x); bx = Math.max(bx, q.x); ay = Math.min(ay, q.y); by = Math.max(by, q.y);
+          }
+        }
+        const rx = Math.floor(Math.max(-BD.mx, ax - 8)), ry = Math.floor(Math.max(-BD.my, ay - 8));
+        const rw = Math.ceil(Math.min(W + BD.mx, bx + 8)) - rx, rh = Math.ceil(Math.min(H + BD.my, by + 8)) - ry;
+        if (!sp) { sp = { c: document.createElement("canvas") }; STILL.set(id, sp); }
+        Object.assign(sp, { key, cam: BD.key, yaw: CAM.yaw, pitch: CAM.pitch, hz: HZ, rx, ry, none: rw <= 0 || rh <= 0 });
+        if (!sp.none) {
+          const cw = Math.ceil(rw * dpr), ch = Math.ceil(rh * dpr);
+          if (sp.c.width !== cw || sp.c.height !== ch) { sp.c.width = cw; sp.c.height = ch; } else sp.c.getContext("2d").clearRect(0, 0, cw, ch);
+          const was = ctx; ctx = sp.c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, -rx * dpr, -ry * dpr);
+          try { draw(); } finally { ctx = was; }
+        }
+      }
+      if (sp.none) return;
+      ctx.drawImage(sp.c, sp.rx - F * Math.tan(CAM.yaw - sp.yaw), sp.ry + (HZ - sp.hz), sp.c.width / dpr, sp.c.height / dpr);
+    }
+    function backdrop() {
+      BD.live = !(S.gunReplay && S.gunReplay.pass > 0);
+      if (!BD.live) { BD.key = ""; drawBackdrop(); return; }
+      const key = [CAM.x, CAM.y, CAM.z, F, W, H, dpr].join(",");
+      // (tilting up or down it slides nearly exactly, so it can go 3.5° before it's drawn again, while the wood climbs;
+      // turning sideways, toward the edges of a wide field, it bends, so only 1°)
+      if (key !== BD.key || Math.abs(CAM.yaw - BD.yaw) > 0.02 || Math.abs(CAM.pitch - BD.pitch) > 0.06) {
+        // (drawn a little bigger than the field all round, so it has room to slide)
+        const mx = Math.ceil(F * 0.025) + 4, my = Math.ceil(F * 0.07) + 4, cw = Math.round((W + 2 * mx) * dpr), ch = Math.round((H + 2 * my) * dpr);
+        if (!BD.c) BD.c = document.createElement("canvas");
+        if (BD.c.width !== cw || BD.c.height !== ch) { BD.c.width = cw; BD.c.height = ch; }
+        const was = { ctx, W, H, CY, HZ };
+        ctx = BD.c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W + 2 * mx, H + 2 * my);
+        // (W/2 and CY move to the middle of the bigger picture: so does everything in it)
+        W += 2 * mx; H += 2 * my; CY += my; HZ += my;
+        try { drawBackdrop(); } finally { ({ ctx, W, H, CY, HZ } = was); }
+        Object.assign(BD, { key, yaw: CAM.yaw, pitch: CAM.pitch, hz: HZ, mx, my });
+      }
+      ctx.drawImage(BD.c, -BD.mx - F * Math.tan(CAM.yaw - BD.yaw), -BD.my + (HZ - BD.hz), W + 2 * BD.mx, H + 2 * BD.my);
+      // (the snow's own gradient, for the backs of the path walls, as it is on the screen now)
+      groundG = ctx.createLinearGradient(0, HZ, 0, H); groundG.addColorStop(0, "#e4eaef"); groundG.addColorStop(1, "#fafcfd");
+    }
     // ---- the penalties (−5 each): the four hands, the barn's two windows, the deer, the terrier, birds ----
     // the hands: hit, they duck with their arms up and yell, keep a spud splat on their coat, then carry on
     const CREW_KEYS = ["pusher", "carrier", "disker", "cutter"];
@@ -8627,7 +8767,12 @@ body.lab .stage > :not(canvas) { display: none; }
         while (t < 1200) { wild.deer.push({ t0: t, dir: Math.random() < 0.5 ? 1 : -1, z: pick([10.6, 23.5]), dur: rnd(16, 21), hitAt: null, xHit: 0 }); t += rnd(40, 60); }
         wild.crows = []; t = rnd(10, 20);
         while (t < 1200) { const n = 2 + (Math.random() < 0.4 ? 1 : 0); wild.crows.push({ t0: t, dir: Math.random() < 0.5 ? 1 : -1, y: rnd(11, 16), z: rnd(20, 34), dur: rnd(7, 10), birds: Array.from({ length: n }, (_, i) => ({ dx: -i * rnd(1.2, 2), dy: rnd(-0.6, 0.6), ph: rnd(0, 6), down: null })) }); t += rnd(14, 26); }
+        // the terrier's visits (see dogNow): which side of the barrels she sits, and how long she waits there
+        wild.visits = []; t = rnd(18, 30);
+        while (t < 1200) { wild.visits.push({ t0: t, side: Math.random() < 0.5 ? -1 : 1, wait: rnd(3.2, 4.6) }); t += rnd(45, 75); }
       });
+      // (?dogvisit: her first visit 3 s into the round, to see it without waiting)
+      if (new URLSearchParams(location.search).has("dogvisit")) wild.visits[0].t0 = 3;
       wild.dogScare = -9;
     }
     const gt = () => (S.gun ? S.gun.t : T());
@@ -8641,8 +8786,67 @@ body.lab .stage > :not(canvas) { display: none; }
       if (c.hitAt != null && t > c.hitAt) { x = c.xHit + c.dir * (t - c.hitAt) * 7; run = true; }
       return { c, x, z: c.z, y: 0, dir: c.dir, ph: t * (run ? 15 : 5) };
     }
+    // her round, in front of the buildings (where she is on it at time t)
+    const dogCirc = (t) => { const th = t * 0.32; return { x: -1.2 + 6.6 * Math.cos(th), z: 29.4 + 1.35 * Math.sin(th) }; };
+    // now and then she comes to see you: out of her round, down the tractor trail, round the left end of the sawmill
+    // and down the footpath toward you, to sit a little way out in front of the MP 10, beside the barrels, looking up
+    // at you with her stick (will you throw it?); then she turns and scurries back to her round. A fright (a hit)
+    // sends her straight back from wherever she's got to
+    const DOG_ROUTE = [[2.6, 26.4], [2.3, 22], [2.1, 17.6], [-1.3, 16.3], [-1.2, 13.3], [0.5, 12.2], [0.4, 8], [0.35, 4.5]];
+    const DOG_OUT = 2.3, DOG_BACK = 3.4, DOG_BOLT = 5;
+    const routeLen = (pts) => pts.slice(1).reduce((a, p, i) => a + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+    // where she sits: on the snow low in your view, to one side of the barrels (worked out from the screen, at rest:
+    // a laptop's view doesn't take in the ground close in front of you, a phone's does)
+    function dogSpot(side) {
+      const e = gp.eye(), look = gunLook(), c = Math.cos(look), s = Math.sin(look);
+      const X = (side * W * 0.14) / F, Y = (H / 2 - H * 0.92) / F, dy = Y * c - s, dz = Y * s + c, k = dy < -0.02 ? e[1] / -dy : 12;
+      return [clamp(e[0] + X * k, -4, 4), clamp(e[2] + dz * k, e[2] + 2.5, 11)];
+    }
+    // the way back to her round, from wherever she is (along the way she came), at speed v: where she joins it is
+    // where it's got to by then
+    function dogBack(t, from, via, v) {
+      const pts = [from, ...via.slice(0, -1)], e = dogCirc(t + routeLen([...pts, via[via.length - 1]]) / v);
+      pts.push([e.x, e.z]);
+      return { t, pts, t1: t + routeLen(pts) / v, v };
+    }
+    function planVisit(v) {
+      const s = dogCirc(v.t0), spot = dogSpot(v.side);
+      v.spot = spot; v.out = [[s.x, s.z], ...DOG_ROUTE.filter((p) => p[1] > spot[1] + 1.5), spot];
+      v.t1 = v.t0 + routeLen(v.out) / DOG_OUT; v.t2 = v.t1 + v.wait;
+      v.back = dogBack(v.t2, spot, [...v.out].reverse().slice(1), DOG_BACK);
+    }
+    function visitNow(t) {
+      for (const v of wild.visits || []) {
+        if (t < v.t0) return null;
+        if (!v.out) planVisit(v);
+        if (t < (v.cut ? v.cut.back.t1 : v.back.t1)) return v;
+      }
+      return null;
+    }
+    // where she is along a way at time t: [x, z], the way she's going, and (for the side-on drawing) facing left or right
+    const dogAlong = (pts, u, fwd) => { const a = along(pts, u); return { x: a.x, z: a.z, dir: Math.abs(a.dx) > 0.05 ? Math.sign(a.dx) : fwd }; };
+    // (a fright while she's out: straight back from where she is, at a gallop)
+    function frightDog() {
+      const t = gt(), v = visitNow(t);
+      wild.dogScare = t;
+      if (!v || v.cut || t >= v.t2) return;
+      let from = v.spot, via = [...v.out].reverse().slice(1);
+      if (t < v.t1) {
+        const d = ((t - v.t0) / (v.t1 - v.t0)) * routeLen(v.out); let acc = 0, i = 0;
+        for (; i < v.out.length - 1; i++) { const l = Math.hypot(v.out[i + 1][0] - v.out[i][0], v.out[i + 1][1] - v.out[i][1]); if (acc + l >= d) break; acc += l; }
+        const p = along(v.out, (t - v.t0) / (v.t1 - v.t0)); from = [p.x, p.z]; via = v.out.slice(0, i + 1).reverse();
+      }
+      v.cut = { t, back: dogBack(t, from, via, DOG_BOLT) };
+    }
     function dogNow() {
-      const t = gt(), scared = t - wild.dogScare < 2.5;
+      const t = gt(), scared = t - wild.dogScare < 2.5, v = visitNow(t);
+      if (v) {
+        const back = v.cut && t >= v.cut.t ? v.cut.back : t >= v.t2 ? v.back : null;
+        if (back) { const p = dogAlong(back.pts, (t - back.t) / (back.t1 - back.t), -1); return { ...p, ph: t * (back.v > 4 ? 18 : 15), sit: false, scared }; }
+        if (t < v.t1) { const p = dogAlong(v.out, (t - v.t0) / (v.t1 - v.t0), 1); return { ...p, ph: t * 12, sit: false, scared }; }
+        // sitting, facing you, looking up
+        return { x: v.spot[0], z: v.spot[1], dir: 1, ph: t, sit: true, front: true, wait: t - v.t1, scared };
+      }
       // round in front of the buildings, a pause to sit now and then (not while it's running off a fright)
       const sit = !scared && Math.sin(t * 0.13 + 1) > 0.88, th = t * (scared ? 0.75 : 0.32) - (sit ? 0 : 0);
       const cx = -1.2, cz = 29.4, rx = 6.6, rz = 1.35, x = cx + rx * Math.cos(th), z = cz + rz * Math.sin(th);
@@ -8685,7 +8889,33 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.beginPath(); ctx.moveTo(X(-0.18), Y(0)); ctx.lineTo(X(-0.3), Y(0.04)); ctx.lineTo(X(-0.3), Y(-0.04)); ctx.fill();
     }
     const deerThing = { x: 0, z: 99, draw: () => { const d = deerNow(); if (!d) return; const q = P(d.x, d.y, d.z); if (!q.behind) drawDeer2D(q.x, q.y, q.s, d.dir, d.ph); } };
-    const dogThing = { x: 0, z: 29, draw: () => { if (!S.animals) return; const d = dogNow(), q = P(d.x, 0, d.z); if (!q.behind) drawTerrier2D(q.x, q.y, q.s, d.dir, d.ph, d.sit); } };
+    // sitting facing you, looking up at you: black, a white blaze down her face and chest, white muzzle and paws, bat
+    // ears up, the stick crosswise in her mouth; her head cocks one way then the other, and her front paws do a little
+    // eager dance now and then (u: how long she's been sitting there)
+    function drawTerrierFront(x, y, s, u) {
+      const X = (lx) => x + lx * s, Y = (ly) => y - ly * s, BLACK = "#16181a", WHITE = "#f4f1ea";
+      const cock = Math.sin(u * 2.6) * 0.22 * Math.min(1, u * 2), hop = Math.max(0, Math.sin(u * 9)) * (Math.sin(u * 1.3) > 0.55 ? 0.025 : 0);
+      ctx.fillStyle = BLACK;
+      ctx.beginPath(); ctx.ellipse(X(0), Y(0.12), 0.17 * s, 0.12 * s, 0, 0, 7); ctx.fill(); // (haunches)
+      ctx.beginPath(); ctx.ellipse(X(0), Y(0.3), 0.12 * s, 0.17 * s, 0, 0, 7); ctx.fill(); // (chest)
+      for (const sx of [-1, 1]) { const lift = sx > 0 ? hop : 0; ctx.fillStyle = BLACK; ctx.fillRect(X(sx * 0.065 - 0.028), Y(0.3 + lift), 0.056 * s, (0.3 - 0.02) * s); ctx.fillStyle = WHITE; ctx.beginPath(); ctx.ellipse(X(sx * 0.065), Y(0.02 + lift), 0.04 * s, 0.025 * s, 0, 0, 7); ctx.fill(); }
+      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.ellipse(X(0), Y(0.3), 0.05 * s, 0.13 * s, 0, 0, 7); ctx.fill(); // (her white chest)
+      // the head, tilted back to look up at you, cocked
+      ctx.save(); ctx.translate(X(0), Y(0.52)); ctx.rotate(cock);
+      const hx = (lx) => lx * s, hy = (ly) => -ly * s;
+      ctx.fillStyle = BLACK;
+      for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(hx(sx * 0.05), hy(0.08)); ctx.lineTo(hx(sx * 0.13), hy(0.24)); ctx.lineTo(hx(sx * 0.11), hy(0.05)); ctx.closePath(); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(0, hy(0.03), 0.105 * s, 0, 7); ctx.fill();
+      ctx.fillStyle = WHITE; ctx.fillRect(hx(-0.014), hy(0.13), 0.028 * s, 0.1 * s); // (the blaze between her eyes)
+      ctx.beginPath(); ctx.ellipse(0, hy(-0.03), 0.065 * s, 0.045 * s, 0, 0, 7); ctx.fill(); // (muzzle)
+      ctx.fillStyle = BLACK; ctx.beginPath(); ctx.ellipse(0, hy(-0.01), 0.022 * s, 0.015 * s, 0, 0, 7); ctx.fill(); // (nose)
+      // big round eyes, looking up at you
+      for (const sx of [-1, 1]) { ctx.fillStyle = "#2b2016"; ctx.beginPath(); ctx.arc(hx(sx * 0.045), hy(0.05), 0.026 * s, 0, 7); ctx.fill(); ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(hx(sx * 0.045 + 0.006), hy(0.062), 0.008 * s, 0, 7); ctx.fill(); }
+      // the stick, crosswise in her mouth
+      ctx.strokeStyle = "#6b4a2b"; ctx.lineWidth = Math.max(1.2, 0.035 * s); ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(hx(-0.24), hy(-0.05)); ctx.lineTo(hx(0.26), hy(-0.07)); ctx.stroke();
+      ctx.restore();
+    }
+    const dogThing = { x: 0, z: 29, draw: () => { if (!S.animals) return; const d = dogNow(), q = P(d.x, 0, d.z); if (q.behind) return; if (d.front) drawTerrierFront(q.x, q.y, q.s, d.wait); else drawTerrier2D(q.x, q.y, q.s, d.dir, d.ph, d.sit); } };
     const crowThing = { x: 0, z: 30, draw: () => { for (const c of crowsNow()) { const q = P(c.x, c.y, c.z); if (!q.behind) drawCrow2D(q.x, q.y, Math.max(6, q.s), c.dir, c.ph); } } };
     // what's hit: an animal or bird's reaction (in play and in Re-live it), and its line in the shot's note
     const animal = (name, the, say, at, react) => ({ name, the, say, at, react });
@@ -8705,10 +8935,12 @@ body.lab .stage > :not(canvas) { display: none; }
     }
 
     // ---- the bonuses (+10 each, once): the rooster weather vane on the barn's ridge, turning slowly into the wind
-    // (hit, it's bent back, still partly there); the "Live Edge Charcuterie" sign on its tall pole between the barn
-    // and the drying shelter, at roofline height (hit, it smashes to bits, a splintered stub left on the pole) ----
+    // (hit, it's bent back, still partly there); the "Live Edge Charcuterie" sign on its tall pole out in front of the
+    // log pile on the right (the left has the barn, the vane and the drying shelter already), at roofline height, big
+    // and bold enough to read from where you stand (hit, it smashes to bits, a splintered stub left on the pole) ----
     const VANE = { x: -7.5, z: B.rz, y0: B.ridge + 0.55, y: B.ridge + 2.2 };
-    const SIGN = { x0: -9.5, x1: -6.9, y0: 4.6, y1: 5.7, z: 25.0, px: -8.2 };
+    // (far enough in, and back, that a phone's narrow view takes it in too)
+    const SIGN = { x0: 6.6, x1: 9.8, y0: 4.5, y1: 5.9, z: 26.0, px: 8.2 };
     const bonusState = { vaneYaw: 0.6, vaneHit: null, signHit: null };
     function drawVane() {
       const v = VANE, b = bonusState, bent = b.vaneHit != null ? Math.min(1, (gt() - b.vaneHit) / 0.4) : 0;
@@ -8750,17 +8982,23 @@ body.lab .stage > :not(canvas) { display: none; }
     function charcSignArt() {
       if (signCanvas) return signCanvas;
       const c = document.createElement("canvas"), g = c.getContext("2d"); c.width = 520; c.height = 220;
-      g.fillStyle = "#1f7a6e"; g.fillRect(0, 0, 520, 220); g.fillStyle = "#f5ecd7"; g.fillRect(16, 16, 488, 188);
-      g.strokeStyle = "#1f7a6e"; g.lineWidth = 4; g.strokeRect(28, 28, 464, 164);
-      g.fillStyle = "#4a2e1a"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.font = '400 64px "Lilita One", Nunito, sans-serif'; g.fillText("Live Edge", 260, 82);
-      g.font = '400 58px "Lilita One", Nunito, sans-serif'; g.fillText("Charcuterie", 260, 150);
+      // (dark green board, a cream edge, and big cream letters outlined dark, filling it: it reads even small)
+      g.fillStyle = "#f5ecd7"; g.fillRect(0, 0, 520, 220); g.fillStyle = "#17594f"; g.fillRect(12, 12, 496, 196);
+      g.strokeStyle = "rgba(245,236,215,.55)"; g.lineWidth = 3; g.strokeRect(24, 24, 472, 172);
+      g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
+      const line = (text, y, px, w) => {
+        g.font = `400 ${px}px "Lilita One", Nunito, sans-serif`;
+        const k = Math.min(1, w / g.measureText(text).width); g.save(); g.translate(260, y); g.scale(k, 1);
+        g.lineWidth = 10; g.strokeStyle = "#0b2a25"; g.strokeText(text, 0, 0); g.fillStyle = "#fff6e0"; g.fillText(text, 0, 0); g.restore();
+      };
+      line("LIVE EDGE", 74, 80, 440); line("CHARCUTERIE", 152, 74, 452);
       if (!document.fonts || document.fonts.check('400 40px "Lilita One"')) signCanvas = c;
       return c;
     }
-    function drawSign() {
+    function drawSign() { const sg = SIGN; stillPart("sign", bonusState.signHit != null ? 1 : 0, [sg.x0 - 0.2, sg.x1 + 0.2, 0, sg.y1 + 0.3, sg.z - 0.1, sg.z + 0.2], drawSignNow); }
+    function drawSignNow() {
       const sg = SIGN, hit = bonusState.signHit != null;
-      seg([sg.px, 0, sg.z + 0.12], [sg.px, hit ? sg.y0 - 0.2 : sg.y1 + 0.1, sg.z + 0.12], "#5e4a36", wid(sg.px, 3, sg.z, 0.14));
+      seg([sg.px, 0, sg.z + 0.12], [sg.px, hit ? sg.y0 - 0.2 : sg.y1 + 0.1, sg.z + 0.12], "#5e4a36", wid(sg.px, 3, sg.z, 0.16));
       if (hit) { quad([[sg.px - 0.08, sg.y0 - 0.2, sg.z + 0.1], [sg.px + 0.08, sg.y0 - 0.2, sg.z + 0.1], [sg.px + 0.03, sg.y0 + 0.05, sg.z + 0.1], [sg.px - 0.02, sg.y0 - 0.1, sg.z + 0.1]], "#d8b98a"); return; }
       wallPaint(charcSignArt(), (u, v) => [sg.x0 + (sg.x1 - sg.x0) * u, sg.y1 - (sg.y1 - sg.y0) * v, sg.z], 14);
       quad([[sg.x0 - 0.05, sg.y1, sg.z - 0.05], [sg.x1 + 0.05, sg.y1, sg.z - 0.05], [sg.x1 + 0.02, sg.y1 + 0.12, sg.z], [sg.x0 - 0.02, sg.y1 + 0.12, sg.z]], SNOW);
@@ -8832,8 +9070,8 @@ body.lab .stage > :not(canvas) { display: none; }
           return "hit";
         }
         const dog = dogNow();
-        if (S.animals && gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < 0.6) {
-          hits.animal(animal("terrier", "the terrier", "YIP!", [dog.x, 0.5, dog.z], () => { wild.dogScare = gt(); S.pops.push({ x: dog.x, y: 0.9, z: dog.z, text: "YIP!", t: 0 }); tone(980, 1400, 0.12, 0.08, "triangle"); }), pl.shot);
+        if (S.animals && gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < (dog.front ? 0.82 : 0.6)) {
+          hits.animal(animal("terrier", "the terrier", "YIP!", [dog.x, 0.5, dog.z], () => { frightDog(); S.pops.push({ x: dog.x, y: 0.9, z: dog.z, text: "YIP!", t: 0 }); tone(980, 1400, 0.12, 0.08, "triangle"); }), pl.shot);
           return "hit";
         }
         for (const c of crowsNow()) {
@@ -8901,7 +9139,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // (on a wide field, a wider view, sized from its height so the yard sits well inside it with sky to follow the
       // wood; a phone keeps the close view)
       focal: () => (W < H ? W * 1.15 : Math.min(W * 0.85, H * 1.9)), skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
-      back() { millBack(); drawFallen(); },
+      back() { st = millState(); backdrop(); drawFallen(); },
       front() { drawSign(); drawVane(); millFront(); drawWindChip(); },
       dyn: gunThings,
       update(dt) {
