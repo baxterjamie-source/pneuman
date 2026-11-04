@@ -480,7 +480,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.62</p>
+  <p class="ver">Pneuman v1.63</p>
 </div>
 
 <script>
@@ -6673,9 +6673,12 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun, L = S.scene.launchers;
     g.pull = { hits: 0, by: new Set(), drone: false, call: 0 }; g.launched += 2;
     withSeed(seedFor(S.seed, SEED.pizza + g.pulls++), () => {
-      const a = pick(L.filter((l) => l.x <= 0)), b = pick(L.filter((l) => l.x >= 0 && l !== a));
+      // (a place can pick its own pair of launch spots; Skeetza's: one each side)
+      const [a, b] = S.scene.gp && S.scene.gp.pair ? S.scene.gp.pair(L) : (() => { const a = pick(L.filter((l) => l.x <= 0)); return [a, pick(L.filter((l) => l.x >= 0 && l !== a))]; })();
       // (a place can say where a pair crosses: Milling's always comes toward you, out in front of both)
-      const C = S.scene.gp && S.scene.gp.cross ? S.scene.gp.cross(a, b) : [rnd(-3, 3), rnd(6, 10), Math.max(15, Math.min(34, (a.z + b.z) / 2 + rnd(-4, 3)))], tc = rnd(1.1, 1.6);
+      const C = S.scene.gp && S.scene.gp.cross ? S.scene.gp.cross(a, b) : [rnd(-3, 3), rnd(6, 10), Math.max(15, Math.min(34, (a.z + b.z) / 2 + rnd(-4, 3)))];
+      // (and how long they take to get there: Milling's are slower, lower and capped in speed)
+      const tc = S.scene.gp && S.scene.gp.flight ? S.scene.gp.flight(a, b, C) : rnd(1.1, 1.6);
       // one of the pair carries a colour not hit yet, while there are any (picked at random from those)
       const need = Object.keys(RINGS).filter((t) => !g.got.has(t)), ring = need.length ? pick(need) : null, which = Math.random() < 0.5 ? 0 : 1;
       [[a, tc], [b, tc + rnd(-0.35, 0.35)]].forEach(([l, t], j) => {
@@ -6812,7 +6815,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const pu = shot.pull, rank = !pu ? 0 : pu.hits >= 2 && pu.drone ? 3 : shot.pizzas >= 2 ? 1 : pu.hits >= 2 && pu.by.size >= 2 ? 2 : 0;
     // (rank 2, Double Za, is worth less than rank 1, Two Fer Za, so "better" is by points)
     if (rank && (!pu.call || ZA[rank].pts > ZA[pu.call].pts)) {
-      const was = pu.call && ZA[pu.call], z = ZA[rank], at = shot.at || [0, 6, 25], add = z.pts - (was ? was.pts : 0);
+      // (a place can rename the calls: Milling's are charcuterie, not za)
+      const za = (k) => ({ ...ZA[k], ...((S.scene.gp && S.scene.gp.calls && S.scene.gp.calls[k]) || {}) });
+      const was = pu.call && za(pu.call), z = za(rank), at = shot.at || [0, 6, 25], add = z.pts - (was ? was.pts : 0);
       pu.call = rank;
       S.bonus += add; S.bonusItems = S.bonusItems || [];
       if (was) { const i = S.bonusItems.lastIndexOf(was.name); if (i >= 0) S.bonusItems.splice(i, 1); }
@@ -6941,9 +6946,17 @@ body.lab .stage > :not(canvas) { display: none; }
     shot.items.push(`You hit ${a.the}! ${a.say} ${lost}`); shot.at = shot.at || a.at;
     a.react(); hud();
   }
-  const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, animal: hitAnimal, done: shotDone };
+  // (a bonus thing of the place's, like Milling's weather vane and sign: +10, and it counts for the Amazing Triple
+  // like Skeetza's drones)
+  function hitBonus(b, shot) {
+    S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push(b.name);
+    shot.scores++; if (shot.pull) shot.pull.drone = true;
+    shot.items.push(`The ${b.label}! +${GUN.drone} bonus!`); shot.at = b.at;
+    b.react(); hud();
+  }
+  const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, animal: hitAnimal, bonus: hitBonus, done: shotDone };
   const REPLAY_HITS = { pizza: (p) => burstPizza(p), drone: (dr) => downDrone(dr), worker: (w, shot) => { if (!shot.workers.has(w)) { shot.workers.add(w); duckWorker(w); } },
-    window: (i, at) => smashWindow(i, at), animal: (a) => a.react(), done() {} };
+    window: (i, at) => smashWindow(i, at), animal: (a) => a.react(), bonus: (b) => b.react(), done() {} };
   function movePellets(g, dt, hits) {
     for (const pl of g.pellets) {
       for (let i = 0; i < 6 && !pl.dead; i++) {
@@ -8606,22 +8619,91 @@ body.lab .stage > :not(canvas) { display: none; }
       for (const [a, l] of b.rays) { const e = P(b.u + Math.cos(a) * l, b.v + Math.sin(a) * l * 0.8, z); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(e.x, e.y); ctx.stroke(); }
     }
 
+    // ---- the bonuses (+10 each, once): the rooster weather vane on the barn's ridge, turning slowly into the wind
+    // (hit, it's bent back, still partly there); the "Live Edge Charcuterie" sign on its tall pole between the barn
+    // and the drying shelter, at roofline height (hit, it smashes to bits, a splintered stub left on the pole) ----
+    const VANE = { x: -7.5, z: B.rz, y0: B.ridge + 0.55, y: B.ridge + 2.2 };
+    const SIGN = { x0: -9.5, x1: -6.9, y0: 4.6, y1: 5.7, z: 25.0, px: -8.2 };
+    const bonusState = { vaneYaw: 0.6, vaneHit: null, signHit: null };
+    function drawVane() {
+      const v = VANE, b = bonusState, bent = b.vaneHit != null ? Math.min(1, (gt() - b.vaneHit) / 0.4) : 0;
+      // (it swings round, slowly, to face into the pair's wind)
+      const want = gp.wind.kmh ? Math.atan2(-gp.wind.z, -gp.wind.x) : 0.6;
+      if (!bent) b.vaneYaw += Math.atan2(Math.sin(want - b.vaneYaw), Math.cos(want - b.vaneYaw)) * 0.01;
+      seg([v.x, v.y0 - 0.2, v.z], [v.x, v.y + 0.15, v.z], "#2b2d30", wid(v.x, v.y, v.z, 0.08));
+      // the four arms and their letters (fixed: N away from you, E to the right)
+      const ay = v.y - 0.55, L = 0.8;
+      for (const [dx, dz, ch] of [[1, 0, "E"], [-1, 0, "W"], [0, 1, "N"], [0, -1, "S"]]) {
+        seg([v.x, ay, v.z], [v.x + dx * L, ay, v.z + dz * L], "#2b2d30", 1.5);
+        const q = P(v.x + dx * (L + 0.15), ay, v.z + dz * (L + 0.15)); if (q.behind) continue;
+        ctx.font = `800 ${Math.max(7, 0.38 * q.s)}px Nunito, sans-serif`; ctx.fillStyle = "#2b2d30"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ch, q.x, q.y);
+      }
+      // the rooster, side on as it turns (narrower as it faces you or away); bent back when hit
+      const q = P(v.x, v.y + 0.15, v.z); if (q.behind) return;
+      const s = q.s, cy = Math.cos(b.vaneYaw), sx = Math.max(0.18, Math.abs(cy)) * Math.sign(cy || 1);
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(bent * -0.9 * Math.sign(sx)); ctx.scale(sx * s * 1.6, s * 1.6 * (1 - bent * 0.25));
+      ctx.fillStyle = "#2b2d30"; ctx.beginPath();
+      ctx.moveTo(-0.55, -0.05); ctx.quadraticCurveTo(-0.7, -0.55, -0.4, -0.75); ctx.quadraticCurveTo(-0.45, -0.4, -0.2, -0.3);
+      ctx.lineTo(0.15, -0.3); ctx.quadraticCurveTo(0.22, -0.62, 0.38, -0.66); ctx.lineTo(0.42, -0.74); ctx.lineTo(0.47, -0.66); ctx.lineTo(0.62, -0.6); ctx.lineTo(0.48, -0.52);
+      ctx.quadraticCurveTo(0.42, -0.25, 0.2, -0.08); ctx.lineTo(0.08, 0); ctx.lineTo(-0.3, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.arc(0.4, -0.72, 0.05, 0, 7); ctx.fill();
+      ctx.restore();
+      // a little snow on its arms
+      const sq = P(v.x, ay + 0.04, v.z); if (!sq.behind) { ctx.fillStyle = SNOW; ctx.beginPath(); ctx.ellipse(sq.x, sq.y, 0.2 * s, 0.04 * s, 0, Math.PI, 0); ctx.fill(); }
+    }
+    let signCanvas = null;
+    function charcSignArt() {
+      if (signCanvas) return signCanvas;
+      const c = document.createElement("canvas"), g = c.getContext("2d"); c.width = 520; c.height = 220;
+      g.fillStyle = "#1f7a6e"; g.fillRect(0, 0, 520, 220); g.fillStyle = "#f5ecd7"; g.fillRect(16, 16, 488, 188);
+      g.strokeStyle = "#1f7a6e"; g.lineWidth = 4; g.strokeRect(28, 28, 464, 164);
+      g.fillStyle = "#4a2e1a"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = '400 64px "Lilita One", Nunito, sans-serif'; g.fillText("Live Edge", 260, 82);
+      g.font = '400 58px "Lilita One", Nunito, sans-serif'; g.fillText("Charcuterie", 260, 150);
+      if (!document.fonts || document.fonts.check('400 40px "Lilita One"')) signCanvas = c;
+      return c;
+    }
+    function drawSign() {
+      const sg = SIGN, hit = bonusState.signHit != null;
+      seg([sg.px, 0, sg.z + 0.12], [sg.px, hit ? sg.y0 - 0.2 : sg.y1 + 0.1, sg.z + 0.12], "#5e4a36", wid(sg.px, 3, sg.z, 0.14));
+      if (hit) { quad([[sg.px - 0.08, sg.y0 - 0.2, sg.z + 0.1], [sg.px + 0.08, sg.y0 - 0.2, sg.z + 0.1], [sg.px + 0.03, sg.y0 + 0.05, sg.z + 0.1], [sg.px - 0.02, sg.y0 - 0.1, sg.z + 0.1]], "#d8b98a"); return; }
+      wallPaint(charcSignArt(), (u, v) => [sg.x0 + (sg.x1 - sg.x0) * u, sg.y1 - (sg.y1 - sg.y0) * v, sg.z], 14);
+      quad([[sg.x0 - 0.05, sg.y1, sg.z - 0.05], [sg.x1 + 0.05, sg.y1, sg.z - 0.05], [sg.x1 + 0.02, sg.y1 + 0.12, sg.z], [sg.x0 - 0.02, sg.y1 + 0.12, sg.z]], SNOW);
+    }
+    // what's hit: a bonus's reaction (in play and in Re-live it), and its line in the shot's note
+    const bonusThing = (name, label, at, react) => ({ name, label, at, react });
+    function signBits(at) {
+      for (let k = 0; k < 16; k++) S.bits.push({ kind: "chunk", x: at[0] + rnd(-1, 1), y: at[1], z: at[2], vx: rnd(-2, 2), vy: rnd(0, 3), vz: rnd(-1, 1), a: rnd(0, 6), s: rnd(0.12, 0.25), c: pick(["#f5ecd7", "#1f7a6e", "#4a2e1a", "#d8b98a"]), t: 0, ph: rnd(0, 6) });
+    }
+
     // ---- played with the MP 10 (gp: the hooks the gun's code asks a place for) ----
     // where the wood goes up from: behind the log pile, the slab stack, the drying shelter, the barn and the shed
     const launchers = [
-      { x: 7.8, y: 0.8, z: 32.8 }, { x: -1.4, y: 0.6, z: 21.9 }, { x: -7.6, y: 0.8, z: 22.7 },
-      { x: -10.4, y: 3, z: 40.6 }, { x: -5.6, y: 3, z: 40.6 }, { x: 0.6, y: 2.6, z: 40.2 }, { x: 5.4, y: 2.6, z: 40.2 },
+      // left: behind the slab stack's left end, the drying shelter, the barn (two); right: behind the snowbank right
+      // of the logs, the log pile (two), the shed (two)
+      { x: -3.8, y: 0.6, z: 21.9 }, { x: -7.6, y: 0.8, z: 22.7 }, { x: -10.4, y: 3, z: 40.6 }, { x: -5.6, y: 3, z: 40.6 },
+      { x: 11.4, y: 0.6, z: 26.6 }, { x: 7.0, y: 0.8, z: 32.8 }, { x: 9.6, y: 0.8, z: 32.4 }, { x: 3.2, y: 2.6, z: 40.2 }, { x: 6.4, y: 2.6, z: 40.2 },
     ];
     const roofAt = (o, z) => o.eave + (z < o.rz ? (z - o.zf) / (o.rz - o.zf) : (o.zb - z) / (o.zb - o.rz)) * (o.ridge - o.eave) + 0.5;
     const inBox = (pl, x0, x1, z0, z1, top) => pl.x > x0 && pl.x < x1 && pl.z > z0 && pl.z < z1 && pl.y < top;
     const gp = {
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 16, z0: 2, z1: 44 },
-      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } },
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; scheduleWild(); for (const w of Object.values(CREWHIT)) { w.hit = 0; w.sauce = []; } bonusState.vaneHit = null; bonusState.signHit = null; },
       smash: smashMillWindow,
       // (the hands come back up after a duck)
       tick(dt) { for (const w of Object.values(CREWHIT)) w.hit = Math.max(0, w.hit - dt); },
       // where a pair crosses: in the middle of the yard, out in front of where both went up, 5-9 m up
-      cross: (a, b) => [rnd(-2.5, 2.5), rnd(5, 9), clamp(Math.min(a.z, b.z) - rnd(4, 9), 13, 30)],
+      // a pair: one from each side of the yard, at much the same depth, so their paths make an X as they cross
+      pair(L) { const a = pick(L.filter((l) => l.x < 0)), near = L.filter((l) => l.x > 0 && Math.abs(l.z - a.z) < 12); return [a, pick(near.length ? near : L.filter((l) => l.x > 0))]; },
+      // where they cross: between the two (a little either side of halfway), out in front of both, 4.5-6.5 m up
+      // (well out into the yard in front of both, 5.5-7.5 m up: long, high arcs that clear the roofs and come down in
+      // view)
+      cross: (a, b) => [(a.x + b.x) / 2 + rnd(-1.5, 1.5), Math.max(a.z, b.z) > 35 ? rnd(6.8, 8.2) : rnd(5.5, 7.5), clamp(Math.min(a.z, b.z) - rnd(9, 15), 12, 27)],
+      // how long they take to get there: long enough that they're coming down as they cross (so most of the way
+      // down is in view), and never faster than 7 m/s across the yard
+      flight: (a, b, C) => Math.max(rnd(2.0, 2.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 6.5)),
+      // the calls, for a sawmill
+      calls: { 1: { text: "Two Fer Charcuterie!", name: "Two Fer Charcuterie" }, 2: { text: "Double Charcuterie!", name: "Double Charcuterie" } },
       // each pair's wind, from the round's seed (called inside its seeded draw): mostly across the yard, a little
       // toward or away from you
       newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
@@ -8658,6 +8740,15 @@ body.lab .stage > :not(canvas) { display: none; }
           if (c.b.down || Math.hypot(pl.x - c.x, pl.y - c.y, pl.z - c.z) > 0.42) continue;
           hits.animal(animal("bird", "a crow", "CAW!", [c.x, c.y, c.z], () => { c.b.down = { t: gt(), x: c.x, y: c.y }; S.pops.push({ x: c.x, y: c.y + 0.4, z: c.z, text: "CAW!", t: 0 }); tone(420, 300, 0.18, 0.08, "sawtooth");
             for (let k = 0; k < 8; k++) S.bits.push({ kind: "chunk", x: c.x, y: c.y, z: c.z, vx: rnd(-1, 1), vy: rnd(-0.2, 1), vz: rnd(-1, 1), a: rnd(0, 6), s: rnd(0.05, 0.09), c: "#2a2c30", t: 0, ph: rnd(0, 6) }); }), pl.shot);
+          return "hit";
+        }
+        // the bonuses: the weather vane's rooster, the sign's board
+        if (bonusState.vaneHit == null && Math.hypot(pl.x - VANE.x, pl.y - (VANE.y + 0.7), pl.z - VANE.z) < 0.85) {
+          hits.bonus(bonusThing("weather vane", "weather vane", [VANE.x, VANE.y, VANE.z], () => { bonusState.vaneHit = gt(); sfx.clank(); S.pops.push({ x: VANE.x, y: VANE.y + 0.6, z: VANE.z, text: "CLANG!", t: 0 }); }), pl.shot);
+          return "hit";
+        }
+        if (bonusState.signHit == null && pl.x > SIGN.x0 && pl.x < SIGN.x1 && pl.y > SIGN.y0 && pl.y < SIGN.y1 && Math.abs(pl.z - SIGN.z) < 0.3) {
+          hits.bonus(bonusThing("sign", "Live Edge Charcuterie sign", [pl.x, pl.y, SIGN.z], () => { bonusState.signHit = gt(); sfx.thunk(); sfx.glass(); signBits([(SIGN.x0 + SIGN.x1) / 2, (SIGN.y0 + SIGN.y1) / 2, SIGN.z]); S.pops.push({ x: pl.x, y: SIGN.y1 + 0.3, z: SIGN.z, text: "SMASH!", t: 0 }); }), pl.shot);
           return "hit";
         }
         // the barn's windows: over the door, and (through the doorway) the big one in the back wall
@@ -8701,9 +8792,14 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.restore();
       ctx.font = "800 13px Nunito, sans-serif"; ctx.fillStyle = "#fffaf0"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(`${gp.wind.kmh} km/h`, x - 10, y + 1);
     }
-    return { ...FLAT, eye: [0, 1.65, 2], look: -0.05, skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
+    return { ...FLAT,
+      // (where you stand: on a wide screen a step further back, for more of the yard in front and room to follow the
+      // wood as it flies; on a phone, in close)
+      get eye() { return W > H ? [0, 1.7, -6] : [0, 1.65, 2]; },
+      // (and on a wide screen, short for its width, looking up a little more, so the arcs have room)
+      get look() { return W > H ? -0.11 : -0.05; }, skyline: "#e9ebed", standing: [...standing, deerThing, dogThing, crowThing], ownSky: true, gun: true, gp, launchers,
       back() { millBack(); drawFallen(); },
-      front() { millFront(); drawWindChip(); },
+      front() { drawSign(); drawVane(); millFront(); drawWindChip(); },
       dyn: gunThings,
       update(dt) {
         const s = mstate(); pusher.x = s.pusher.x; pusher.z = s.pusher.z; carrier.x = s.carrier.x; carrier.z = s.carrier.z; disker.x = s.disker.x; disker.z = s.disker.z;
