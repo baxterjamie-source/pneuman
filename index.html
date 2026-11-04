@@ -380,7 +380,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.58</p>
+  <p class="ver">Pneuman v1.59</p>
 </div>
 
 <script>
@@ -706,6 +706,10 @@ body.lab .stage > :not(canvas) { display: none; }
     chug: () => sample("tractor") || (tone(700, 680, 0.5, 0.2, "square"), noise(0.5, 260, 0.35, 90)),
     baa: () => sample("sheep") || [0, 1, 2, 3, 4].forEach((i) => tone(540 - i * 8, 500 - i * 8, 0.08, 0.17, "sawtooth", i * 0.075)),
     oi: () => sample("oi") || (tone(400, 290, 0.3, 0.3, "sawtooth"), tone(300, 250, 0.2, 0.15, "sawtooth", 0.05)),
+    // Skeetza's pizza calls, each grander than the last: its recording (double.mp3, twofer.mp3, triple.mp3) or a jingle
+    zaDouble: () => sample("double") || [659, 880].forEach((f, i) => tone(f, f, 0.16, 0.18, "square", i * 0.11)),
+    zaTwofer: () => sample("twofer") || ([587, 784, 988].forEach((f, i) => tone(f, f, 0.15, 0.18, "square", i * 0.1)), tone(988, 1480, 0.3, 0.14, "triangle", 0.32)),
+    zaTriple: () => sample("triple") || ([523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, f, 0.16, 0.17, "square", i * 0.09)), tone(1319, 1319, 0.5, 0.15, "triangle", 0.47), tone(1568, 1568, 0.5, 0.12, "triangle", 0.47), noise(0.5, 6000, 0.08, 9000)),
     // the spinner turning on its axle (its recording, or a quick synthesised whirr)
     whirr: () => sample("spinner") || [0, 0.09, 0.18, 0.27, 0.36].forEach((d, i) => tone(500 - i * 40, 420 - i * 40, 0.07, 0.12, "triangle", d)),
     // a struck bird's cry: its kind's own recording (up to 2 s), else the shared bird call, louder and cut short
@@ -1542,7 +1546,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const extra = spare || 0, rings = score + penalty;
     // "cow ×2, chicken"
     const tallyNames = (list) => [...new Set(list)].map((k) => { const n = list.filter((x) => x === k).length; return n > 1 ? `${k} ×${n}` : k; }).join(", ");
-    const what = items.length ? ` <small>(${items.join(", ")})</small>` : "";
+    const what = items.length ? ` <small>(${tallyNames(items)})</small>` : "";
     // "Animals hit" when it was only animals (birds included); "Penalties" once a window or a neighbour is in there
     const onlyAnimals = hitAnimals.every((k) => (PROPS[k] && PROPS[k].animal) || k === "bird" || SPECIES.some((sp) => sp.name === k));
     const penaltyRow = penalty ? `<div class="trow minus"><span>${onlyAnimals ? "Animals hit" : "Penalties"} <small>(${tallyNames(hitAnimals)})</small></span><b id="tA">−0</b></div>` : "";
@@ -6695,18 +6699,29 @@ body.lab .stage > :not(canvas) { display: none; }
     return FACTORY_WINDOWS.findIndex((w) => w.side === side && a >= w.a0 && a <= w.a1 && pl.y >= w.y0 && pl.y <= w.y1);
   }
   // the pizza calls, each once a pair, the best one going: both skeetzas of a pair and the drone (Amazing Triple!),
-  // both skeetzas with one barrel (Two Fer Za!), or with a barrel each (Double Za!)
-  const ZA = { 3: { text: "Amazing Triple!", col: "#ff3d7f" }, 2: { text: "Double Za!", col: "#1e9be0" }, 1: { text: "Two Fer Za!", col: "#f28c00" } };
+  // both skeetzas with one barrel (Two Fer Za!), or with a barrel each (Double Za!). Each is a bonus (pts) and has
+  // its own jingle (sound); a pair's call that's beaten by a better one later in the pair is topped up to it, so a
+  // pair only ever earns its best call's bonus
+  const ZA = {
+    3: { text: "Amazing Triple!", col: "#ff3d7f", pts: 15, name: "Amazing Triple", sound: "zaTriple" },
+    2: { text: "Double Za!", col: "#1e9be0", pts: 5, name: "Double Za", sound: "zaDouble" },
+    1: { text: "Two Fer Za!", col: "#f28c00", pts: 10, name: "Two Fer Za", sound: "zaTwofer" },
+  };
   // all five mini spuds of a shot are done: what it did, chained, and a call for two scores or more
   function shotDone(shot) {
     let text = shot.items.length ? shot.items.join(" → ") : "Missed!";
     const pu = shot.pull, rank = !pu ? 0 : pu.hits >= 2 && pu.drone ? 3 : shot.pizzas >= 2 ? 1 : pu.hits >= 2 && pu.by.size >= 2 ? 2 : 0;
-    if (rank && rank > pu.call) {
+    // (rank 2, Double Za, is worth less than rank 1, Two Fer Za, so "better" is by points)
+    if (rank && (!pu.call || ZA[rank].pts > ZA[pu.call].pts)) {
+      const was = pu.call && ZA[pu.call], z = ZA[rank], at = shot.at || [0, 6, 25], add = z.pts - (was ? was.pts : 0);
       pu.call = rank;
-      const z = ZA[rank], at = shot.at || [0, 6, 25];
-      S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: z.text, col: z.col, fancy: true, t: 0 });
-      sfx.done();
-      text = `${z.text} ${text}`;
+      S.bonus += add; S.bonusItems = S.bonusItems || [];
+      if (was) { const i = S.bonusItems.lastIndexOf(was.name); if (i >= 0) S.bonusItems.splice(i, 1); }
+      S.bonusItems.push(z.name);
+      S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${z.text} +${add}`, col: z.col, fancy: true, t: 0 });
+      sfx[z.sound]();
+      text = `${z.text} +${add} bonus! ${text}`;
+      hud();
     } else if (shot.scores >= 2) {
       const call = COMBO[shot.scores] || `${shot.scores}× COMBO!`;
       if (shot.at) S.pops.push({ x: shot.at[0], y: shot.at[1] + 0.6, z: shot.at[2], text: call, t: 0 });
