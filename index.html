@@ -566,7 +566,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.03</p>
+  <p class="ver">Pneuman v2.04</p>
 </div>
 
 <script>
@@ -9645,7 +9645,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // the camera has turned a little (in its turn, see SHARDS), or moved. key null: draw it live this frame
     const STILL = new Map();
     function stillPart(id, key, box, draw) {
-      if (key == null || !BD.live || W <= H) { draw(); return; }
+      // (a phone's field, upright or turned sideways, is drawn as it is: pasting two hundred little pictures, each
+      // stretched, every frame was what its graphics chip couldn't keep up with, 19 fps sideways on a Pixel 6a)
+      if (key == null || !BD.live || W <= H || W * H < 260000) { draw(); return; }
       let sp = STILL.get(id);
       const ok = sp && sp.key === key && sp.cam === BD.key && !turned(sp, PART_HARD) && (BD.frame % SHARDS !== sp.shard || !turned(sp, PART_SOFT));
       if (!ok) {
