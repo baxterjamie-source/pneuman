@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.96</p>
+  <p class="ver">Pneuman v1.98</p>
 </div>
 
 <script>
@@ -7089,13 +7089,18 @@ body.lab .stage > :not(canvas) { display: none; }
   // go up from all round, never fewer than 6 in the air, 1 point each. The scene goes gold, a big countdown up top,
   // the view pulled back so every arc fits. Then the round carries on where it was ----
   // (waveGap: between waves of two or three; double, triple: the bonus for that many with one shot)
-  const UP = { secs: 30, every: 0.25, inAir: 6, waveGap: 0.75, double: 2, triple: 5 };
+  // (pellets, spread: a shot in UP, more of a shotgun: 10 spuds spread about 4 m across at 50 m; hitR: how near a
+  // spud must pass a cushion to take it, a little more than a regular one's. Cushions crossing from opposite sides are
+  // together only for an instant: it takes this to make triples and quadruples come)
+  // (slow, slowFor: as a wave reaches its crossing it flies at slow × its speed, from slowFor (its own time) before
+  // the crossing to slowFor after: about a second of real time bunched in the air)
+  const UP = { secs: 30, every: 0.25, inAir: 6, waveGap: 0.9, double: 2, triple: 5, quad: 10, pellets: 10, spread: 0.04, hitR: 1.5, slow: 0.25, slowFor: 0.14 };
   const TRIG = { on: false };
   function startUp(g) {
     // (a call still waiting for the pull's targets to come down: now, before UP clears them away)
     if (g.callQ) { const f = g.callQ; g.callQ = null; f(); }
     g.upm = { left: UP.secs, spawnT: 0, fireT: 0, was: g.phase };
-    g.upDone = true; g.upHits = 0; g.upLaunched = 0; g.upBonus = 0; g.upDoubles = 0; g.upTriples = 0;
+    g.upDone = true; g.upHits = 0; g.upLaunched = 0; g.upBonus = 0; g.upDoubles = 0; g.upTriples = 0; g.upQuads = 0;
     // (the round's cushions in the air are gone, a puff where each was)
     for (const p of g.pizzas) if (!p.done) { p.done = true; for (let k = 0; k < 6; k++) S.bits.push({ kind: "smoke", x: p.x + rnd(-0.4, 0.4), y: p.y, z: p.z + rnd(-0.4, 0.4), vx: rnd(-0.3, 0.3), vz: rnd(-0.3, 0.3), s: 0.4, t: -k * 0.05 }); }
     g.pizzas = [];
@@ -7116,10 +7121,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (up < UP.inAir + 1 && u.spawnT <= 0 && u.left > 1.5) { spawnWave(g); u.spawnT = up < UP.inAir ? UP.waveGap * 0.5 : UP.waveGap; }
     if (u.left <= 0) endUp(g);
   }
-  // a wave: two or three from different launch spots, all reaching one crossing point together (within a few tenths
-  // of a metre and a second), so they bunch up there for a moment
+  // a wave: three or four from different launch spots (two from one side, and one or two from the other), all
+  // reaching one crossing point near the middle together (within a few tenths of a metre and a hundredth of a
+  // second), so they bunch up there for a moment: a triple or a quadruple for a shot well placed
   function spawnWave(g) {
-    const gp = S.scene.gp, L = S.scene.launchers.slice(), n = Math.random() < 0.55 ? 3 : 2, from = [];
+    const gp = S.scene.gp, L = S.scene.launchers.slice(), n = Math.random() < 0.5 ? 4 : 3, from = [];
     while (from.length < n && L.length) from.push(L.splice(Math.floor(Math.random() * L.length), 1)[0]);
     const C = gp.upCross ? gp.upCross(from[0]) : gp.cross(from[0], from[1]);
     const t = Math.max(...from.map((l) => (gp.upFlight ? gp.upFlight(l, C) : gp.flight(l, l, C))));
@@ -7130,7 +7136,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function spawnGold(g, l, C, t) {
     g.pizzas.push({ x: l.x, y: l.y, z: l.z, vx: (C[0] - l.x) / t, vy: (C[1] - l.y) / t + 0.5 * GUN.pg * t, vz: (C[2] - l.z) / t,
       spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: TOPPINGS[0], ring: null, done: false, gold: true,
-      kind: "cushion", shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)) });
+      kind: "cushion", shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)), tc: t, age: 0 });
     g.upLaunched = (g.upLaunched || 0) + 1;
     if (Math.random() < 0.35) sfx.pull();
   }
@@ -7155,7 +7161,7 @@ body.lab .stage > :not(canvas) { display: none; }
     txt("UNLIMITED PNEUMAN", -h * 0.33, h * 0.12, "#fff8dc");
     txt(`+${cd.n + (cd.bonus || 0)}`, -h * 0.06, h * 0.34, "#ffffff");
     ctx.font = `800 ${h * 0.08}px Nunito, sans-serif`; ctx.fillStyle = "#5a3a00";
-    const combos = [cd.doubles ? `${cd.doubles} double${cd.doubles > 1 ? "s" : ""}` : "", cd.triples ? `${cd.triples} triple${cd.triples > 1 ? "s" : ""}` : ""].filter(Boolean).join(", ");
+    const combos = [cd.doubles ? `${cd.doubles} double${cd.doubles > 1 ? "s" : ""}` : "", cd.triples ? `${cd.triples} triple${cd.triples > 1 ? "s" : ""}` : "", cd.quads ? `${cd.quads} quad${cd.quads > 1 ? "s" : ""}` : ""].filter(Boolean).join(", ");
     ctx.fillText(`${cd.n} of ${cd.of} cushions${combos ? ` · ${combos}` : ""}`, 0, h * 0.19);
     txt(upWord(cd.n), h * 0.35, h * 0.13, "#ff5a36", "#fff8dc");
     ctx.restore();
@@ -7163,7 +7169,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function endUp(g) {
     const n = g.upHits || 0;
     // the score card: big in the middle a moment, then off to the corner (see drawUpCard)
-    g.upCard = { t: 0, n, of: g.upLaunched || 0, bonus: g.upBonus || 0, doubles: g.upDoubles || 0, triples: g.upTriples || 0 };
+    g.upCard = { t: 0, n, of: g.upLaunched || 0, bonus: g.upBonus || 0, doubles: g.upDoubles || 0, triples: g.upTriples || 0, quads: g.upQuads || 0 };
     g.upm = null; TRIG.on = false;
     for (const p of g.pizzas) if (p.gold) p.done = true;
     g.pizzas = g.pizzas.filter((p) => !p.done);
@@ -7299,13 +7305,15 @@ body.lab .stage > :not(canvas) { display: none; }
     const o = [e[0] + rt[0] * 0.22 + d[0] * 0.6, e[1] - 0.25 + d[1] * 0.6, e[2] + rt[2] * 0.22 + d[2] * 0.6], T = [e[0] + d[0] * 35, e[1] + d[1] * 35, e[2] + d[2] * 35];
     const len = Math.hypot(T[0] - o[0], T[1] - o[1], T[2] - o[2]), f = [(T[0] - o[0]) / len, (T[1] - o[1]) / len, (T[2] - o[2]) / len];
     const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl], up = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
-    const shot = { items: [], scores: 0, pizzas: 0, left: GUN.pellets, at: null, workers: new Set(), pull: g.upm ? null : g.pull, up: !!g.upm };
+    // (in UP mode it's more of a shotgun: more spuds in a wider spread, so a shot into a bunch takes several)
+    const nPel = g.upm ? UP.pellets : GUN.pellets, spread = g.upm ? UP.spread : GUN.spread;
+    const shot = { items: [], scores: 0, pizzas: 0, left: nPel, at: null, workers: new Set(), pull: g.upm ? null : g.pull, up: !!g.upm };
     const fresh = [];
     // (a place can fire them faster: the Reservoir's cushions are twice as far off, so its spuds fly twice as fast,
     // keeping how far ahead you aim, and how much they drop, about as on the other levels)
     const spd = (S.scene.gp && S.scene.gp.pelletSpeed) || GUN.speed;
-    for (let i = 0; i < GUN.pellets; i++) {
-      const a = rnd(0, 6.28), m = GUN.spread * Math.sqrt(Math.random()), dir = f.map((v, k) => v + r[k] * Math.cos(a) * m + up[k] * Math.sin(a) * m);
+    for (let i = 0; i < nPel; i++) {
+      const a = rnd(0, 6.28), m = spread * Math.sqrt(Math.random()), dir = f.map((v, k) => v + r[k] * Math.cos(a) * m + up[k] * Math.sin(a) * m);
       fresh.push({ x: o[0], y: o[1], z: o[2], vx: dir[0] * spd, vy: dir[1] * spd, vz: dir[2] * spd, t: 0, shot });
     }
     g.pellets.push(...fresh);
@@ -7423,11 +7431,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (shot.up) {
       const g = S.gun, n = shot.pizzas;
       if (n >= 2 && g) {
-        const tri = n >= 3, pts = tri ? UP.triple : UP.double, at = shot.at || [0, 12, 50];
+        const quad = n >= 4, tri = n === 3, pts = quad ? UP.quad : tri ? UP.triple : UP.double, at = shot.at || [0, 12, 50];
         S.score += pts; S.upScore = (S.upScore || 0) + pts; g.upBonus = (g.upBonus || 0) + pts;
-        if (tri) g.upTriples = (g.upTriples || 0) + 1; else g.upDoubles = (g.upDoubles || 0) + 1;
-        S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${tri ? "TRIPLE!" : "DOUBLE!"} +${pts}`, col: tri ? "#ff2fa8" : "#1e9be0", fancy: true, size: clamp(W * 0.04, 22, 38), t: 0 });
-        sfx[tri ? "zaTriple" : "zaDouble"](); hud();
+        if (quad) g.upQuads = (g.upQuads || 0) + 1; else if (tri) g.upTriples = (g.upTriples || 0) + 1; else g.upDoubles = (g.upDoubles || 0) + 1;
+        S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${quad ? "QUADRUPLE!" : tri ? "TRIPLE!" : "DOUBLE!"} +${pts}`, col: quad ? "#ffb000" : tri ? "#ff2fa8" : "#1e9be0", fancy: true, size: clamp(W * (quad ? 0.055 : 0.04), 22, quad ? 50 : 38), t: 0 });
+        sfx[quad || tri ? "zaTriple" : "zaDouble"](); hud();
       }
       return;
     }
@@ -7593,7 +7601,8 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let i = 0; i < 6 && !pl.dead; i++) {
         const h = dt / 6;
         pl.vy -= G * 0.35 * h; pl.x += pl.vx * h; pl.y += pl.vy * h; pl.z += pl.vz * h; pl.t += h;
-        const pz = g.pizzas.find((p) => !p.done && Math.hypot(pl.x - p.x, pl.y - p.y, pl.z - p.z) < tgtR() + 0.08);
+        // (UP mode's cushions a little bigger to hit: UP.hitR)
+        const pz = g.pizzas.find((p) => !p.done && Math.hypot(pl.x - p.x, pl.y - p.y, pl.z - p.z) < (p.gold ? UP.hitR : tgtR()) + 0.08);
         // (where the shot hit something first, and where its last spud stopped: Re-live it's side view ends there)
         const hitHere = () => { pl.dead = true; g.endHit = g.endHit || [pl.x, pl.y, pl.z]; };
         if (pz) { hits.pizza(pz, pl.shot); hitHere(); break; }
@@ -7671,7 +7680,10 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const p of g.pizzas) {
       if (p.done) continue;
       // (at GUN.pace: the same arc, flown slower; they spin at the usual rate)
-      const pd = dt * gunPace();
+      // (UP mode's waves: in slow motion for a moment as they come together at their crossing, so they hang there,
+      // bunched, long enough to take three or four with a shot: see UP.slow)
+      const pd = dt * gunPace() * (p.gold && p.tc != null && Math.abs((p.age || 0) - p.tc) < UP.slowFor ? UP.slow : 1);
+      if (p.gold) p.age = (p.age || 0) + pd;
       p.vy -= GUN.pg * pd; p.x += p.vx * pd; p.y += p.vy * pd; p.z += p.vz * pd; p.spin += p.vs * dt;
       if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       // (a place with wind: it pushes the wood along)
@@ -7957,9 +7969,25 @@ body.lab .stage > :not(canvas) { display: none; }
     if (sink <= 0) return;
     ctx.save(); if (sink < 1) ctx.globalAlpha = sink;
     ctx.fillStyle = "rgba(20,30,40,.25)"; ctx.beginPath(); ctx.ellipse(q.x, q.y + r * flat * 0.3, r * 1.1, r * flat * 1.05, 0, 0, 7); ctx.fill();
-    // (drawn from a little ready-made picture of the cushion, kept by its look and size: see cushionSprite)
-    const sp = cushionSprite(f, r);
-    ctx.translate(q.x, q.y); ctx.scale(1, flat); ctx.rotate(f.a || 0);
+    // a slab floating on the water, in 3D: its sides (darker) from the waterline up to its top, then its face lying
+    // flat on top (its square corners, or its round edge, turned as it lies), bobbing with the water
+    const R = tgtR() * 0.92, bob = 0.03 * Math.sin(t * 2 + (f.ph || 0)), y0 = 0.02 + bob, y1 = y0 + 0.16, ca = Math.cos(f.a || 0), sa = Math.sin(f.a || 0);
+    const W3 = (u, v, y) => P(f.x + u * ca - v * sa, y, f.z + u * sa + v * ca);
+    const outline = f.kind === "cushionR" ? Array.from({ length: 16 }, (_, i) => [Math.cos((i / 16) * Math.PI * 2) * R, Math.sin((i / 16) * Math.PI * 2) * R])
+      : [[-R, -R], [R, -R], [R, R], [-R, R]];
+    const bot = outline.map(([u, v]) => W3(u, v, y0)), top = outline.map(([u, v]) => W3(u, v, y1));
+    if ([...bot, ...top].some((p) => p.behind)) { ctx.restore(); return; }
+    const pl = cushionPlain(f), side = f.ring ? RINGS[f.ring].edge : pl[1];
+    ctx.fillStyle = side; ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1;
+    for (let i = 0; i < outline.length; i++) {
+      const j = (i + 1) % outline.length;
+      ctx.beginPath(); ctx.moveTo(bot[i].x, bot[i].y); ctx.lineTo(bot[j].x, bot[j].y); ctx.lineTo(top[j].x, top[j].y); ctx.lineTo(top[i].x, top[i].y); ctx.closePath(); ctx.fill();
+    }
+    // (the face: its little ready-made picture (see cushionSprite) laid onto the top, by where three of its corners
+    // land on the screen)
+    const sp = cushionSprite(f, r), rq = Math.max(2, Math.round(r));
+    const c0 = W3(0, 0, y1), cu = W3(R, 0, y1), cv = W3(0, R, y1);
+    ctx.transform((cu.x - c0.x) / rq, (cu.y - c0.y) / rq, (cv.x - c0.x) / rq, (cv.y - c0.y) / rq, c0.x, c0.y);
     ctx.drawImage(sp.c, -sp.h, -sp.h, sp.h * 2, sp.h * 2);
     ctx.restore();
   }
@@ -10610,10 +10638,10 @@ body.lab .stage > :not(canvas) { display: none; }
     // the screen, so they row right off each side; out about 120 m, between the powerhouse and the boathouse, the
     // water's narrower than the view, so they row in behind those and turn there, hidden. x0, x1: where each one
     // turns (past the screen's edge, or behind a building: rowing over the shore out there, unseen); buoys: the race
-    // course's lines of little buoys; nav: where the green nav buoy may go, in front of the course or behind it)
+    // course's lines of little buoys)
     const ROUTES = [
-      { lanes: [66, 71], x0: [-56, -60], x1: [56, 60], buoys: [63, 68.5, 74], navFront: [48, 56], navBack: [88, 110] },
-      { lanes: [118, 124], x0: [-54, -56], x1: [59, 62], buoys: [115, 121, 127], navFront: [96, 106], navBack: [140, 165] },
+      { lanes: [66, 71], x0: [-56, -60], x1: [56, 60], buoys: [63, 68.5, 74] },
+      { lanes: [118, 124], x0: [-54, -56], x1: [59, 62], buoys: [115, 121, 127] },
     ];
     const QUADS = [
       { lane: 66, x0: -50, x1: 48, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
@@ -10768,19 +10796,21 @@ body.lab .stage > :not(canvas) { display: none; }
       // UP mode: earned once the drone's down and the nav buoy's been hit; the gold cushions go up from the same four
       // spots and cross all over the water in front, a little higher
       upReady: () => S.gun.drones.some((d) => d.state !== "fly") && NAV.hitAt != null,
-      upCross: () => [rnd(-22, 22), rnd(12, 19), rnd(38, 62)],
+      // (near the middle of the view, so a wave from both sides meets there)
+      upCross: () => [rnd(-7, 7), rnd(12, 18), rnd(42, 58)],
       upFlight: (l, C) => Math.max(rnd(3.2, 4.0), Math.hypot(C[0] - l.x, C[2] - l.z) / 20),
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
       // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
-      // (each round, from its seed: which of the two courses the rowers have, and where the nav buoy is, in front of
-      // their course or well behind it, across the water there)
+      // (each round, from its seed: which of the two courses the rowers have, and where the nav buoy is: always out
+      // past the flag pole at the end of the boathouse's docks (112-165 m), a long shot, across the water there,
+      // and never in among the rowers (8 m clear of their lanes))
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset();
         withSeed(seedFor(S.seed, SEED.layout + 31), () => {
           const rt = ROUTES[Math.random() < 0.5 ? 0 : 1];
           setRoute(rt);
-          const zr = Math.random() < 0.5 ? rt.navFront : rt.navBack;
-          NAV.z = rnd(zr[0], zr[1]);
+          const lo = Math.min(...rt.lanes) - 8, hi = Math.max(...rt.lanes) + 8;
+          do NAV.z = rnd(112, 165); while (NAV.z > lo && NAV.z < hi);
           const [a, b] = waterX(NAV.z); NAV.x = rnd(Math.max(a + 8, -40), Math.min(b - 8, 40));
         }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
