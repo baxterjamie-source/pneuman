@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.92</p>
+  <p class="ver">Pneuman v1.93</p>
 </div>
 
 <script>
@@ -7088,13 +7088,14 @@ body.lab .stage > :not(canvas) { display: none; }
   // runs out: tap to fire, or hold FIRE (or the mouse button, or Space) and it fires 4 a second. Gold round cushions
   // go up from all round, never fewer than 6 in the air, 1 point each. The scene goes gold, a big countdown up top,
   // the view pulled back so every arc fits. Then the round carries on where it was ----
-  const UP = { secs: 30, every: 0.25, inAir: 6, spawnGap: 0.28 };
+  // (waveGap: between waves of two or three; double, triple: the bonus for that many with one shot)
+  const UP = { secs: 30, every: 0.25, inAir: 6, waveGap: 0.75, double: 2, triple: 5 };
   const TRIG = { on: false };
   function startUp(g) {
     // (a call still waiting for the pull's targets to come down: now, before UP clears them away)
     if (g.callQ) { const f = g.callQ; g.callQ = null; f(); }
     g.upm = { left: UP.secs, spawnT: 0, fireT: 0, was: g.phase };
-    g.upDone = true; g.upHits = 0; g.upLaunched = 0;
+    g.upDone = true; g.upHits = 0; g.upLaunched = 0; g.upBonus = 0; g.upDoubles = 0; g.upTriples = 0;
     // (the round's cushions in the air are gone, a puff where each was)
     for (const p of g.pizzas) if (!p.done) { p.done = true; for (let k = 0; k < 6; k++) S.bits.push({ kind: "smoke", x: p.x + rnd(-0.4, 0.4), y: p.y, z: p.z + rnd(-0.4, 0.4), vx: rnd(-0.3, 0.3), vz: rnd(-0.3, 0.3), s: 0.4, t: -k * 0.05 }); }
     g.pizzas = [];
@@ -7111,11 +7112,22 @@ body.lab .stage > :not(canvas) { display: none; }
     // never fewer than UP.inAir gold cushions up
     u.spawnT -= dt;
     const up = g.pizzas.filter((p) => !p.done && p.gold).length;
-    if (up < UP.inAir + 1 && u.spawnT <= 0 && u.left > 1.5) { spawnGold(g); u.spawnT = up < UP.inAir ? UP.spawnGap * 0.5 : UP.spawnGap; }
+    // (in waves of two or three that all cross at one point at one moment, so a shot well placed takes two or three)
+    if (up < UP.inAir + 1 && u.spawnT <= 0 && u.left > 1.5) { spawnWave(g); u.spawnT = up < UP.inAir ? UP.waveGap * 0.5 : UP.waveGap; }
     if (u.left <= 0) endUp(g);
   }
-  function spawnGold(g) {
-    const gp = S.scene.gp, L = S.scene.launchers, l = pick(L), C = gp.upCross ? gp.upCross(l) : gp.cross(l, pick(L)), t = gp.upFlight ? gp.upFlight(l, C) : gp.flight(l, l, C);
+  // a wave: two or three from different launch spots, all reaching one crossing point together (within a few tenths
+  // of a metre and a second), so they bunch up there for a moment
+  function spawnWave(g) {
+    const gp = S.scene.gp, L = S.scene.launchers.slice(), n = Math.random() < 0.55 ? 3 : 2, from = [];
+    while (from.length < n && L.length) from.push(L.splice(Math.floor(Math.random() * L.length), 1)[0]);
+    const C = gp.upCross ? gp.upCross(from[0]) : gp.cross(from[0], from[1]);
+    const t = Math.max(...from.map((l) => (gp.upFlight ? gp.upFlight(l, C) : gp.flight(l, l, C))));
+    // (tight: arriving a tenth of a second apart, at their speed, spread them over a metre or more and a triple
+    // hardly ever came)
+    for (const l of from) spawnGold(g, l, [C[0] + rnd(-0.25, 0.25), C[1] + rnd(-0.2, 0.2), C[2] + rnd(-0.25, 0.25)], t + rnd(-0.02, 0.02));
+  }
+  function spawnGold(g, l, C, t) {
     g.pizzas.push({ x: l.x, y: l.y, z: l.z, vx: (C[0] - l.x) / t, vy: (C[1] - l.y) / t + 0.5 * GUN.pg * t, vz: (C[2] - l.z) / t,
       spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: TOPPINGS[0], ring: null, done: false, gold: true,
       kind: "cushion", shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)) });
@@ -7141,15 +7153,17 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
     const txt = (s, y, size, fill, edge = "#5a3a00") => { ctx.font = `400 ${size}px "Lilita One", Nunito, sans-serif`; ctx.lineWidth = size * 0.18; ctx.strokeStyle = edge; ctx.strokeText(s, 0, y); ctx.fillStyle = fill; ctx.fillText(s, 0, y); };
     txt("UNLIMITED PNEUMAN", -h * 0.33, h * 0.12, "#fff8dc");
-    txt(`+${cd.n}`, -h * 0.04, h * 0.36, "#ffffff");
-    ctx.font = `800 ${h * 0.085}px Nunito, sans-serif`; ctx.fillStyle = "#5a3a00"; ctx.fillText(`${cd.n} of ${cd.of} cushions`, 0, h * 0.2);
+    txt(`+${cd.n + (cd.bonus || 0)}`, -h * 0.06, h * 0.34, "#ffffff");
+    ctx.font = `800 ${h * 0.08}px Nunito, sans-serif`; ctx.fillStyle = "#5a3a00";
+    const combos = [cd.doubles ? `${cd.doubles} double${cd.doubles > 1 ? "s" : ""}` : "", cd.triples ? `${cd.triples} triple${cd.triples > 1 ? "s" : ""}` : ""].filter(Boolean).join(", ");
+    ctx.fillText(`${cd.n} of ${cd.of} cushions${combos ? ` · ${combos}` : ""}`, 0, h * 0.19);
     txt(upWord(cd.n), h * 0.35, h * 0.13, "#ff5a36", "#fff8dc");
     ctx.restore();
   }
   function endUp(g) {
     const n = g.upHits || 0;
     // the score card: big in the middle a moment, then off to the corner (see drawUpCard)
-    g.upCard = { t: 0, n, of: g.upLaunched || 0 };
+    g.upCard = { t: 0, n, of: g.upLaunched || 0, bonus: g.upBonus || 0, doubles: g.upDoubles || 0, triples: g.upTriples || 0 };
     g.upm = null; TRIG.on = false;
     for (const p of g.pizzas) if (p.gold) p.done = true;
     g.pizzas = g.pizzas.filter((p) => !p.done);
@@ -7305,7 +7319,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const pizzaPts = (p) => (p.ring ? RINGS[p.ring].pts : GUN.pts);
   function hitPizza(p, shot) {
     // (UP mode's gold cushions: 1 point each, counted on their own)
-    if (p.gold) { const g = S.gun; g.upHits = (g.upHits || 0) + 1; S.score += 1; S.upScore = (S.upScore || 0) + 1; shot.scores++; shot.at = [p.x, p.y, p.z]; burstPizza(p); hud(); return; }
+    if (p.gold) { const g = S.gun; g.upHits = (g.upHits || 0) + 1; S.score += 1; S.upScore = (S.upScore || 0) + 1; shot.scores++; shot.pizzas++; shot.at = [p.x, p.y, p.z]; burstPizza(p); hud(); return; }
     const g = S.gun, pts = pizzaPts(p);
     g.hits++; S.score += pts; shot.scores++; shot.pizzas++;
     if (shot.pull) { shot.pull.hits++; shot.pull.by.add(shot); }
@@ -7404,8 +7418,19 @@ body.lab .stage > :not(canvas) { display: none; }
     S.best = { rank: a.rank, snap: c };
   }  // all five mini spuds of a shot are done: what it did, chained, and a call for two scores or more
   function shotDone(shot) {
-    // (UP mode's shots come four a second: no notes, calls or Re-live it for them)
-    if (shot.up) return;
+    // (UP mode's shots come four a second: no notes or Re-live it for them; two or three with one shot is a DOUBLE!
+    // or TRIPLE!, with its bonus, called out up the middle)
+    if (shot.up) {
+      const g = S.gun, n = shot.pizzas;
+      if (n >= 2 && g) {
+        const tri = n >= 3, pts = tri ? UP.triple : UP.double, at = shot.at || [0, 12, 50];
+        S.score += pts; S.upScore = (S.upScore || 0) + pts; g.upBonus = (g.upBonus || 0) + pts;
+        if (tri) g.upTriples = (g.upTriples || 0) + 1; else g.upDoubles = (g.upDoubles || 0) + 1;
+        S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${tri ? "TRIPLE!" : "DOUBLE!"} +${pts}`, col: tri ? "#ff2fa8" : "#1e9be0", fancy: true, size: clamp(W * 0.04, 22, 38), t: 0 });
+        sfx[tri ? "zaTriple" : "zaDouble"](); hud();
+      }
+      return;
+    }
     let text = shot.items.length ? shot.items.join(" → ") : "Missed!";
     const pu = shot.pull, rank = !pu ? 0 : pu.n >= 3 && pu.hits >= 3 ? 4 : pu.hits >= 2 && pu.drone ? 3 : shot.pizzas >= 2 ? 1 : pu.hits >= 2 && pu.by.size >= 2 ? 2 : 0;
     // (rank 2, Double Za, is worth less than rank 1, Two Fer Za, so "better" is by points)
@@ -8209,7 +8234,7 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
     const big = (txt, yy, size, col) => { ctx.font = `400 ${size}px "Lilita One", Nunito, sans-serif`; ctx.lineWidth = size * 0.2; ctx.strokeStyle = "#5a3a00"; ctx.strokeText(txt, W / 2, yy); ctx.fillStyle = col; ctx.fillText(txt, W / 2, yy); };
     big(`UNLIMITED PNEUMAN! ${clock}`, y, fs, secs <= 5 && Math.sin(now * 12) > 0 ? "#ffffff" : "#ffd23a");
-    big(`+${g.upHits || 0}`, y + fs * 1.05, fs * 0.8, "#fff4c2");
+    big(`+${(g.upHits || 0) + (g.upBonus || 0)}`, y + fs * 1.05, fs * 0.8, "#fff4c2");
   }
   // ---- the prototypes: five MP 10s (V1 to V5) standing in wooden cabinets with glass fronts, like fire-hose
   // cabinets, in a cluster across the bottom of the view, a wooden plaque under them. A cabinet is drawn in its own
@@ -8329,7 +8354,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the skeetzas hit, as a round pizza and a count, beside the pair: the row below then has room to spare)
     $("gunOut").innerHTML = `<span class="pz">${S.scene.gp ? lvl().icon + " " : PIZZA_ICON}${g.hits}</span><span class="sep"> · </span>${pullWord()} ${Math.max(1, g.pulls)}/${GUN.pulls}`;
     const lb = document.querySelector(".ctl-gun .lbl"); if (lb) lb.textContent = g.upm ? `${gunName()} · UNLIMITED!` : `${gunName()} · 120 PSI`;
-    if (g.upm) $("gunOut").innerHTML = `<span class="pz">${lvl().icon} ${g.hits}</span><span class="sep"> · </span>UP +${g.upHits || 0}`;
+    if (g.upm) $("gunOut").innerHTML = `<span class="pz">${lvl().icon} ${g.hits}</span><span class="sep"> · </span>UP +${(g.upHits || 0) + (g.upBonus || 0)}`;
     // (the colours: a dot each, filled once that colour's skeetza is hit; then the skeetzas hit, and drones down)
     const down = g.drones.filter((d) => d.state !== "fly").length;
     $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span>` +
@@ -10710,7 +10735,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const gp = {
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 24, z0: 6, z1: 90 },
       // (a cushion is drawn and hit a bit bigger than life, as it's seen from up on the ledge, 40 m and more away)
-      tR: 1.15, minPitch: 0.5, pace: 0.95, noFollow: true, pelletSpeed: 185,
+      tR: 1.15, minPitch: 0.5, pace: 0.95, noFollow: true, pelletSpeed: 205,
       // UP mode: earned once the drone's down and the nav buoy's been hit; the gold cushions go up from the same four
       // spots and cross all over the water in front, a little higher
       upReady: () => S.gun.drones.some((d) => d.state !== "fly") && NAV.hitAt != null,
@@ -10719,7 +10744,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
       // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
-      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; HW.hitAt = null; lifeReset(); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset(); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
       smash(i, at) {
         const w = HYDRO_WINDOWS[i];
@@ -10729,14 +10754,17 @@ body.lab .stage > :not(canvas) { display: none; }
       },
       // three at a time: three of the four spots, so two from one side and one from the other
       pair(L) { const a = pick(L), b = pick(L.filter((l) => l !== a)); return [a, b, pick(L.filter((l) => l !== a && l !== b))]; },
-      // where they cross: out over the water in front of the ledge, a little above eye level
-      cross: (a, b) => [(a.x + b.x) * 0.1 + rnd(-5, 5), rnd(11, 15), rnd(50, 60)],
-      // long, lofted arcs from 60-odd metres off, well on their way down as they cross, so they splash down out in
-      // front (30-45 m out), still in view
-      flight: (a, b, C) => Math.max(rnd(3.9, 4.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 20)),
+      // where they cross: half the pulls (gp.sweep, picked for each pull from the round's seed) sweep across out
+      // between the powerhouse and the boathouse, crossing 74-86 m out and coming down past the middle of the lake;
+      // the rest come toward you, crossing out over the water in front of the ledge, a little above eye level
+      sweep: false,
+      cross: (a, b) => (gp.sweep ? [(a.x + b.x) * 0.25 + rnd(-8, 8), rnd(13, 17), rnd(74, 86)] : [(a.x + b.x) * 0.1 + rnd(-5, 5), rnd(11, 15), rnd(50, 60)]),
+      // long, lofted arcs, well on their way down as they cross: the sweeping ones mostly sideways, not too quick
+      // (they're farther off: at 19 m/s across they were twice as hard to hit as the near ones); the near ones from 60-odd metres off, splashing down out in front (30-45 m out), still in view
+      flight: (a, b, C) => (C[2] > 70 ? Math.max(rnd(3.9, 4.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 14)) : Math.max(rnd(3.9, 4.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 20))),
       calls: { 1: { text: "Two Fer Splash!", name: "Two Fer Splash" }, 2: { text: "Double Splash!", name: "Double Splash" } },
       kind: () => (Math.random() < 0.5 ? "cushion" : "cushionR"),
-      newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
+      newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; gp.sweep = Math.random() < 0.5; },
       drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * gp.pace; p.vz += gp.wind.z * 0.16 * dt * gp.pace; },
       floor: () => 0,
       // down in the water: a splash, and it floats there
