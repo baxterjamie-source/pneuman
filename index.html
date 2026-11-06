@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.90</p>
+  <p class="ver">Pneuman v1.91</p>
 </div>
 
 <script>
@@ -7091,6 +7091,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const UP = { secs: 30, every: 0.25, inAir: 6, spawnGap: 0.28 };
   const TRIG = { on: false };
   function startUp(g) {
+    // (a call still waiting for the pull's targets to come down: now, before UP clears them away)
+    if (g.callQ) { const f = g.callQ; g.callQ = null; f(); }
     g.upm = { left: UP.secs, spawnT: 0, fireT: 0, was: g.phase };
     g.upDone = true; g.upHits = 0; g.upLaunched = 0;
     // (the round's cushions in the air are gone, a puff where each was)
@@ -7415,11 +7417,17 @@ body.lab .stage > :not(canvas) { display: none; }
       S.bonus += add; S.bonusItems = S.bonusItems || [];
       if (was) { const i = S.bonusItems.lastIndexOf(was.name); if (i >= 0) S.bonusItems.splice(i, 1); }
       S.bonusItems.push(z.name);
-      S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${z.text} +${add}`, col: z.col, fancy: true, t: 0 });
-      sfx[z.sound]();
-      // the round's best moment so far, for its postcard (Amazing Triple, then Two Fer Za, then Double Za: by points;
-      // the first, of two as good): the screen as you see it once the call has bounced in, the action and all
-      if (z.pts > Math.max(S.best ? S.best.rank : 0, S.snapAt ? S.snapAt.rank : 0)) S.snapAt = { t: performance.now() + 450, rank: z.pts };
+      // the big call, its jingle and the postcard's snapshot wait till the last of the pull's targets is down (hit or
+      // landed): up in the middle of the screen with one still to shoot, it was in the way. The points are in now; a
+      // better call later in the same pull takes its place, showing its full points
+      const show = () => {
+        S.pops.push({ x: at[0], y: at[1] + 0.6, z: at[2], text: `${z.text} +${z.pts}`, col: z.col, fancy: true, t: 0 });
+        sfx[z.sound]();
+        // the round's best moment so far, for its postcard (Amazing Triple, then Two Fer Za, then Double Za: by
+        // points; the first, of two as good): the screen as you see it once the call has bounced in, the action and all
+        if (z.pts > Math.max(S.best ? S.best.rank : 0, S.snapAt ? S.snapAt.rank : 0)) S.snapAt = { t: performance.now() + 450, rank: z.pts };
+      };
+      if (S.gun.pizzas.some((p) => !p.done)) S.gun.callQ = show; else { S.gun.callQ = null; show(); }
       text = `${z.text} +${add} bonus! ${text}`;
       hud();
     } else if (shot.scores >= 2) {
@@ -7646,6 +7654,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape, ph: p.wob, gold: p.gold }); S.scene.gp ? (S.scene.gp.land ? S.scene.gp.land(p) : sfx.thunk()) : sfx.splat(); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
+    // (a call held back while the pull's targets were still up: now they're all down)
+    if (g.callQ && !g.pizzas.length) { const f = g.callQ; g.callQ = null; f(); }
     gunFollow(g, dt);
     movePellets(g, dt, LIVE_HITS);
     for (const b of g.booms) b.t += dt;
