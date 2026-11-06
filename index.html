@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.93</p>
+  <p class="ver">Pneuman v1.94</p>
 </div>
 
 <script>
@@ -10218,8 +10218,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // the race course: lines of little buoys across the water (white, every fourth orange), bobbing a little
     // (out beyond where the cushions cross and come down, between the powerhouse and the boathouse, so the rowers on
     // it are only hit by a stray shot)
-    // (now in at 60-69 m, with the quads: across the water from shore to shore, past the edges of the screen)
-    const LANES = [59.5, 64.5, 69.5].map((z) => ({ z, xs: Array.from({ length: 30 }, (_, i) => -58 + i * 4).filter((x) => x > lerpLine(LEFT, z) + 3 && x < lerpLine(RIGHT, z) - 3) }));
+    // (out with the quads, 88-104 m: across the water from the dam to short of the boathouse's docks)
+    const LANES = [88, 96, 104].map((z) => ({ z, xs: Array.from({ length: 20 }, (_, i) => -36 + i * 4).filter((x) => x > lerpLine(LEFT, z) + 3 && x < 30) }));
     function laneBuoys() {
       const t = T();
       for (const l of LANES) l.xs.forEach((x, i) => {
@@ -10531,8 +10531,9 @@ body.lab .stage > :not(canvas) { display: none; }
       drawFlagPole(flag);
     }
     // the big green navigation buoy: a can on the water, bobbing and rocking a little, its number and a light on top
-    // (hitAt: when it was hit, the +5 bonus: it rocks hard, settling, and its light flashes fast for a while)
-    const NAV = { x: 12, z: 76, hitAt: null };
+    // (hitAt: when it was hit, the +5 bonus: it rocks hard, settling, and its light flashes fast for a while. x, z:
+    // where it is, a new spot each round, see gp.reset)
+    const NAV = { x: 12, z: 116, hitAt: null };
     function drawNav(mir = false) {
       const t = T(), since = NAV.hitAt != null ? (S.gun ? S.gun.t : t) - NAV.hitAt : 99, rock = since < 6 ? 0.4 * Math.exp(-since * 0.6) * Math.sin(since * 5) : 0;
       const bob = Math.sin(t * 1.3) * 0.12, lean = Math.sin(t * 0.9) * 0.06 + rock, sg = mir ? -1 : 1;
@@ -10597,22 +10598,35 @@ body.lab .stage > :not(canvas) { display: none; }
     // paddling about below the ledge. Where they are goes by the round's clock, so Re-live it sees them the same ----
     const gt = () => (S.gun ? S.gun.t : T());
     // (a quad goes up and down the course, slowing to turn at each end: x along the course, dir the way it's heading)
-    // (the course is in close enough, 62-67 m out, that the water runs on past both edges of the screen: they row
-    // right off each side, turn out of sight, and come back. x0, x1: where each one turns, past the edges even on a
-    // wide laptop screen, and short of the shore on the right)
+    // (the course is out deep, 92-100 m, beyond where the cushions cross: they row the width of the water there and
+    // turn, slowing, near the dam on the left and short of the boathouse's docks on the right. x0, x1: where each
+    // one turns)
     const QUADS = [
-      { lane: 62, x0: -56, x1: 50, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
-      { lane: 67, x0: -56, x1: 48, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
+      { lane: 92, x0: -32, x1: 24, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
+      { lane: 100, x0: -32, x1: 22, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
     ];
     const COURSE = { speed: 4 };
-    const quadAt = (q, t) => { const L = q.x1 - q.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (q.x0 + q.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1 }; };
+    // (v: how fast it's going, 0 at the turns to 1 flat out)
+    const quadAt = (q, t) => { const L = q.x1 - q.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (q.x0 + q.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1, v: Math.abs(Math.cos(a)) }; };
     // (its coach, a few seconds behind it along the course and nearer the ledge)
     const launchAt = (q, t) => { const p = quadAt(q, t - 2.6); return { x: p.x, z: q.lane - 5, dir: p.dir }; };
     const LAUNCH_HIT = QUADS.map(() => ({ hitAt: null }));
     function drawQuad(q) {
-      const t = gt(), { x, dir } = quadAt(q, t), z = q.lane, b = P(x, 0, z); if (b.behind) return;
+      const t = gt(), { x, dir, v } = quadAt(q, t), z = q.lane, b = P(x, 0, z); if (b.behind) return;
       const s = b.s, C = (c) => wh(c, x, z), st = t * 3.3 + q.ph * 5, hit = q.hitAt != null && t - q.hitAt < 2.5;
       const pt = (dx, y, dz = 0) => P(x + dx * dir, y, z + dz);
+      // its wake: a white V spreading out behind the stern, and the oars' puddles along the sides (strong at speed,
+      // fading as it slows to turn), so the boats stand out on the water from the ledge
+      if (v > 0.08) {
+        ctx.lineCap = "round";
+        for (const side of [-1, 1]) {
+          const a = pt(-6.6, 0.02, 0), m = pt(-6.6 - 7 * v, 0.02, side * 1.1 * v), e = pt(-6.6 - 14 * v, 0.02, side * 2.4 * v);
+          if (a.behind || e.behind) continue;
+          ctx.strokeStyle = `rgba(250,250,246,${(0.75 * v).toFixed(2)})`; ctx.lineWidth = Math.max(1, 0.18 * s);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(m.x, m.y, e.x, e.y); ctx.stroke();
+        }
+        for (const k of [-3.3, -1.1, 1.1, 3.3]) for (const side of [-1, 1]) { const pq = pt(k - 1.2, 0.01, side * 2.9); if (!pq.behind) { ctx.fillStyle = `rgba(250,250,246,${(0.45 * v).toFixed(2)})`; ctx.beginPath(); ctx.ellipse(pq.x, pq.y, 0.35 * s, 0.08 * s, 0, 0, 7); ctx.fill(); } }
+      }
       // the far oars first (behind the shell), then the shell, the scullers, and the near oars
       const oar = (k, side) => {
         const lock = pt(k, 0.35, side * 0.55), drive = Math.sin(st), sweep = -Math.cos(st) * 1.1, bladeY = drive > 0 && !hit ? -0.02 : 0.35;
@@ -10744,7 +10758,10 @@ body.lab .stage > :not(canvas) { display: none; }
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
       // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
-      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset(); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
+      // (the nav buoy is somewhere new each round, from its seed: out beyond the rowers, 108-132 m, across the
+      // middle of the water)
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset();
+        withSeed(seedFor(S.seed, SEED.layout + 31), () => { NAV.x = rnd(-28, 26); NAV.z = rnd(108, 132); }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
       smash(i, at) {
         const w = HYDRO_WINDOWS[i];
@@ -10852,7 +10869,7 @@ body.lab .stage > :not(canvas) { display: none; }
       ...shoreTrees,
     ];
     // (the nav buoy bobs out on the open water, clear of everything standing: it's drawn with what moves)
-    const navItem = { x: NAV.x, z: NAV.z, draw: () => drawNav() };
+    const navItem = { get x() { return NAV.x; }, get z() { return NAV.z; }, draw: () => drawNav() };
 
     // ---- speed: everything that stays still (the sky, the water, the far shore, the reflections, the banks, the
     // hundreds of trees) is drawn once into pictures and only those pictures are drawn each frame. The view here
