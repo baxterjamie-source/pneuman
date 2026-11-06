@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.94</p>
+  <p class="ver">Pneuman v1.95</p>
 </div>
 
 <script>
@@ -10218,8 +10218,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // the race course: lines of little buoys across the water (white, every fourth orange), bobbing a little
     // (out beyond where the cushions cross and come down, between the powerhouse and the boathouse, so the rowers on
     // it are only hit by a stray shot)
-    // (out with the quads, 88-104 m: across the water from the dam to short of the boathouse's docks)
-    const LANES = [88, 96, 104].map((z) => ({ z, xs: Array.from({ length: 20 }, (_, i) => -36 + i * 4).filter((x) => x > lerpLine(LEFT, z) + 3 && x < 30) }));
+    // (out with the quads, 230-244 m: across the water, short of the far shore)
+    const farZ = (x) => { for (let i = 1; i < FAR.length; i++) { const [x0, z0] = FAR[i - 1], [x1, z1] = FAR[i]; if (x <= x1) return z0 + (z1 - z0) * clamp((x - x0) / (x1 - x0 || 1), 0, 1); } return FAR[FAR.length - 1][1]; };
+    const LANES = [230, 237, 244].map((z) => ({ z, xs: Array.from({ length: 50 }, (_, i) => -96 + i * 4).filter((x) => z < farZ(x) - 3) }));
     function laneBuoys() {
       const t = T();
       for (const l of LANES) l.xs.forEach((x, i) => {
@@ -10598,14 +10599,14 @@ body.lab .stage > :not(canvas) { display: none; }
     // paddling about below the ledge. Where they are goes by the round's clock, so Re-live it sees them the same ----
     const gt = () => (S.gun ? S.gun.t : T());
     // (a quad goes up and down the course, slowing to turn at each end: x along the course, dir the way it's heading)
-    // (the course is out deep, 92-100 m, beyond where the cushions cross: they row the width of the water there and
-    // turn, slowing, near the dam on the left and short of the boathouse's docks on the right. x0, x1: where each
-    // one turns)
+    // (the course is far out, 234-240 m, just in front of the far shore, from off the powerhouse to off the
+    // boathouse as seen from the ledge: they row across and turn, slowing, at each end. x0, x1: where each one turns,
+    // the left end short of where the far shore curves in)
     const QUADS = [
-      { lane: 92, x0: -32, x1: 24, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
-      { lane: 100, x0: -32, x1: 22, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
+      { lane: 234, x0: -86, x1: 92, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
+      { lane: 240, x0: -84, x1: 92, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
     ];
-    const COURSE = { speed: 4 };
+    const COURSE = { speed: 4.5 };
     // (v: how fast it's going, 0 at the turns to 1 flat out)
     const quadAt = (q, t) => { const L = q.x1 - q.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (q.x0 + q.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1, v: Math.abs(Math.cos(a)) }; };
     // (its coach, a few seconds behind it along the course and nearer the ledge)
@@ -10758,10 +10759,13 @@ body.lab .stage > :not(canvas) { display: none; }
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
       // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
-      // (the nav buoy is somewhere new each round, from its seed: out beyond the rowers, 108-132 m, across the
-      // middle of the water)
+      // (the nav buoy is somewhere new each round, from its seed: half the time well in front of the rowers
+      // (195-222 m), half the time behind them, between them and the far shore, where the shore's far enough back)
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset();
-        withSeed(seedFor(S.seed, SEED.layout + 31), () => { NAV.x = rnd(-28, 26); NAV.z = rnd(108, 132); }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
+        withSeed(seedFor(S.seed, SEED.layout + 31), () => {
+          if (Math.random() < 0.5) { NAV.x = rnd(-50, 60); NAV.z = rnd(195, 222); }
+          else { NAV.x = rnd(-20, 55); NAV.z = rnd(250, Math.max(252, farZ(NAV.x) - 8)); }
+        }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
       smash(i, at) {
         const w = HYDRO_WINDOWS[i];
@@ -10815,7 +10819,8 @@ body.lab .stage > :not(canvas) { display: none; }
         // the rowers, their coaches, the gull, the duck
         if (!upNow && lifeHit(pl, hits)) return "hit";
         // the green nav buoy, +5 (once a round)
-        if (!upNow && NAV.hitAt == null && Math.abs(pl.x - NAV.x) < 0.75 && Math.abs(pl.z - NAV.z) < 0.75 && pl.y > 0 && pl.y < 2.1) {
+        // (a little more forgiving than the buoy itself: it's 200-odd metres out now)
+        if (!upNow && NAV.hitAt == null && Math.abs(pl.x - NAV.x) < 1.3 && Math.abs(pl.z - NAV.z) < 1.3 && pl.y > 0 && pl.y < 2.6) {
           hits.bonus({ name: "nav buoy", label: "nav buoy", pts: 5, at: [NAV.x, 1.5, NAV.z], react: () => { NAV.hitAt = S.gun.t; sfx.clank(); S.pops.push({ x: NAV.x, y: 2.6, z: NAV.z, text: "BONG!", t: 0 }); } }, pl.shot);
           return "hit";
         }
