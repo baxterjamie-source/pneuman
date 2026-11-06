@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.95</p>
+  <p class="ver">Pneuman v1.96</p>
 </div>
 
 <script>
@@ -10218,9 +10218,15 @@ body.lab .stage > :not(canvas) { display: none; }
     // the race course: lines of little buoys across the water (white, every fourth orange), bobbing a little
     // (out beyond where the cushions cross and come down, between the powerhouse and the boathouse, so the rowers on
     // it are only hit by a stray shot)
-    // (out with the quads, 230-244 m: across the water, short of the far shore)
-    const farZ = (x) => { for (let i = 1; i < FAR.length; i++) { const [x0, z0] = FAR[i - 1], [x1, z1] = FAR[i]; if (x <= x1) return z0 + (z1 - z0) * clamp((x - x0) / (x1 - x0 || 1), 0, 1); } return FAR[FAR.length - 1][1]; };
-    const LANES = [230, 237, 244].map((z) => ({ z, xs: Array.from({ length: 50 }, (_, i) => -96 + i * 4).filter((x) => z < farZ(x) - 3) }));
+    // (with the quads, on whichever course this round has: across the water, clear of the dam, the shores and the
+    // boathouse's docks. waterX: where the water is across, at a distance z)
+    const waterX = (z) => [z < 86 ? lerpLine(LEFT, z) : z <= 120 ? DAM.x : lerpLine(LEFT_FAR, z), z >= 76 && z <= 110 ? DOCK.x0 - 2 : lerpLine(RIGHT, z)];
+    const LANES = [];
+    function setRoute(rt) {
+      QUADS.forEach((q, i) => Object.assign(q, { lane: rt.lanes[i], x0: rt.x0[i], x1: rt.x1[i] }));
+      LANES.length = 0;
+      for (const z of rt.buoys) { const [a, b] = waterX(z); LANES.push({ z, xs: Array.from({ length: 40 }, (_, i) => -78 + i * 4).filter((x) => x > a + 3 && x < b - 3) }); }
+    }
     function laneBuoys() {
       const t = T();
       for (const l of LANES) l.xs.forEach((x, i) => {
@@ -10599,14 +10605,22 @@ body.lab .stage > :not(canvas) { display: none; }
     // paddling about below the ledge. Where they are goes by the round's clock, so Re-live it sees them the same ----
     const gt = () => (S.gun ? S.gun.t : T());
     // (a quad goes up and down the course, slowing to turn at each end: x along the course, dir the way it's heading)
-    // (the course is far out, 234-240 m, just in front of the far shore, from off the powerhouse to off the
-    // boathouse as seen from the ledge: they row across and turn, slowing, at each end. x0, x1: where each one turns,
-    // the left end short of where the far shore curves in)
-    const QUADS = [
-      { lane: 234, x0: -86, x1: 92, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
-      { lane: 240, x0: -84, x1: 92, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
+    // (two courses, one picked each round from its seed (see gp.reset), so it isn't always the same. Either way they
+    // go out of sight at each end, turn there, and come back: about 66-71 m out the water runs on past both edges of
+    // the screen, so they row right off each side; out about 120 m, between the powerhouse and the boathouse, the
+    // water's narrower than the view, so they row in behind those and turn there, hidden. x0, x1: where each one
+    // turns (past the screen's edge, or behind a building: rowing over the shore out there, unseen); buoys: the race
+    // course's lines of little buoys; nav: where the green nav buoy may go, in front of the course or behind it)
+    const ROUTES = [
+      { lanes: [66, 71], x0: [-56, -60], x1: [56, 60], buoys: [63, 68.5, 74], navFront: [48, 56], navBack: [88, 110] },
+      { lanes: [118, 124], x0: [-54, -56], x1: [59, 62], buoys: [115, 121, 127], navFront: [96, 106], navBack: [140, 165] },
     ];
-    const COURSE = { speed: 4.5 };
+    const QUADS = [
+      { lane: 66, x0: -50, x1: 48, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
+      { lane: 71, x0: -52, x1: 50, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
+    ];
+    const COURSE = { speed: 4.2 };
+    setRoute(ROUTES[0]);
     // (v: how fast it's going, 0 at the turns to 1 flat out)
     const quadAt = (q, t) => { const L = q.x1 - q.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (q.x0 + q.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1, v: Math.abs(Math.cos(a)) }; };
     // (its coach, a few seconds behind it along the course and nearer the ledge)
@@ -10759,12 +10773,15 @@ body.lab .stage > :not(canvas) { display: none; }
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
       // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
-      // (the nav buoy is somewhere new each round, from its seed: half the time well in front of the rowers
-      // (195-222 m), half the time behind them, between them and the far shore, where the shore's far enough back)
+      // (each round, from its seed: which of the two courses the rowers have, and where the nav buoy is, in front of
+      // their course or well behind it, across the water there)
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; gp.sweep = false; HW.hitAt = null; lifeReset();
         withSeed(seedFor(S.seed, SEED.layout + 31), () => {
-          if (Math.random() < 0.5) { NAV.x = rnd(-50, 60); NAV.z = rnd(195, 222); }
-          else { NAV.x = rnd(-20, 55); NAV.z = rnd(250, Math.max(252, farZ(NAV.x) - 8)); }
+          const rt = ROUTES[Math.random() < 0.5 ? 0 : 1];
+          setRoute(rt);
+          const zr = Math.random() < 0.5 ? rt.navFront : rt.navBack;
+          NAV.z = rnd(zr[0], zr[1]);
+          const [a, b] = waterX(NAV.z); NAV.x = rnd(Math.max(a + 8, -40), Math.min(b - 8, 40));
         }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
       smash(i, at) {
