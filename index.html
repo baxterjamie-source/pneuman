@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.99</p>
+  <p class="ver">Pneuman v2.00</p>
 </div>
 
 <script>
@@ -925,6 +925,8 @@ body.lab .stage > :not(canvas) { display: none; }
     hitSkeet: (wood) => sample("hitskeet", 1, 2) || (wood ? sfx.thunk() : sfx.splatT()),
     // a boat cushion hit, at the Reservoir: its recording (cushion.mp3, up to 2 s), else the skeet hit's
     cushion: () => sample("cushion", 1, 2) || sfx.hitSkeet(false),
+    // the MP 10 or MP 15 fired with its chambers empty: a dry metallic click (dryfire.mp3 if one's added)
+    dryFire: () => sample("dryfire") || (tone(2400, 1500, 0.025, 0.16, "square"), noise(0.035, 3200, 0.22, 1800), tone(900, 700, 0.04, 0.06, "triangle", 0.012)),
     // a pair going up, in Skeetza and Milling alike: its recording (launch.mp3, cut at 1.5 s), or a quick rising whoosh,
     // once for each of the two, the second LAUNCH_GAP s after the first (the sound only: both go up together)
     pull: () => { for (const d of [0, LAUNCH_GAP]) sample("launch", 1, 1.5, d) || tone(160, 520, 0.28, 0.1, "sawtooth", d); },
@@ -7193,7 +7195,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const gunCanAct = () => {
     const g = S.gun;
     if (g && g.upm && S.phase === "gun") return true;
-    return !!g && S.phase === "gun" && (g.phase === "table" ? g.guns.some((x) => x.ready) : (g.phase === "ready" || g.phase === "live") && g.shots < gunBarrels());
+    // (the trigger can be pulled while the gun's up even when it's empty: a dry click, see shoot)
+    return !!g && S.phase === "gun" && (g.phase === "table" ? g.guns.some((x) => x.ready) : g.phase === "ready" || g.phase === "live");
   };
   function gunAction() {
     const g = S.gun;
@@ -7301,8 +7304,9 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function shoot() {
     const g = S.gun;
-    // (in UP mode it never runs out: nothing's counted)
-    if (!g.upm && (g.shots >= gunBarrels() || S.spudsLeft <= 0)) return;
+    // (in UP mode it never runs out: nothing's counted. Empty, with the gun still up, a trigger pull is a dry click,
+    // so you know its chambers are spent)
+    if (!g.upm && (g.shots >= gunBarrels() || S.spudsLeft <= 0)) { if (g.phase === "live" || g.phase === "ready") sfx.dryFire(); return; }
     if (!g.upm) { g.shots++; S.spudsLeft--; }
     // (which barrel it was, left to right: the first shot the left one, then the next; in UP mode round and round)
     g.barrel = g.upm ? (g.upCount = (g.upCount || 0) + 1, (g.upCount - 1) % gunBarrels()) : (g.shots - 1) % gunBarrels();
