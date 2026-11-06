@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.00</p>
+  <p class="ver">Pneuman v2.01</p>
 </div>
 
 <script>
@@ -8020,7 +8020,9 @@ body.lab .stage > :not(canvas) { display: none; }
   function burstCushion(p) {
     p.done = true;
     sfx.cushion();
-    S.pops.push({ x: p.x, y: p.y - 0.5, z: p.z, text: pick(CUSHION_POPS), t: 0 });
+    // (not in UP mode: four shots a second, the white bubbles over every hit were a blizzard; its DOUBLE / TRIPLE /
+    // QUADRUPLE calls still show)
+    if (!p.gold) S.pops.push({ x: p.x, y: p.y - 0.5, z: p.z, text: pick(CUSHION_POPS), t: 0 });
     S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
     // it bursts: shreds of vinyl in its colour, chunks of yellow foam, bits of the white label
     const col = p.ring ? RINGS[p.ring].color : cushionPlain(p)[0];
