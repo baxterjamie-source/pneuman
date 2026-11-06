@@ -503,7 +503,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v1.91</p>
+  <p class="ver">Pneuman v1.92</p>
 </div>
 
 <script>
@@ -10193,7 +10193,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // the race course: lines of little buoys across the water (white, every fourth orange), bobbing a little
     // (out beyond where the cushions cross and come down, between the powerhouse and the boathouse, so the rowers on
     // it are only hit by a stray shot)
-    const LANES = [92, 100, 108].map((z) => ({ z, xs: Array.from({ length: 16 }, (_, i) => -30 + i * 4) }));
+    // (now in at 60-69 m, with the quads: across the water from shore to shore, past the edges of the screen)
+    const LANES = [59.5, 64.5, 69.5].map((z) => ({ z, xs: Array.from({ length: 30 }, (_, i) => -58 + i * 4).filter((x) => x > lerpLine(LEFT, z) + 3 && x < lerpLine(RIGHT, z) - 3) }));
     function laneBuoys() {
       const t = T();
       for (const l of LANES) l.xs.forEach((x, i) => {
@@ -10571,12 +10572,15 @@ body.lab .stage > :not(canvas) { display: none; }
     // paddling about below the ledge. Where they are goes by the round's clock, so Re-live it sees them the same ----
     const gt = () => (S.gun ? S.gun.t : T());
     // (a quad goes up and down the course, slowing to turn at each end: x along the course, dir the way it's heading)
+    // (the course is in close enough, 62-67 m out, that the water runs on past both edges of the screen: they row
+    // right off each side, turn out of sight, and come back. x0, x1: where each one turns, past the edges even on a
+    // wide laptop screen, and short of the shore on the right)
     const QUADS = [
-      { lane: 96, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
-      { lane: 104, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
+      { lane: 62, x0: -56, x1: 50, ph: 0, shell: "#f4f1ea", top: "#c0392b", hitAt: null },
+      { lane: 67, x0: -56, x1: 48, ph: 2.2, shell: "#f2c21b", top: "#1f4e8a", hitAt: null },
     ];
-    const COURSE = { x0: -27, x1: 24, speed: 4 };
-    const quadAt = (q, t) => { const L = COURSE.x1 - COURSE.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (COURSE.x0 + COURSE.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1 }; };
+    const COURSE = { speed: 4 };
+    const quadAt = (q, t) => { const L = q.x1 - q.x0, w = (2 * COURSE.speed) / L, a = w * t + q.ph; return { x: (q.x0 + q.x1) / 2 + (L / 2) * Math.sin(a), dir: Math.cos(a) >= 0 ? 1 : -1 }; };
     // (its coach, a few seconds behind it along the course and nearer the ledge)
     const launchAt = (q, t) => { const p = quadAt(q, t - 2.6); return { x: p.x, z: q.lane - 5, dir: p.dir }; };
     const LAUNCH_HIT = QUADS.map(() => ({ hitAt: null }));
