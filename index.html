@@ -320,7 +320,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .wrap {
     max-width: none; height: 100dvh; min-height: 0; gap: 6px;
     padding: 4px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));
-    grid-template-columns: clamp(140px, 21vw, 200px) minmax(0, 1fr) clamp(140px, 21vw, 200px); grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: clamp(108px, 15vw, 150px) minmax(0, 1fr) clamp(108px, 15vw, 150px); grid-template-rows: auto minmax(0, 1fr) auto auto;
   }
   header { grid-column: 1 / -1; grid-row: 1; }
   .tagline, .bblogo { display: none; }
@@ -340,19 +340,29 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   .ctl-rot { grid-column: 1; grid-row: 4; }
   .ctl-psi { grid-column: 3; grid-row: 3; }
   .tray .fire:not(.fire2) { grid-column: 3; grid-row: 4; width: auto; min-height: 30vh; }
-  .holes { gap: 1px; padding: 4px 3px; }
-  .holes b { flex-basis: 6px; min-width: 3px; }
+  .holes { gap: 1px; padding: 4px 2px; min-width: 0; overflow: hidden; }
+  .holes b { flex-basis: 4px; min-width: 2px; }
   .hole { display: none; }
-  .row { gap: 4px; }
-  .sq { width: 28px; }
-  .val { font-size: 1.15rem; }
+  .row { gap: 3px; min-width: 0; }
+  .sq { width: 24px; flex: none; }
+  .val { font-size: 1.05rem; }
+  /* (narrow sides: everything shrinks to fit, and no words spill out of a box or button) */
+  .ctl { min-width: 0; overflow: hidden; }
+  .ctl-head { gap: 4px; min-width: 0; }
+  .ctl-head label, .ctl-head .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .row input[type=range] { min-width: 0; width: 100%; }
+  /* (pressure: just bleed and Pump; the number above shows the pressure) */
+  .ctl-psi input[type=range] { display: none; }
+  .pump { flex: 1; min-width: 0; padding: 4px 4px; font-size: .8rem; }
+  .tray .fire { min-width: 0; overflow: hidden; overflow-wrap: anywhere; padding-left: 4px; padding-right: 4px; }
+  .tray .fire small { font-size: .5rem; line-height: 1.15; }
   .ctl-head label, .ctl-head .lbl { font-size: .62rem; letter-spacing: .05em; }
   /* the start and end cards fit the short field: tighter, and they scroll if they still don't */
   .overlay { padding: 6px; }
   .card { padding: 10px 12px; gap: 6px; font-size: .88rem; }
   /* with a gun: narrow sides, all FIRE / GRAB (left and right thumbs); its counts box up in the top row, and no
      spuds chip (the box shows the barrels) */
-  .gunmode .wrap { grid-template-columns: clamp(78px, 12vw, 120px) minmax(0, 1fr) clamp(78px, 12vw, 120px); }
+  .gunmode .wrap { grid-template-columns: clamp(58px, 8.5vw, 96px) minmax(0, 1fr) clamp(58px, 8.5vw, 96px); }
   .gunmode .tray .fire2 { display: grid; grid-column: 1; grid-row: 2 / 5; align-self: stretch; width: auto; min-height: 0; }
   .gunmode .tray .fire:not(.fire2) { grid-column: 3; grid-row: 2 / 5; align-self: stretch; width: auto; min-height: 0; }
   .gunmode .tray .fire { font-size: 1.2rem; }
@@ -556,7 +566,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.02</p>
+  <p class="ver">Pneuman v2.03</p>
 </div>
 
 <script>
