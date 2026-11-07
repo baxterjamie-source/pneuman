@@ -287,15 +287,34 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 .ht-panel button { font-size: .85rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); }
 .ht-panel button.on { background: var(--yellow); }
 .ht-x { padding: 2px 9px !important; }
-.ht-cap { margin: 0; font-weight: 800; font-size: clamp(1rem, 2.6vw, 1.2rem); line-height: 1.3; min-height: 2.6em; }
 .ht-ctl { justify-content: flex-end; }
+#htWatch { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 #htNext { background: var(--yellow); }
 .ht-rules { max-height: min(70vh, 560px); overflow-y: auto; font-size: .92rem; }
 .ht-rules h3 { margin: 6px 0 4px; font-size: 1rem; }
 .ht-rules h3 small { font-weight: 600; opacity: .7; }
 .ht-rules ul { margin: 0 0 6px; padding-left: 1.2em; display: grid; gap: 4px; }
-.ht-ring { position: fixed; border: 4px solid #3ccf4e; border-radius: 14px; box-shadow: 0 0 0 3px rgba(35,48,58,.5); animation: ht-pulse 0.9s ease-in-out infinite; }
-@keyframes ht-pulse { 50% { transform: scale(1.06); opacity: .65; } }
+/* (v2.10) playing: a pulsing red border round the whole screen and a "● How to play" tag, like a recording light */
+.howto::before { content: ""; position: fixed; inset: 0; border: 5px solid #e53935; pointer-events: none; animation: ht-rec 1.6s ease-in-out infinite; }
+@keyframes ht-rec { 50% { border-color: rgba(229,57,53,.45); } }
+.ht-tag { position: fixed; left: 12px; bottom: 12px; background: #e53935; color: #fff; font-weight: 800; font-size: .8rem; padding: 3px 10px 3px 8px; border-radius: 999px;
+  display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 0 rgba(0,0,0,.3); pointer-events: none; }
+.ht-tag i { width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: ht-blink 1s steps(2, start) infinite; }
+@keyframes ht-blink { to { visibility: hidden; } }
+/* the caption, on the screen itself along the top (below the controls while they're down) */
+.ht-say { position: fixed; left: 50%; top: var(--say-top, 14px); transform: translateX(-50%); width: min(720px, calc(100vw - 32px)); margin: 0; pointer-events: none;
+  text-align: center; font-weight: 800; font-size: clamp(1.05rem, 3vw, 1.45rem); line-height: 1.3; color: #fff; background: rgba(35,48,58,.78); border-radius: 14px; padding: 8px 14px;
+  text-shadow: 0 2px 0 rgba(0,0,0,.35); transition: top .3s ease; }
+.ht-say:empty { display: none; }
+/* the controls slide up out of the way after 2 s; a tap anywhere brings them back */
+.ht-panel { transition: transform .3s ease, opacity .3s ease; }
+.ht-panel.tucked { transform: translate(-50%, calc(-100% - 20px)); opacity: 0; pointer-events: none; }
+/* a big green arrow, bobbing toward what's being talked about (it turns to come at it from above or below) */
+.ht-arrow { position: fixed; width: 54px; height: 76px; margin: 0 0 0 -27px; pointer-events: none; filter: drop-shadow(0 3px 0 rgba(0,0,0,.3)); transition: left .25s ease, top .25s ease; }
+.ht-arrow svg { width: 100%; height: 100%; display: block; animation: ht-bob .6s ease-in-out infinite; }
+.ht-arrow.up svg { transform: rotate(180deg); animation-name: ht-bob-up; }
+@keyframes ht-bob { 50% { transform: translateY(10px); } }
+@keyframes ht-bob-up { 0%, 100% { transform: rotate(180deg); } 50% { transform: rotate(180deg) translateY(10px); } }
 /* a small down arrow at the bottom of a card that runs past its space (v2.08): there's more below, scroll or tap */
 .scrollhint { position: fixed; z-index: 40; width: 34px; height: 34px; margin-left: -17px; border-radius: 50%; border: 3px solid var(--ink); background: var(--yellow);
   box-shadow: 0 3px 0 var(--ink); display: grid; place-items: center; padding: 0; cursor: pointer; animation: hint-bob 1.1s ease-in-out infinite; }
@@ -503,41 +522,45 @@ body.lab .stage > :not(canvas) { display: none; }
     <canvas class="fx" id="fx" aria-hidden="true"></canvas>
     <!-- Skeetza on a phone, 2 or fewer hit: how to hold it (a real two fer, with thumbs and callouts drawn over it) -->
     <!-- How to play (v2.09): Watch plays the real game by itself with captions; Rules is the written reference -->
+    <!-- (v2.10: the caption on the screen itself, the controls tucked away after 2 s (a tap brings them back), a red
+         border and tag while it plays, and big arrows at what's being talked about) -->
     <div class="howto" id="howto" hidden>
-      <div class="ht-block"></div>
-      <div class="ht-ring" id="htRing" hidden></div>
-      <div class="ht-panel" role="dialog" aria-label="How to play">
+      <div class="ht-block" id="htBlock"></div>
+      <div class="ht-tag" aria-hidden="true"><i></i>How to play</div>
+      <p class="ht-say" id="htSay" aria-live="polite"></p>
+      <div class="ht-arrow" id="htArrow" hidden><svg viewBox="0 0 60 84" aria-hidden="true"><path d="M30 80 L4 46 H19 V4 H41 V46 H56 Z" fill="#3ccf4e" stroke="#23303a" stroke-width="4" stroke-linejoin="round"/></svg></div>
+      <div class="ht-panel" id="htPanel" role="dialog" aria-label="How to play">
         <div class="ht-head"><b>How to play</b>
           <div class="ht-tabs"><button type="button" data-tab="watch" class="on">Watch</button><button type="button" data-tab="rules">Rules</button></div>
           <button type="button" class="ht-x" id="htClose" aria-label="Close">✕</button></div>
         <div id="htWatch">
-          <div class="ht-chaps"><button type="button" data-ch="launcher">The launcher</button><button type="button" data-ch="gun">The gun levels</button></div>
-          <p class="ht-cap" id="htCap" aria-live="polite"></p>
+          <div class="ht-chaps"><button type="button" data-ch="launcher">Cart Launcher levels</button><button type="button" data-ch="gun">MP levels</button></div>
           <div class="ht-ctl"><button type="button" id="htBack">◀ Back</button><button type="button" id="htPause">❚❚ Pause</button><button type="button" id="htNext">Next ▶</button></div>
         </div>
         <div class="ht-rules" id="htRules" hidden>
-          <h3>The launcher levels <small>(Pasture, Cul de sac, Lake, Harvest)</small></h3>
+          <h3>Cart Launcher levels <small>(Pasture, Cul de sac, Lake, Harvest)</small></h3>
           <ul>
-            <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then <b>fire</b>. On some levels the launcher rolls sideways on its wheels.</li>
+            <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then press <b>FIRE</b> to launch. On some levels the cart rolls sideways on its wheels.</li>
             <li><b>Rings:</b> orange 10, purple 15, blue 20, red 25. Each scores once. Some are spinners, targets on a tree or bale, or up on a roof.</li>
             <li><b>Objects</b> in the field (the junker, the trough, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
             <li><b>Ten spuds</b> a level. Clear every ring and each spare spud is +1.</li>
           </ul>
-          <h3>The gun levels <small>(Skeetza, Milling, Reservoir)</small></h3>
+          <h3>MP levels <small>(Skeetza, Milling, Reservoir)</small></h3>
           <ul>
-            <li><b>Grab</b> a loaded gun from its cabinet: the MP 10 has two barrels, the Reservoir's MP 15 three. <b>Aim</b> with the mouse or a finger; <b>fire</b> with the button, a click or Space.</li>
+            <li><b>Grab</b> a loaded MP from its cabinet: the MP 10 has two barrels, the Reservoir's MP 15 three. <b>Aim</b> with the mouse or a finger; <b>launch</b> with FIRE, a click or Space.</li>
             <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 10; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; spare barrels and skeet never launched are +1 each.</li>
             <li><b>Calls:</b> both of a pair with one barrel (Two Fer), both with a barrel each (Double), both and the drone (Amazing Triple).</li>
             <li>The <b>drone</b> (and each level's own bonuses) are a bonus; <b>workers, windows and animals cost 5</b>.</li>
-            <li><b>UP mode:</b> hit all of a level's bonuses to earn 30 s of UNLIMITED PNEUMAN. Hold to fire; waves of skeet worth 1 each, doubles +2, triples +5, quadruples +10.</li>
+            <li><b>UP mode:</b> hit all of a level's bonuses to earn 30 s of UNLIMITED PNEUMAN. Hold FIRE to keep launching; waves of skeet worth 1 each, doubles +2, triples +5, quadruples +10.</li>
           </ul>
           <h3>Everywhere</h3>
           <ul>
             <li><b>Difficulty:</b> meh, yup or gnarly, beside Play or in Settings. Harder means smaller, farther targets, more wind, and more in the way; your total is ×1, ×2 or ×3.</li>
             <li><b>Re-live it</b> plays your last shot again; <b>Share</b> sends a postcard of it. At the end, <b>Challenge a friend</b> to the same round: one try each.</li>
-            <li><b>Keys:</b> arrows aim, Space pumps (or fires a gun), Enter loads and fires, B bleeds, A and D roll, M mutes.</li>
+            <li><b>The map</b> (bottom right): the red dashed line is where you're aimed, and tapping the map aims there. Rings show in their colours, bonus objects as green squares, animals and people as orange squares, your landings as dots. ⤢ makes it bigger.</li>
+            <li><b>Keys:</b> arrows aim, Space pumps (or launches on the MP levels), Enter loads and launches, B bleeds, A and D roll the cart, M mutes.</li>
           </ul>
         </div>
       </div>
@@ -651,7 +674,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.09</p>
+  <p class="ver">Pneuman v2.10</p>
 </div>
 
 <script>
@@ -11369,15 +11392,59 @@ body.lab .stage > :not(canvas) { display: none; }
     S.scene.front();
   }
 
-  // ================= How to play (v2.09) =================
-  // Watch: the real game plays itself, a step at a time, with a caption for each and a green ring round the control
-  // it's using: the launcher on Pasture (load, pump, aim, fire into the red ring), then the MP 10 in Skeetza (grab
-  // it, shoot a pair). Each chapter is a round of its own, from a fixed seed on meh, so it plays the same every time.
-  // Next skips a caption's wait (not the shot in the air); Back and the chapter buttons start a chapter over; Pause
+  // ================= How to play (v2.09, v2.10) =================
+  // Watch: the real game plays itself, a step at a time, with a caption for each on the screen along the top and a
+  // big green arrow at what it's talking about (a control, or something out in the scene): the cart launcher on
+  // Pasture (load, pump, aim, the map, launch into the red ring), then the MP 10 in Skeetza (grab it, launch at a
+  // pair). Each chapter is a round of its own, from a fixed seed on meh, so it plays the same every time. A red border
+  // and a "● How to play" tag say it's playing. The controls tuck away after 2 s; a tap anywhere brings them back.
+  // Next skips a caption's wait (not a spud in the air); Back and the chapter buttons start a chapter over; Pause
   // holds the game too. Rules: the written reference. Closing goes back to the start card, nothing scored or kept.
+  // (v2.10 wording: "launch", not "fire", but for the FIRE button; no "gun"; "Cart Launcher levels" and "MP levels")
   const HOWTO = { on: false, step: 0, token: 0, paused: false, skipStep: false, tick: null, aim: null };
   const HT_CANCEL = {};
-  const htEl = $("howto"), htCap = $("htCap"), htRing = $("htRing");
+  const htEl = $("howto"), htCap = $("htSay"), htArrow = $("htArrow"), htPanel = $("htPanel");
+  // the controls: down for a moment (2 s, or longer after a tap), then tucked away up top; the caption sits under
+  // them while they're down. They stay down while paused or reading the Rules
+  let htTuckT = 0;
+  function htPanelDown(ms = 2000) {
+    htPanel.classList.remove("tucked"); clearTimeout(htTuckT);
+    htTuckT = setTimeout(() => { if (!HOWTO.paused && $("htRules").hidden) htPanel.classList.add("tucked"); htSayTop(); }, ms);
+    htSayTop();
+  }
+  function htSayTop() {
+    const down = !htPanel.classList.contains("tucked");
+    htCap.style.setProperty("--say-top", `${down ? Math.round(htPanel.getBoundingClientRect().bottom + 8) : 14}px`);
+    htCap.hidden = !$("htRules").hidden;
+  }
+  $("htBlock").addEventListener("pointerdown", () => htPanelDown(4000));
+  // ---- the arrow: at a control (a selector or an element), or at a point in the scene (a function giving a point on
+  // the field's canvas, or a place in the world [x, y, z]). It comes from above at things low on the screen, from
+  // below at things high up. It follows what it points at (a skeetza in flight, say) ----
+  let htTarget = null;
+  function htPoint(t) { htTarget = t || null; placeHtArrow(); }
+  function placeHtArrow() {
+    const t = htTarget;
+    if (!t || !HOWTO.on || !$("htRules").hidden) { htArrow.hidden = true; return; }
+    let r = null;
+    if (typeof t === "string" || t instanceof Element) {
+      const el = typeof t === "string" ? document.querySelector(t) : t;
+      if (el && el.offsetParent !== null) { const b = el.getBoundingClientRect(); r = { x: b.left + b.width / 2, top: b.top, bottom: b.bottom }; }
+    } else {
+      const c = cv.getBoundingClientRect(), p = typeof t === "function" ? t() : (() => { const q = P(t[0], t[1], t[2]); return q.behind ? null : q; })();
+      if (p && p.x > -10 && p.x < W + 10 && p.y > -10 && p.y < H + 10) r = { x: c.left + p.x, top: c.top + p.y, bottom: c.top + p.y };
+    }
+    if (!r) { htArrow.hidden = true; return; }
+    const up = r.top < innerHeight * 0.4;
+    htArrow.classList.toggle("up", up);
+    htArrow.style.left = `${Math.round(Math.max(30, Math.min(innerWidth - 30, r.x)))}px`;
+    htArrow.style.top = `${Math.round(up ? r.bottom + 6 : r.top - 82)}px`;
+    htArrow.hidden = false;
+  }
+  // (and the caption kept under the controls as they slide down or up)
+  setInterval(() => { placeHtArrow(); if (HOWTO.on) htSayTop(); }, 120);
+  // several things in turn, each for a while
+  async function htPoints(list, each, tok) { for (const t of list) { htPoint(t); await htWait(each, tok); } }
   const htWait = (ms, tok) => new Promise((res, rej) => {
     let left = ms, last = performance.now();
     const id = setInterval(() => {
@@ -11395,17 +11462,6 @@ body.lab .stage > :not(canvas) { display: none; }
       if (pred() || performance.now() - t0 > maxMs) { clearInterval(id); res(); }
     }, 40);
   });
-  // the green ring round a control (an element or a selector), or none
-  let htRingFor = null;
-  function htPoint(sel) { htRingFor = sel ? (typeof sel === "string" ? document.querySelector(sel) : sel) : null; placeHtRing(); }
-  function placeHtRing() {
-    const el = htRingFor;
-    if (!el || !HOWTO.on || el.offsetParent === null) { htRing.hidden = true; return; }
-    const r = el.getBoundingClientRect();
-    Object.assign(htRing.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
-    htRing.hidden = false;
-  }
-  setInterval(placeHtRing, 200);
   // a fixed round of a level for the walkthrough, on meh, laid out for this screen
   function htRound(i, seed) { startLevel(i, { seed, w: Math.round(W), h: Math.round(H), diff: "meh" }); S.birdCool = 99; }
   // where the launcher must point, and the pressure, to land in the middle of ring t (the angle as it is; no wind)
@@ -11435,15 +11491,20 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   const HT_STEPS = [
     // ---- the launcher, on Pasture ----
-    { ch: "launcher", text: "Welcome to Pneuman! Load spuds into your pneumatic launcher and fire them at the targets in the field.", async run(tok) {
+    { ch: "launcher", text: "Welcome to Pneuman! Load spuds into your pneumatic cart launcher and launch them at the targets in the field.", async run(tok) {
       htRound(0, 4242);
-      // (the red ring, cleared of anything standing in the way of this one shot)
+      // (the red ring, cleared of anything standing in the way of this one launch)
       const t = S.rings.filter((r) => r.form === "ring").sort((a, b) => b.pts - a.pts)[0];
       S.props = S.props.filter((o) => !t || Math.hypot(o.x - t.x, o.z - t.z) > t.r + 6);
       HOWTO.aim = t ? htAimFor(t) : { yaw: 0, psi: 60 };
+      htPoint([S.lx, 1.6, 0.4]);
       await htWait(4500, tok);
     } },
-    { ch: "launcher", text: "The rings score 10, 15, 20 and 25: the smaller the ring, the more it's worth. Each one scores once.", point: "#scoreOut", async run(tok) { await htWait(5000, tok); } },
+    // (each ring's number sign in turn, 10 to 25)
+    { ch: "launcher", text: "The rings score 10, 15, 20 and 25: the smaller the ring, the more it's worth. Each one scores once.", async run(tok) {
+      await htPoints(S.rings.slice().sort((a, b) => a.pts - b.pts).map((r) => [r.x, FLAG_H + 0.2, r.z + r.r]), 1400, tok);
+      await htWait(500, tok);
+    } },
     { ch: "launcher", text: "First, load a spud.", point: "#fire", async run(tok) {
       await htWait(1300, tok); action(); await htUntil(() => S.loaded, tok, 5000); await htWait(700, tok);
     } },
@@ -11457,47 +11518,71 @@ body.lab .stage > :not(canvas) { display: none; }
         pb.classList.add("down"); pumpStroke(); setTimeout(() => pb.classList.remove("down"), 160);
         await htWait(330, tok);
       }
-      await htWait(900, tok);
+      htPoint("#psiOut");
+      await htWait(1100, tok);
     } },
-    { ch: "launcher", text: "Aim. The peg board sets the angle (how high); the rotation turns the launcher left or right.", point: ".ctl-ang", async run(tok) {
+    { ch: "launcher", text: "Aim. The peg board sets the angle (how high); the rotation turns the cart left or right.", point: "#holes", async run(tok) {
       await htWait(1000, tok);
       setHole(S.hole + 2); await htWait(600, tok); setHole(S.hole - 2); await htWait(700, tok);
-      htPoint(".ctl-rot");
+      htPoint("#rot");
       while (Math.abs(S.yaw - HOWTO.aim.yaw) > 0.01) { if (tok !== HOWTO.token) throw HT_CANCEL; setYaw(S.yaw + Math.sign(HOWTO.aim.yaw - S.yaw) * 0.5); await new Promise((r) => setTimeout(r, 45)); }
       await htWait(900, tok);
     } },
-    { ch: "launcher", text: "Fire!", point: "#fire", async run(tok) {
-      await htWait(900, tok); action();
+    // (the map: the aim line, then a ring, a bonus object (green) and an animal (orange) on it)
+    { ch: "launcher", text: "The map shows the field from above. The red dashed line is where you're aimed: tap the map to aim there. Rings show in their colours, bonus objects as green squares, animals as orange.", async run(tok) {
+      const onMap = (x, z) => () => { const m = mapGeom(); return { x: m.MX(x), y: m.MY(z) }; };
+      const yw = S.yaw * Math.PI / 180, t = S.rings.filter((r) => r.form === "ring").sort((a, b) => b.pts - a.pts)[0];
+      const obj = S.props.find((o) => !PROPS[o.kind].alive && !PROPS[o.kind].neutral), ani = S.props.find((o) => PROPS[o.kind].alive);
+      const list = [onMap(S.lx + Math.sin(yw) * 25, Math.cos(yw) * 25)];
+      if (t) list.push(onMap(t.x, t.z)); if (obj) list.push(onMap(obj.x, obj.z)); if (ani) list.push(onMap(ani.x, ani.z));
+      await htPoints(list, 2000, tok);
+    } },
+    { ch: "launcher", text: "Launch! Press FIRE.", point: "#fire", async run(tok) {
+      await htWait(900, tok); action(); htPoint(null);
       await htUntil(() => S.phase === "aim" && !S.potato, tok, 15000);
-      htCap.textContent = `Fire! ${shotEl.textContent || ""}`;
+      htCap.textContent = `Launch! ${shotEl.textContent || ""}`;
       await htWait(3000, tok);
     } },
-    { ch: "launcher", text: "After a shot, Re-live it plays it back from three angles, and Share sends a postcard of it.", point: "#relive", async run(tok) { await htWait(5000, tok); } },
-    { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the water trough, are a +5 bonus, once each.", async run(tok) { await htWait(6000, tok); } },
-    { ch: "launcher", text: "Ten spuds a level. Most places have wind: the arrow on the map shows it. Clear every ring and each spare spud is +1.", point: "#spudsOut", async run(tok) { await htWait(6000, tok); } },
-    // ---- the gun levels, in Skeetza ----
-    { ch: "gun", text: "On the gun levels you shoot skeet with the MP 10, a mini-spud gun with two barrels.", async run(tok) {
+    { ch: "launcher", text: "After a launch, Re-live it plays it back from three angles, and Share sends a postcard of it.", async run(tok) { await htPoints(["#relive", "#shareBtn"], 2600, tok); } },
+    // (an animal out in the field, then a bonus object)
+    { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the water trough, are a +5 bonus, once each.", async run(tok) {
+      const at = (o) => [o.x, (o.h || 1.5) + 0.3, o.z];
+      const ani = S.props.find((o) => PROPS[o.kind].alive), obj = S.props.find((o) => !PROPS[o.kind].alive && !PROPS[o.kind].neutral);
+      await htPoints([ani && at(ani), obj && at(obj)].filter(Boolean), 3000, tok);
+    } },
+    { ch: "launcher", text: "Ten spuds a level. Clear every ring and each spare spud is +1. Most places have wind too: the arrow on the map shows it.", point: "#spudsOut", async run(tok) { await htWait(6000, tok); } },
+    // ---- the MP levels, in Skeetza ----
+    { ch: "gun", text: "On the MP levels, skeet fly up and you launch mini spuds at them with the MP 10, which has two barrels.", async run(tok) {
       htRound(3, 777); await htWait(4500, tok);
     } },
-    { ch: "gun", text: "Grab a loaded MP 10 from its cabinet.", point: "#fire", async run(tok) {
-      await htWait(1300, tok); action(); await htUntil(() => S.gun && (S.gun.phase === "ready" || S.gun.phase === "live"), tok, 6000); await htWait(400, tok);
+    // (the arrow on the first loaded cabinet)
+    { ch: "gun", text: "Grab a loaded MP 10 from its cabinet.", async run(tok) {
+      htPoint(() => { const L = caseLayout(), i = Math.max(0, S.gun.guns.findIndex((x) => x.ready)); return { x: L.xs[i], y: L.cy - 30 * L.sc }; });
+      await htWait(1800, tok); action(); await htUntil(() => S.gun && (S.gun.phase === "ready" || S.gun.phase === "live"), tok, 6000); await htWait(400, tok);
     } },
-    { ch: "gun", text: "PULL! A pair of skeetzas flies up. Aim with the mouse (or drag a finger) and fire.", point: "#fire", async run(tok) {
+    // (the arrow on the skeetza it's leading, then on the barrels as each is used)
+    { ch: "gun", text: "PULL! A pair of skeetzas flies up. Aim with the mouse (or drag a finger) and press FIRE to launch.", async run(tok) {
       const g = S.gun;
       await htUntil(() => g.pizzas.length > 0, tok, 6000);
-      // (it leads each one in turn, the coloured one first, and fires once it's well up)
-      let aimAt = () => g.pizzas.filter((p) => !p.done).sort((a, b) => !!b.ring - !!a.ring)[0];
+      // (it leads each one in turn, the coloured one first, and launches once it's well up)
+      const aimAt = () => g.pizzas.filter((p) => !p.done).sort((a, b) => !!b.ring - !!a.ring)[0];
       HOWTO.tick = () => { const p = aimAt(); if (p) htLead(p); };
+      htPoint(() => { const p = aimAt(); if (!p) return null; const q = P(p.x, p.y + 0.7, p.z); return q.behind ? null : q; });
       await htWait(1000, tok); HOWTO.skipStep = false; action();
       await htWait(650, tok); HOWTO.skipStep = false; action();
+      htPoint("#gunRow .bar");
       await htUntil(() => !g.pellets.length, tok, 4000);
       HOWTO.tick = null;
       htCap.textContent = `PULL! ${shotEl.textContent || ""}`;
       await htWait(3000, tok);
     } },
-    { ch: "gun", text: "Coloured skeetzas are worth their colour's points. Hit one of each colour to clear the level.", point: "#gunOut", async run(tok) { await htWait(5000, tok); } },
-    { ch: "gun", text: "Both of a pair with one barrel is a Two Fer Za! The drone up top is +10; the workers and the windows cost 5.", async run(tok) { await htWait(6000, tok); } },
-    { ch: "gun", text: "Two shots for each MP 10, then grab the next. That's Pneuman: pick a place and play!", async run(tok) { await htWait(5000, tok); } },
+    { ch: "gun", text: "Coloured skeetzas are worth their colour's points. Hit one of each colour (the dots) to clear the level.", point: "#gunRow .ringdot", async run(tok) { await htWait(5000, tok); } },
+    // (the drone up in the roof, then a worker on the floor)
+    { ch: "gun", text: "Both of a pair with one barrel is a Two Fer Za! The drone up top is +10; the workers and the windows cost 5.", async run(tok) {
+      const d = S.gun.drones.find((x) => x.state === "fly"), w = S.gun.workers[0];
+      await htPoints([d && (() => { const q = P(d.x, d.y + 0.5, d.z); return q.behind ? null : q; }), w && [w.x, 2.1, w.z]].filter(Boolean), 3000, tok);
+    } },
+    { ch: "gun", text: "Two launches for each MP 10 (the barrels), then grab the next. That's Pneuman: pick a place and play!", point: "#gunRow", async run(tok) { await htWait(5000, tok); } },
   ];
   const htChapStart = (ch) => HT_STEPS.findIndex((s) => s.ch === ch);
   function htShow() {
@@ -11519,28 +11604,28 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function openHowto(tab = "watch") {
     audio(); HOWTO.on = true; HOWTO.started = false; HOWTO.step = 0; htEl.hidden = false; $("overlay").hidden = true;
-    htTab(tab);
-    if (tab === "watch") htRun(0);
+    htTab(tab); htPanelDown();
   }
   function closeHowto() {
     HOWTO.token++; HOWTO.on = false; HOWTO.tick = null; HOWTO.paused = false; TRIG.on = false;
-    htEl.hidden = true; htPoint(null);
+    htEl.hidden = true; htPoint(null); clearTimeout(htTuckT); htPanel.classList.remove("tucked");
     showStart(startPick);
   }
   function htTab(tab) {
     for (const b of document.querySelectorAll(".ht-tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
     $("htWatch").hidden = tab !== "watch"; $("htRules").hidden = tab !== "rules";
-    // (reading the rules holds the walkthrough where it is)
-    if (tab === "rules") { HOWTO.paused = true; $("htPause").textContent = "▶ Play"; htPoint(null); }
-    else if (!HOWTO.started) htRun(0);
-    else { HOWTO.paused = false; $("htPause").textContent = "❚❚ Pause"; htPoint(HT_STEPS[HOWTO.step].point || null); }
+    // (reading the rules holds the walkthrough where it is, the controls staying down)
+    if (tab === "rules") { HOWTO.paused = true; $("htPause").textContent = "▶ Play"; htPanelDown(); }
+    else if (!HOWTO.started) { htRun(0); htPanelDown(); }
+    else { HOWTO.paused = false; $("htPause").textContent = "❚❚ Pause"; htPanelDown(); }
+    placeHtArrow(); htSayTop();
   }
   for (const b of document.querySelectorAll(".ht-tabs button")) b.onclick = () => { audio(); htTab(b.dataset.tab); };
-  for (const b of document.querySelectorAll(".ht-chaps button")) b.onclick = () => { audio(); htRun(htChapStart(b.dataset.ch)); };
+  for (const b of document.querySelectorAll(".ht-chaps button")) b.onclick = () => { audio(); htRun(htChapStart(b.dataset.ch)); htPanelDown(); };
   $("htClose").onclick = () => { audio(); closeHowto(); };
-  $("htNext").onclick = () => { audio(); if (HOWTO.step === HT_STEPS.length - 1) closeHowto(); else HOWTO.skipStep = true; };
-  $("htBack").onclick = () => { audio(); const s = HT_STEPS[HOWTO.step], start = htChapStart(s.ch); htRun(HOWTO.step === start && start > 0 ? htChapStart(HT_STEPS[start - 1].ch) : start); };
-  $("htPause").onclick = () => { audio(); HOWTO.paused = !HOWTO.paused; $("htPause").textContent = HOWTO.paused ? "▶ Play" : "❚❚ Pause"; };
+  $("htNext").onclick = () => { audio(); if (HOWTO.step === HT_STEPS.length - 1) closeHowto(); else { HOWTO.skipStep = true; htPanelDown(4000); } };
+  $("htBack").onclick = () => { audio(); const s = HT_STEPS[HOWTO.step], start = htChapStart(s.ch); htRun(HOWTO.step === start && start > 0 ? htChapStart(HT_STEPS[start - 1].ch) : start); htPanelDown(4000); };
+  $("htPause").onclick = () => { audio(); HOWTO.paused = !HOWTO.paused; $("htPause").textContent = HOWTO.paused ? "▶ Play" : "❚❚ Pause"; htPanelDown(); };
 
   // ================= go =================
   // a shared link (?level=culdesac) opens on that level's start card, ready to play
