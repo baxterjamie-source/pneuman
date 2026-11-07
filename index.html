@@ -81,24 +81,34 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .bonusstrip { margin: 0 12% 0 auto; display: flex; gap: 6px; align-items: center; }
 /* (v2.13) on a full-size screen it's out of the flow, its bottom edge level with the chips' (rising into the green
    above them), so the field and controls don't move down for it */
-@media (min-width: 641px) and (min-height: 541px) {
-  .hud { position: relative; }
-  .bonusstrip { position: absolute; right: 12%; bottom: 0; margin: 0; }
+/* (v2.14: out of the flow on every screen, so it never pushes the field and controls down: on a phone, at the
+   right-hand end of the chips' last row, beside the Spuds chip, a little smaller) */
+.hud { position: relative; }
+.bonusstrip { position: absolute; right: 12%; bottom: 0; margin: 0; }
+@media (max-width: 640px), (max-height: 540px) {
+  .bonusstrip { right: 2px; }
+  .hud .bonusstrip .bi { width: 34px; height: 28px; } .hud .bonusstrip .bi img { width: 32px; }
 }
-@media (max-width: 640px), (max-height: 540px) { .bonusstrip .bi { width: 36px; height: 30px; } .bonusstrip .bi img { width: 34px; } }
+/* (a phone on its side: the chips share the slim top row with the title, so it goes just left of them, in the gap) */
+@media (max-height: 540px) and (orientation: landscape) { .hud .bonusstrip { right: calc(100% + 8px); bottom: auto; top: 50%; transform: translateY(-50%); } }
 .bonusstrip:empty { display: none; }
 .bonusstrip .bi { position: relative; width: 46px; height: 38px; background: var(--paper); border: 2px solid var(--ink); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
 .bonusstrip .bi img { width: 44px; height: auto; display: block; }
 .bonusstrip .bi.hit img { opacity: .65; }
 .bonusstrip .bi.hit::before, .bonusstrip .bi.hit::after { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 3px; margin: -1.5px 0 0 -20px; background: rgba(229,57,53,.9); border-radius: 2px; }
 .bonusstrip .bi.hit::before { transform: rotate(40deg); } .bonusstrip .bi.hit::after { transform: rotate(-40deg); }
-@media (max-width: 640px) { .bonusstrip { margin-right: 0; } }
 .bonusstrip .bi.hit::before, .bonusstrip .bi.hit::after { width: 80%; margin-left: -40%; }
 .chip { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 4px 10px; font-weight: 800; display: flex; align-items: center; gap: 8px; width: max-content; max-width: 100%; font-variant-numeric: tabular-nums; }
 .chip .k { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
 .spuds { display: flex; gap: 3px; }
 .spud { width: 13px; height: 10px; border-radius: 50%; background: #c48a4a; border: 2px solid #7a4f22; }
 .spud.used { background: transparent; border-style: dashed; opacity: .4; }
+/* (v2.15) after the golden spud: a big gold Carry on button low in the field; the launcher's controls wait for it */
+.osbgo { position: absolute; z-index: 5; left: 50%; bottom: 14px; transform: translateX(-50%); font-family: var(--display); font-weight: 400; font-size: clamp(1rem, 3vw, 1.4rem);
+  padding: 8px 18px; border-width: 3px; border-radius: 14px; box-shadow: 0 5px 0 var(--ink), 0 0 18px rgba(255,200,40,.8); background: linear-gradient(#ffe27a, #f5b700); white-space: nowrap; animation: osbgo-pulse 1.2s ease-in-out infinite; }
+.osbgo:active { transform: translate(-50%, 3px); }
+@keyframes osbgo-pulse { 50% { box-shadow: 0 5px 0 var(--ink), 0 0 30px rgba(255,200,40,1); } }
+body.osbwait .ctl, body.osbwait #fire, body.osbwait #fire2 { opacity: .4; pointer-events: none; }
 /* (v2.13) the cart held on the One Shot Bonus's arc: angle and rotation greyed out, only the pressure to find */
 body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: none; filter: grayscale(1); }
 /* the One Shot Bonus's golden spud, glowing (v2.12) */
@@ -538,6 +548,8 @@ body.lab .stage > :not(canvas) { display: none; }
     </div>
     <button class="relive" id="relive" type="button" hidden>⟲ Re-live it!</button>
     <button class="sharebtn" id="shareBtn" type="button" hidden>📮 Share</button>
+    <!-- (v2.15) after the golden spud: carry on with the round; the One Shot Bonus is gone for good once pressed -->
+    <button class="osbgo" id="osbGo" type="button" hidden>One Shot Bonus done · Carry on ▶</button>
     <div class="pointer" id="pointer" hidden aria-hidden="true"><svg viewBox="0 0 60 36"><path d="M3 12h32V3l22 15-22 15v-9H3z" fill="#3ccf4e" stroke="#23303a" stroke-width="3" stroke-linejoin="round"/></svg></div>
     <div class="overlay" id="overlay">
       <div class="card">
@@ -588,7 +600,7 @@ body.lab .stage > :not(canvas) { display: none; }
             <li><b>The map</b> (bottom right) shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim. Rings show in their colours, bonus objects as green squares, animals and people as orange, your landings as dots.</li>
             <li><b>Objects</b> in the field (the junker, the mailbox, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
-            <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. Launch it through the arc of six rings in the air: +20 each, 120 for all six. Calm air for that one, and nothing else counts.</li>
+            <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. The cart is set on a golden arch of six stars: just find the pressure. +20 a star, 120 for all six. Calm air for that one, and nothing else counts.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
             <li><b>Ten spuds</b> a level. Clear every ring and each spare spud is +1.</li>
           </ul>
@@ -718,7 +730,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.13</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.15</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -1721,7 +1733,7 @@ body.lab .stage > :not(canvas) { display: none; }
     S.phase = "loading"; S.loadT = 0; S.valveTarget = 0; sfx.load(); hud();
   }
   // the Fire button loads first, then fires
-  function action() { if (lvl().gun) { gunAction(); return; } if (S.phase !== "aim") return; leaveArc(); S.loaded ? fire() : loadSpud(); }
+  function action() { if (lvl().gun) { gunAction(); return; } if (osbWaiting()) { osbCarryOn(); return; } if (S.phase !== "aim") return; leaveArc(); S.loaded ? fire() : loadSpud(); }
 
   function fire() {
     if (S.phase !== "aim" || !S.loaded) return;
@@ -1811,7 +1823,8 @@ body.lab .stage > :not(canvas) { display: none; }
         const dz = r.z - CAM.z0, dx = r.x - S.lx, hd = Math.hypot(dx, dz);
         return r.y > S.scene.groundY(r.x, r.z) + 2.2 && dz > 8 && Math.abs(Math.atan2(dx, dz)) < 0.47 && Math.atan2(r.y + OSB.r + 0.8 - CAM.y0, hd) < 0.35;
       });
-      if (ok) best = { rings, psi, hole: S.hole, yaw: S.yaw };
+      // (and the whole flight, every few steps, for the golden arch drawn through the stars)
+      if (ok) best = { rings, psi, hole: S.hole, yaw: S.yaw, path: path.filter((_, i) => i % 5 === 0).map((q) => [q.x, q.y, q.z]) };
     }
     S.yaw = keep.yaw; S.hole = keep.hole;
     return best;
@@ -1824,8 +1837,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.yaw = arc.yaw; S.hole = arc.hole; S.phase = "aim"; hud();
     sfx.zaTriple();
     const c = arc.rings[2];
-    S.pops.push({ x: c.x, y: c.y + 2.5, z: c.z, text: "ONE SHOT BONUS!", col: "#ff2fa8", fancy: true, size: clamp(W * 0.05, 24, 46), t: 0 });
-    shotNote("One Shot Bonus! A golden spud, extra. The cart's set on the arc: just find the pressure. +20 a ring. View arc shows it from the side.");
+    S.pops.push({ x: c.x, y: c.y + 2.5, z: c.z, text: "ONE SHOT BONUS!", col: "#ffb000", fancy: true, size: clamp(W * 0.05, 24, 46), t: 0 });
+    shotNote("One Shot Bonus! A golden spud, extra. The cart's set on the golden arch: just find the pressure. +20 a star. View arc shows it from the side.");
   }
   // the golden spud, from prev to p: through a ring's middle (within its radius as it crosses the ring's face), +20
   function osbPass(prev, p) {
@@ -1836,36 +1849,86 @@ body.lab .stage > :not(canvas) { display: none; }
       const t = s0 / (s0 - s1), qx = prev.x + (p.x - prev.x) * t, qy = prev.y + (p.y - prev.y) * t, qz = prev.z + (p.z - prev.z) * t;
       if (Math.hypot(qx - r.x, qy - r.y, qz - r.z) > OSB.r) continue;
       r.hit = true; r.flash = 1; S.score += OSB.pts; S.osb.score += OSB.pts; S.osbScore = (S.osbScore || 0) + OSB.pts;
+      // (noted in the shot's record, when and which, so Re-live it can light them and sound them again, each view)
+      if (S.rec) (S.rec.osbHits = S.rec.osbHits || []).push({ t: S.flightT, i: S.osb.rings.indexOf(r) });
       S.pops.push({ x: r.x, y: r.y + OSB.r + 0.6, z: r.z, text: `+${OSB.pts}`, col: "#2fb84a", fancy: true, t: 0 });
       sfx.ring(25); hud();
     }
   }
   // the golden spud's down: how it went (all six, a big call), the wind back as it was
+  // Carry on: the One Shot Bonus is over for good: its arch and stars go, and its Re-live it with them; then the
+  // game carries on (the next spud, or the round's end)
+  const osbWaiting = () => !!(S.osb && S.osb.wait);
+  function osbCarryOn() {
+    const next = S.osb && S.osb.wait; if (!next) return;
+    audio(); S.osb.wait = null; S.osb.show = false;
+    hideRelive(); S.arc = null; S.arcView = null; hud();
+    next();
+  }
   function osbDone() {
     const o = S.osb, n = o.rings.filter((r) => r.hit).length;
-    o.state = "done"; if (o.wind) S.wind = o.wind;
-    if (n === OSB.n) { sfx.zaTriple(); const c = o.rings[2]; S.pops.push({ x: c.x, y: c.y + 3, z: c.z, text: `PERFECT ARC! +${o.score}`, col: "#ffb000", fancy: true, size: clamp(W * 0.055, 24, 50), t: 0 }); }
-    shotNote(n ? `One Shot Bonus: ${n} of ${OSB.n} rings! +${o.score}` : "One Shot Bonus: missed the arc. Next time!");
+    o.state = "done"; o.justDone = true; if (o.wind) S.wind = o.wind;
+    if (n === OSB.n) { sfx.zaTriple(); const c = o.rings[2]; S.pops.push({ x: c.x, y: c.y + 3, z: c.z, text: `PERFECT ARCH! +${o.score}`, col: "#ffb000", fancy: true, size: clamp(W * 0.055, 24, 50), t: 0 }); }
+    shotNote(n ? `One Shot Bonus: ${n} of ${OSB.n} stars! +${o.score}` : "One Shot Bonus: missed the arch. Next time!");
   }
-  // a ring of the arc: a fat fuchsia hoop square to the path, "+20" over it; once it's gone through, green with a tick
-  function drawOsbRing(r) {
-    const n = r.n, up = Math.abs(n[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
-    let u = [n[1] * up[2] - n[2] * up[1], n[2] * up[0] - n[0] * up[2], n[0] * up[1] - n[1] * up[0]]; const ul = Math.hypot(...u); u = u.map((x) => x / ul);
-    const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
-    const pts = Array.from({ length: 28 }, (_, i) => { const a = (i / 28) * Math.PI * 2, c = Math.cos(a) * OSB.r, s = Math.sin(a) * OSB.r; return P(r.x + u[0] * c + v[0] * s, r.y + u[1] * c + v[1] * s, r.z + u[2] * c + v[2] * s); });
-    if (pts.some((q) => q.behind)) return;
-    const mid = P(r.x, r.y, r.z), w = Math.max(3, 0.28 * mid.s), col = r.hit ? "#2fb84a" : "#ff2fa8";
-    const loop = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); };
-    ctx.save(); ctx.lineJoin = "round";
-    if (!r.hit) { ctx.shadowColor = "rgba(255,47,168,.7)"; ctx.shadowBlur = Math.max(4, w); }
-    loop(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = w + 3; ctx.stroke();
-    ctx.shadowBlur = 0; loop(); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
-    // (seen from the cart they line up one behind the other, like a tunnel, so no "+20" on each (the note says it):
-    // a tick in the middle once it's gone through, and the +20 pops up as it does)
+  // (v2.14) the One Shot Bonus drawn golden, as UP is: a glowing golden arch along the whole flight (through the
+  // middle of every star, so it's plain it's only the pressure to find), a shimmer running along it, and on it six
+  // golden stars, twinkling sparkles circling each; gone through, a star turns green with a tick. While the golden
+  // spud waits, a soft gold wash over the field and sparkles round its edges
+  function drawOsb() {
+    const o = S.osb, now = performance.now() / 1000, path = (o.set && o.set.path) || [];
+    // the arch: the points in front of the camera, joined
+    const pts = path.map((p) => P(p[0], p[1], p[2])).filter((q) => !q.behind);
+    if (pts.length > 1) {
+      const line = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); };
+      ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.shadowColor = "rgba(255,200,40,.9)"; ctx.shadowBlur = 14;
+      line(); ctx.strokeStyle = "rgba(201,140,0,.85)"; ctx.lineWidth = 9; ctx.stroke();
+      ctx.shadowBlur = 0; line(); ctx.strokeStyle = "#ffd23a"; ctx.lineWidth = 6; ctx.stroke();
+      line(); ctx.strokeStyle = "#fff4bf"; ctx.lineWidth = 2; ctx.stroke();
+      // (a shimmer running out along it)
+      ctx.setLineDash([10, 46]); ctx.lineDashOffset = -now * 90; line(); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 4; ctx.stroke(); ctx.setLineDash([]);
+      ctx.restore();
+    }
+    // the stars, far to near
+    o.rings.slice().sort((a, b) => Math.hypot(b.x - CAM.x, b.z - CAM.z) - Math.hypot(a.x - CAM.x, a.z - CAM.z)).forEach((r, i) => drawOsbStar(r, now, i));
+    if (o.state === "ready") {
+      ctx.save();
+      ctx.fillStyle = `rgba(255,196,40,${(0.07 + 0.03 * Math.sin(now * 3)).toFixed(3)})`; ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 16; i++) {
+        const a = i * 2.39996 + now * 0.35, x = W / 2 + Math.cos(a) * W * 0.47, y = H / 2 + Math.sin(a) * H * 0.45, s = 2 + 2.2 * Math.abs(Math.sin(now * 3 + i));
+        sparkle(x, y, s, "rgba(255,240,180,.9)");
+      }
+      ctx.restore();
+    }
+  }
+  // a four-pointed twinkle at x, y, s pixels from its middle to a point
+  function sparkle(x, y, s, col) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y - s * 2); ctx.lineTo(x + s * 0.55, y - s * 0.55); ctx.lineTo(x + s * 2, y); ctx.lineTo(x + s * 0.55, y + s * 0.55);
+    ctx.lineTo(x, y + s * 2); ctx.lineTo(x - s * 0.55, y + s * 0.55); ctx.lineTo(x - s * 2, y); ctx.lineTo(x - s * 0.55, y - s * 0.55); ctx.closePath(); ctx.fill();
+  }
+  // a star of the arc, facing you, about a metre across its points (the spud scores within OSB.r of its middle),
+  // gently turning and pulsing, sparkles circling it; green with a tick once gone through
+  function drawOsbStar(r, now, k) {
+    const q = P(r.x, r.y, r.z);
+    if (q.behind) return;
+    const R = Math.min(70, Math.max(7, 0.95 * q.s)), pulse = r.hit ? 1 : 1 + 0.06 * Math.sin(now * 4 + k), spin = r.hit ? 0 : Math.sin(now * 0.8 + k) * 0.25;
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(spin);
+    const star = (rad) => { ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? rad * 0.45 : rad; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); };
+    if (!r.hit) { ctx.shadowColor = "rgba(255,200,40,.95)"; ctx.shadowBlur = Math.max(8, R * 0.5); }
+    star(R * pulse);
+    const g = ctx.createRadialGradient(-R * 0.2, -R * 0.25, R * 0.1, 0, 0, R);
+    if (r.hit) { g.addColorStop(0, "#b8f5c4"); g.addColorStop(1, "#2fb84a"); } else { g.addColorStop(0, "#fff6c2"); g.addColorStop(0.55, "#ffd23a"); g.addColorStop(1, "#e0a000"); }
+    ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
+    ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1.5, R * 0.07); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.stroke();
+    ctx.rotate(-spin);
     if (r.hit) {
-      const fs = Math.max(10, OSB.r * 1.1 * mid.s);
+      const fs = Math.max(10, R * 0.9);
       ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
-      ctx.lineWidth = Math.max(2, fs * 0.2); ctx.strokeStyle = "#fffaf0"; ctx.strokeText("✓", mid.x, mid.y); ctx.fillStyle = col; ctx.fillText("✓", mid.x, mid.y);
+      ctx.lineWidth = Math.max(2, fs * 0.18); ctx.strokeStyle = "#16702c"; ctx.strokeText("✓", 0, fs * 0.05); ctx.fillStyle = "#fff"; ctx.fillText("✓", 0, fs * 0.05);
+    } else {
+      // (sparkles circling it, twinkling)
+      for (let i = 0; i < 5; i++) { const a = now * 1.6 + k + (i * Math.PI * 2) / 5, d = R * (1.25 + 0.15 * Math.sin(now * 5 + i)); sparkle(Math.cos(a) * d, Math.sin(a) * d * 0.8, Math.max(1.5, R * 0.07) * (0.6 + 0.6 * Math.abs(Math.sin(now * 6 + i * 1.7))), "rgba(255,248,210,.95)"); }
     }
     ctx.restore();
   }
@@ -2053,6 +2116,9 @@ body.lab .stage > :not(canvas) { display: none; }
     S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
     // (v2.12: every bonus object of the level now hit: the One Shot Bonus comes next, even before the round ends)
     if (!S.osb && osbEarned()) { S.timer = 1.2; S.after = startOsb; }
+    // (v2.15: the golden spud's down: the game waits on a Carry on button (Re-live it can show it again meanwhile);
+    // what comes next (the next spud, or the end of the round) waits for it)
+    else if (S.osb && S.osb.justDone) { S.osb.justDone = false; const next = S.after; S.timer = 0.8; S.after = () => { S.phase = "aim"; S.osb.wait = next; hud(); }; }
     if (rec) {
       rec.capture = false; rec.arc = S.arc; rec.prop = prop || null; rec.hit = hit || null; rec.note = shotEl.textContent;
       rec.pops = (S.pops || []).slice(pops0).map((b) => ({ ...b })); rec.flash = S.rings.filter((r) => r.flash === 1);
@@ -2231,7 +2297,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const unlRow = unl ? `<div class="trow bonus"><span>Skeetzas not launched <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
     // (the difficulty's multiplier, when it isn't ×1: what it adds or takes off the sum)
     const sum = score + bonus + extra + unl + clearB, final = Math.round(sum * mult), dm = final - sum;
-    const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} rings)</small></span><b id="tO">+0</b></div>` : "") +
+    const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} stars)</small></span><b id="tO">+0</b></div>` : "") +
       (clearB ? `<div class="trow bonus"><span>Level cleared</span><b id="tC">+0</b></div>` : "");
     const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
     el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
@@ -2344,10 +2410,15 @@ body.lab .stage > :not(canvas) { display: none; }
     $("lvlOut").textContent = `${S.level + 1} · ${lvl().name} · ${S.diff}`;
     updateBonusStrip();
     document.body.classList.toggle("osblock", osbLock()); // (the angle and rotation greyed out while held on the arc)
+    // (the One Shot Bonus done: Carry on up, the launcher's controls greyed out till it's pressed)
+    $("osbGo").hidden = !osbWaiting(); document.body.classList.toggle("osbwait", osbWaiting());
     if ($("lvlSel")) $("lvlSel").value = String(S.level);
     // (Skeetza has no top score: as many pairs fly as there are barrels to fire at them)
-    $("scoreOut").textContent = lvl().gun ? `${S.score}` : `${S.score} / ${maxScore()}`;
-    $("bonusOut").textContent = `+${S.bonus || 0}`; $("bonusOut").hidden = $("bonusK").hidden = !S.bonus;
+    // (v2.15: on the Cart Launcher levels the score is the rings' points out of the rings' total; the One Shot Bonus's
+    // points show on their own after the bonus, "+10 · OSB +60", rather than counted against the rings)
+    const osbPts = !lvl().gun ? S.osbScore || 0 : 0;
+    $("scoreOut").textContent = lvl().gun ? `${S.score}` : `${Math.max(0, S.score - osbPts)} / ${maxScore()}`;
+    $("bonusOut").textContent = `+${S.bonus || 0}${osbPts ? ` · OSB +${osbPts}` : ""}`; $("bonusOut").hidden = $("bonusK").hidden = !(S.bonus || osbPts);
     $("spudsOut").innerHTML = Array.from({ length: lvl().gun ? GUN.cases * gunBarrels() : SPUDS }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("") +
       // (the One Shot Bonus's golden spud, an extra, while it's waiting to be launched)
       (S.osb && S.osb.state === "ready" ? `<span class="spud gold" title="the golden spud"></span>` : "");
@@ -2403,6 +2474,9 @@ body.lab .stage > :not(canvas) { display: none; }
     if (canAdjust() && S.pumpHeld) { S.pumpT -= dt; if (S.pumpT <= 0) { pumpStroke(); S.pumpT = 0.2; } }
     for (const r of S.rings) if (r.flash) r.flash = Math.max(0, r.flash - dt * 0.8);
     updateBonusStrip(); // (crossed out the moment one's hit; only rebuilt when that changes)
+    // (v2.14: the calls and bubbles here ("Double fun! +5", the One Shot Bonus's) count down and go, as the gun
+    // levels' do: here they never aged, so they stayed up, and Re-live it added another each time)
+    if (!S.scene.gun && S.pops) { for (const b of S.pops) b.t += dt; if (S.pops.some((b) => b.t >= 6)) S.pops = S.pops.filter((b) => b.t < 6); }
     for (const c of clouds) { c.az += (0.004 + S.wind.x * 0.002) * dt; if (c.az > 1) c.az = -1; if (c.az < -1) c.az = 1; }
     for (const b of birds) { b.az += b.v * dt; if (b.az > 1.2) b.az = -1.2; if (b.az < -1.2) b.az = 1.2; }
     // every 20–45 s one of the flying birds calls, quietly (only once sound has started and while playing)
@@ -2566,8 +2640,6 @@ body.lab .stage > :not(canvas) { display: none; }
     const standing = [
       ...rings.filter((r) => !onBuilding(r) && !r.hill).map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : r.form === "splat" ? drawSplatTarget(r) : drawFlag(r, [r.x, S.scene.groundY(r.x, r.z + r.r), r.z + r.r])) })),
       ...(S.props || []).map((o) => ({ d: dist(o), f: () => drawProp(o), k: S.prof && "prop:" + o.kind })),
-      // (the One Shot Bonus's arc of rings, while it's up)
-      ...(S.osb && S.osb.show !== false ? S.osb.rings : []).map((r) => ({ d: dist(r), f: () => drawOsbRing(r) })),
       ...S.scene.standing.filter((s) => dist(s) > arcNear).map((s) => ({ d: dist(s), f: () => s.draw(s), k: S.prof && "place:" + (s.kind || s.draw.name || "?") })),
       // (things of the place that move about: Skeetza's pizzas, drone and workers)
       ...(S.scene.dyn ? S.scene.dyn() : []).map((s) => ({ d: dist(s), f: () => s.draw(s) })),
@@ -2590,6 +2662,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // the last shot's path, dotted, appears once it has landed (none while a spud is in the air), over everything
     // so nothing in the place can hide it
     if (S.arc && !S.potato) drawArc(S.arc, "rgba(255,255,255,.9)", [2, 7]);
+    // (the One Shot Bonus: its golden arch and stars, over the place like the arc, and while the golden spud waits a
+    // gold wash with sparkles round the edges, as UP mode has)
+    if (S.osb && S.osb.show !== false && S.osb.rings.length) drawOsb();
     // in Re-live it the dotted arc traces out behind the spud as it flies, and stays whole while it holds on the landing
     const R = S.replay;
     if (R && (R.ghost || R.landed)) {
@@ -6407,8 +6482,8 @@ body.lab .stage > :not(canvas) { display: none; }
       }
     }
     for (const s of S.splats) { ctx.fillStyle = s.last ? "#23303a" : "rgba(35,48,58,.4)"; ctx.beginPath(); ctx.arc(MX(s.x), MY(s.z), s.last ? 2.6 : 1.8, 0, 7); ctx.fill(); }
-    // (the One Shot Bonus's arc of rings, from above: fuchsia dots, green once gone through)
-    if (S.osb && S.osb.show !== false) for (const r of S.osb.rings) { ctx.fillStyle = r.hit ? "#2fb84a" : "#ff2fa8"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(MX(r.x), MY(r.z), 3.5, 0, 7); ctx.fill(); ctx.stroke(); }
+    // (the One Shot Bonus's stars, from above: gold dots, green once gone through)
+    if (S.osb && S.osb.show !== false) for (const r of S.osb.rings) { ctx.fillStyle = r.hit ? "#2fb84a" : "#ffc21a"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(MX(r.x), MY(r.z), 3.5, 0, 7); ctx.fill(); ctx.stroke(); }
     // aim line (bolder while it's being dragged, or the mouse is over it, to show it's the thing that moves)
     const yw = S.yaw * Math.PI / 180;
     ctx.setLineDash([3, 3]); ctx.strokeStyle = "#e8452c"; ctx.lineWidth = MAP.lineHot ? 3 : 1.5;
@@ -6441,7 +6516,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= input =================
   const pumpBtn = $("pump");
-  const pumpDown = (e) => { e && e.preventDefault(); if (S.phase !== "aim") return; audio(); S.pumpHeld = true; pumpBtn.classList.add("down"); pumpStroke(); S.pumpT = 0.3; };
+  const pumpDown = (e) => { e && e.preventDefault(); if (S.phase !== "aim" || osbWaiting()) return; audio(); S.pumpHeld = true; pumpBtn.classList.add("down"); pumpStroke(); S.pumpT = 0.3; };
   const pumpUp = () => { S.pumpHeld = false; pumpBtn.classList.remove("down"); };
   pumpBtn.addEventListener("pointerdown", pumpDown);
   ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => pumpBtn.addEventListener(ev, pumpUp));
@@ -6538,6 +6613,8 @@ body.lab .stage > :not(canvas) { display: none; }
   function beginPass() {
     const R = S.replay;
     R.t = -RELIVE_LEAD; R.i = 0; R.mi = 0; R.fired = R.landed = R.struck = false; R.ghost = null; R.hold = 0;
+    // (the golden spud's: its stars gold again, to light up green as it goes through them, with their sound, each view)
+    R.osbI = 0; if (R.rec.osbHits && S.osb) for (const h of R.rec.osbHits) { const r = S.osb.rings[h.i]; if (r) r.hit = false; }
     // loaded and pumped, valve closed, as it was a moment before the shot
     S.psi = R.rec.psi; S.valveTarget = 0; S.valve = 0; S.bird = null; S.feathers = [];
     // everything as it was before the shot: the target still showing its points, the leaf pile whole, no splat yet…
@@ -6555,6 +6632,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const s = R.saved;
     S.replay = null;
     applyState(R.now);
+    // (the golden spud's stars back as they ended up, if it was stopped partway)
+    if (R.rec.osbHits && S.osb) for (const h of R.rec.osbHits) { const r = S.osb.rings[h.i]; if (r) r.hit = true; }
     Object.assign(S, { phase: s.phase, lx: s.lx, yaw: s.yaw, hole: s.hole, psi: s.psi, valveTarget: s.valveTarget, valve: s.valveTarget, arc: s.arc, bird: s.bird, arcView: null, view: null });
     $("overlay").hidden = s.overlay;
     reliveBtn.textContent = RELIVE_LABEL; hud();
@@ -6573,6 +6652,11 @@ body.lab .stage > :not(canvas) { display: none; }
     R.t += R.t < 0 ? dt : dt * RELIVE_SPEED;
     if (R.t < 0) return;
     if (!R.fired) { R.fired = true; S.valveTarget = 1; S.puff = 1; S.psi = 0; sfx.fire(); }
+    // (the golden spud passing each star it took: green, its +20 and its sound, as it was)
+    for (const hs = rec.osbHits || []; R.osbI < hs.length && hs[R.osbI].t <= R.t; R.osbI++) {
+      const r = S.osb && S.osb.rings[hs[R.osbI].i];
+      if (r) { r.hit = true; S.pops.push({ x: r.x, y: r.y + OSB.r + 0.6, z: r.z, text: `+${OSB.pts}`, col: "#2fb84a", fancy: true, t: 0 }); sfx.ring(25); }
+    }
     // what it went through or bounced off on the way: a spinner spins (and flashes, if that scored it), the
     // trampoline jumps, and they sound again
     for (const mids = rec.mids || []; R.mi < mids.length && mids[R.mi].t <= R.t; R.mi++) {
@@ -6772,6 +6856,7 @@ body.lab .stage > :not(canvas) { display: none; }
   $("shareName").addEventListener("input", () => { setPlayerName($("shareName").value.trim().slice(0, 20)); if (share) showShareMessage(); shareNote(""); });
   function closeShare() { shareCard.hidden = true; share = null; }
   shareBtn.addEventListener("click", (e) => { e.stopPropagation(); openShare(); });
+  $("osbGo").addEventListener("click", (e) => { e.stopPropagation(); if (S.replay) stopRelive(); osbCarryOn(); });
   $("shareGo").addEventListener("click", async () => {
     if (!share) return;
     const m = shareMessage(), text = m.text, file = shareFile(await shareBlob());
