@@ -294,6 +294,7 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 .ht-rules h3 { margin: 6px 0 4px; font-size: 1rem; }
 .ht-rules h3 small { font-weight: 600; opacity: .7; }
 .ht-rules ul { margin: 0 0 6px; padding-left: 1.2em; display: grid; gap: 4px; }
+.ht-rules .ht-obj { margin: 0 0 6px; padding: 6px 10px; background: #fff3c4; border-radius: 10px; font-weight: 700; }
 /* (v2.10) playing: a pulsing red border round the whole screen and a "● How to play" tag, like a recording light */
 .howto::before { content: ""; position: fixed; inset: 0; border: 5px solid #e53935; pointer-events: none; animation: ht-rec 1.6s ease-in-out infinite; }
 @keyframes ht-rec { 50% { border-color: rgba(229,57,53,.45); } }
@@ -309,6 +310,12 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 /* the controls slide up out of the way after 2 s; a tap anywhere brings them back */
 .ht-panel { transition: transform .3s ease, opacity .3s ease; }
 .ht-panel.tucked { transform: translate(-50%, calc(-100% - 20px)); opacity: 0; pointer-events: none; }
+/* (v2.11) a finger working the cart by touch: a white touch spot (it ripples on a tap) with the hand under it */
+.ht-thumb { position: fixed; width: 0; height: 0; pointer-events: none; }
+.ht-thumb i { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.55); border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(35,48,58,.5); }
+.ht-thumb.tap i { animation: ht-tap .35s ease-out; }
+@keyframes ht-tap { from { transform: scale(.6); background: rgba(60,207,78,.85); } to { transform: scale(1.4); } }
+.ht-thumb span { position: absolute; left: -22px; top: -4px; font-size: 52px; line-height: 1; filter: drop-shadow(0 3px 2px rgba(0,0,0,.35)); }
 /* a big green arrow, bobbing toward what's being talked about (it turns to come at it from above or below) */
 .ht-arrow { position: fixed; width: 54px; height: 76px; margin: 0 0 0 -27px; pointer-events: none; filter: drop-shadow(0 3px 0 rgba(0,0,0,.3)); transition: left .25s ease, top .25s ease; }
 .ht-arrow svg { width: 100%; height: 100%; display: block; animation: ht-bob .6s ease-in-out infinite; }
@@ -467,6 +474,7 @@ body.lab .stage > :not(canvas) { display: none; }
           <label class="set-row">Full resolution <input type="checkbox" id="hiresTgl" role="switch" checked></label>
         </div>
       </details>
+      <button class="set-btn" id="howtoSetBtn" type="button">How to play ›</button>
       <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
     </div>
     <!-- the controls that aren't obvious, opened from settings so they don't take room under the field -->
@@ -528,6 +536,7 @@ body.lab .stage > :not(canvas) { display: none; }
       <div class="ht-block" id="htBlock"></div>
       <div class="ht-tag" aria-hidden="true"><i></i>How to play</div>
       <p class="ht-say" id="htSay" aria-live="polite"></p>
+      <div class="ht-thumb" id="htThumb" hidden><i></i><span>👆</span></div>
       <div class="ht-arrow" id="htArrow" hidden><svg viewBox="0 0 60 84" aria-hidden="true"><path d="M30 80 L4 46 H19 V4 H41 V46 H56 Z" fill="#3ccf4e" stroke="#23303a" stroke-width="4" stroke-linejoin="round"/></svg></div>
       <div class="ht-panel" id="htPanel" role="dialog" aria-label="How to play">
         <div class="ht-head"><b>How to play</b>
@@ -538,10 +547,13 @@ body.lab .stage > :not(canvas) { display: none; }
           <div class="ht-ctl"><button type="button" id="htBack">◀ Back</button><button type="button" id="htPause">❚❚ Pause</button><button type="button" id="htNext">Next ▶</button></div>
         </div>
         <div class="ht-rules" id="htRules" hidden>
+          <h3>The object</h3>
+          <p class="ht-obj">Score as high as you can with a limited supply of spuds. Hit all four colours, <b>orange 10, purple 15, blue 20 and red 25</b>, to <b>clear the level</b>: +30, and on to the next.</p>
           <h3>Cart Launcher levels <small>(Pasture, Cul de sac, Lake, Harvest)</small></h3>
           <ul>
-            <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then press <b>FIRE</b> to launch. On some levels the cart rolls sideways on its wheels.</li>
-            <li><b>Rings:</b> orange 10, purple 15, blue 20, red 25. Each scores once. Some are spinners, targets on a tree or bale, or up on a roof.</li>
+            <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then press <b>FIRE</b> to launch. Or work the cart by touch: tap the pump, drag the cart to aim, tap the blue valve to launch. On some levels it rolls sideways on its wheels.</li>
+            <li><b>Rings</b> each score once. Some are spinners, targets on a tree or bale, or up on a roof.</li>
+            <li><b>The map</b> (bottom right) shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim. Rings show in their colours, bonus objects as green squares, animals and people as orange, your landings as dots.</li>
             <li><b>Objects</b> in the field (the junker, the trough, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
@@ -550,7 +562,7 @@ body.lab .stage > :not(canvas) { display: none; }
           <h3>MP levels <small>(Skeetza, Milling, Reservoir)</small></h3>
           <ul>
             <li><b>Grab</b> a loaded MP from its cabinet: the MP 10 has two barrels, the Reservoir's MP 15 three. <b>Aim</b> with the mouse or a finger; <b>launch</b> with FIRE, a click or Space.</li>
-            <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 10; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; spare barrels and skeet never launched are +1 each.</li>
+            <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 10; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; then spare barrels and skeet never launched are +1 each.</li>
             <li><b>Calls:</b> both of a pair with one barrel (Two Fer), both with a barrel each (Double), both and the drone (Amazing Triple).</li>
             <li>The <b>drone</b> (and each level's own bonuses) are a bonus; <b>workers, windows and animals cost 5</b>.</li>
             <li><b>UP mode:</b> hit all of a level's bonuses to earn 30 s of UNLIMITED PNEUMAN. Hold FIRE to keep launching; waves of skeet worth 1 each, doubles +2, triples +5, quadruples +10.</li>
@@ -559,7 +571,6 @@ body.lab .stage > :not(canvas) { display: none; }
           <ul>
             <li><b>Difficulty:</b> meh, yup or gnarly, beside Play or in Settings. Harder means smaller, farther targets, more wind, and more in the way; your total is ×1, ×2 or ×3.</li>
             <li><b>Re-live it</b> plays your last shot again; <b>Share</b> sends a postcard of it. At the end, <b>Challenge a friend</b> to the same round: one try each.</li>
-            <li><b>The map</b> (bottom right): the red dashed line is where you're aimed, and tapping the map aims there. Rings show in their colours, bonus objects as green squares, animals and people as orange squares, your landings as dots. ⤢ makes it bigger.</li>
             <li><b>Keys:</b> arrows aim, Space pumps (or launches on the MP levels), Enter loads and launches, B bleeds, A and D roll the cart, M mutes.</li>
           </ul>
         </div>
@@ -674,7 +685,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.10</p>
+  <p class="ver">Pneuman v2.11</p>
 </div>
 
 <script>
@@ -1931,6 +1942,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
   const maxScore = () => lvl().gun ? Object.values(RINGS).reduce((a, r) => a + r.pts, 0) : S.rings.reduce((a, r) => a + r.pts, 0);
   // every target scored (Skeetza: a skeetza of each colour)
+  // (clearing a level, every colour hit, is worth this too: more than the best single thing, the 25 (v2.11))
+  const LEVEL_CLEAR = 30;
   const cleared = () => lvl().gun ? Object.keys(RINGS).every((t) => S.gun.got.has(t)) : S.rings.every((r) => r.hit);
 
   function endLevel() {
@@ -1954,7 +1967,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
     // each level keeps its own best (the level total, with bonuses and spare spuds), since levels can be played in any order
     // (times the difficulty's multiplier: meh ×1, yup ×2, gnarly ×3)
-    const raw = S.score + S.bonus + spare + unlaunched, mult = dif().mult, tot = Math.round(raw * mult), prev = getBest(L), isBest = prev == null || tot > prev;
+    // (v2.11: clearing the level, every colour hit, is worth LEVEL_CLEAR (+30) too, before the multiplier)
+    const clearB = allHit ? LEVEL_CLEAR : 0;
+    const raw = S.score + S.bonus + spare + unlaunched + clearB, mult = dif().mult, tot = Math.round(raw * mult), prev = getBest(L), isBest = prev == null || tot > prev;
     if (isBest) setBest(L, tot);
     const body = isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`;
     if (S.challenge) {
@@ -1966,13 +1981,14 @@ body.lab .stage > :not(canvas) { display: none; }
         () => openShare({ score: tot, vs: { name: c.name, score: c.score } }));
       $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score } }); // (the card stays up behind it)
     } else {
+      // (Next is always offered here; "only once cleared" is for the single-player campaign, still to come)
       const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">Challenge a friend</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
       showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
       // this round, sent to a friend with the score to beat
       $("ovChal").onclick = () => openShare({ score: tot });
     }
     $("ovPick").onclick = () => { audio(); showStart(S.level); };
-    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult);
+    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult, clearB);
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
     const forceTip = /[?&]aimhelp\b/.test(location.search);
@@ -2026,7 +2042,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // end-of-level tally: the ring points count up; then any points lost to animals count down (naming them); then the
   // bonus slides in (naming the objects hit) and counts up; then the spare spuds at +1 each; then it all combines into
   // the level total, which pops. Lines worth nothing are left out
-  function runTally(score, bonus, items, spare, penalty, hitAnimals, unlaunched = 0, mult = 1) {
+  function runTally(score, bonus, items, spare, penalty, hitAnimals, unlaunched = 0, mult = 1, clearB = 0) {
     const el = $("tally"); el.hidden = false;
     const extra = spare || 0, unl = unlaunched || 0, rings = score + penalty;
     // "cow ×2, chicken"
@@ -2039,9 +2055,10 @@ body.lab .stage > :not(canvas) { display: none; }
     const spareRow = extra ? `<div class="trow bonus"><span>${lvl().gun ? "Spare barrels" : "Spare spuds"} <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
     const unlRow = unl ? `<div class="trow bonus"><span>Skeetzas not launched <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
     // (the difficulty's multiplier, when it isn't ×1: what it adds or takes off the sum)
-    const sum = score + bonus + extra + unl, final = Math.round(sum * mult), dm = final - sum;
+    const sum = score + bonus + extra + unl + clearB, final = Math.round(sum * mult), dm = final - sum;
+    const clearRow = clearB ? `<div class="trow bonus"><span>Level cleared</span><b id="tC">+0</b></div>` : "";
     const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -2050,13 +2067,14 @@ body.lab .stage > :not(canvas) { display: none; }
         if (k >= 1) { clearInterval(id); done && done(); }
       }, 30);
     };
-    const [tS, tA, tB, tP, tU, tM, tT] = ["tS", "tA", "tB", "tP", "tU", "tM", "tT"].map($);
+    const [tS, tA, tB, tP, tU, tC, tM, tT] = ["tS", "tA", "tB", "tP", "tU", "tC", "tM", "tT"].map($);
     // one line after another: each slides in, counts up, then hands on to the next
     const steps = [
       tA && ((next) => { tA.parentNode.classList.add("in"); count(tA, penalty, "−", 350 + penalty * 25, next); }),
       tB && ((next) => { tB.parentNode.classList.add("in"); count(tB, bonus, "+", 350 + bonus * 25, next); }),
       tP && ((next) => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, next); }),
       tU && ((next) => { tU.parentNode.classList.add("in"); count(tU, unl, "+", Math.min(1200, 300 + unl * 25), next); }),
+      tC && ((next) => { tC.parentNode.classList.add("in"); count(tC, clearB, "+", 600, next); }),
       tM && ((next) => { tM.parentNode.classList.add("in"); count(tM, Math.abs(dm), dm >= 0 ? "+" : "−", 350 + Math.abs(dm) * 15, next); }),
       () => { tT.parentNode.classList.add("in"); count(tT, final, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
     ].filter(Boolean);
@@ -6756,6 +6774,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const ctls = $("ctlsPanel");
   function showCtls(open) { ctls.hidden = !open; }
   $("ctlsBtn").addEventListener("click", (e) => { e.stopPropagation(); showSettings(false); showCtls(true); $("ctlsClose").focus(); });
+  // How to play from Settings, any time (v2.11): partway through a round, it's put aside and comes back after
+  $("howtoSetBtn").addEventListener("click", (e) => { e.stopPropagation(); showSettings(false); openHowto(); });
   $("ctlsClose").addEventListener("click", () => { showCtls(false); gear.focus(); });
 
   // a drag that starts on the launcher aims it: sideways turns it, up/down moves the pin between peg holes.
@@ -11429,7 +11449,11 @@ body.lab .stage > :not(canvas) { display: none; }
     let r = null;
     if (typeof t === "string" || t instanceof Element) {
       const el = typeof t === "string" ? document.querySelector(t) : t;
-      if (el && el.offsetParent !== null) { const b = el.getBoundingClientRect(); r = { x: b.left + b.width / 2, top: b.top, bottom: b.bottom }; }
+      if (el && el.offsetParent !== null) {
+        let b = el.getBoundingClientRect();
+        if (b.bottom > innerHeight || b.top < 0) { el.scrollIntoView({ block: "nearest" }); b = el.getBoundingClientRect(); }
+        r = { x: b.left + b.width / 2, top: b.top, bottom: b.bottom };
+      }
     } else {
       const c = cv.getBoundingClientRect(), p = typeof t === "function" ? t() : (() => { const q = P(t[0], t[1], t[2]); return q.behind ? null : q; })();
       if (p && p.x > -10 && p.x < W + 10 && p.y > -10 && p.y < H + 10) r = { x: c.left + p.x, top: c.top + p.y, bottom: c.top + p.y };
@@ -11445,6 +11469,29 @@ body.lab .stage > :not(canvas) { display: none; }
   setInterval(() => { placeHtArrow(); if (HOWTO.on) htSayTop(); }, 120);
   // several things in turn, each for a while
   async function htPoints(list, each, tok) { for (const t of list) { htPoint(t); await htWait(each, tok); } }
+  // ---- (v2.11) the finger: a touch spot with a hand, moved about the field (canvas points), tapping, dragging ----
+  const htThumbEl = $("htThumb");
+  let htThumbP = null;
+  function htThumbAt(p) {
+    htThumbP = p; const c = cv.getBoundingClientRect();
+    htThumbEl.style.left = `${c.left + p.x}px`; htThumbEl.style.top = `${c.top + p.y}px`; htThumbEl.hidden = false;
+  }
+  function htThumbHide() { htThumbEl.hidden = true; htThumbP = null; }
+  function htTap() { htThumbEl.classList.remove("tap"); void htThumbEl.offsetWidth; htThumbEl.classList.add("tap"); }
+  // glide to p over ms (from where it is, or straight there if it isn't showing); each(k) along the way, k 0 to 1
+  function htThumbTo(p, ms, tok, each) {
+    const from = htThumbP || p, t0 = performance.now();
+    return new Promise((res, rej) => {
+      const id = setInterval(() => {
+        if (tok !== HOWTO.token) { clearInterval(id); rej(HT_CANCEL); return; }
+        if (HOWTO.paused) return;
+        const k = Math.min(1, (performance.now() - t0) / ms), e = k * k * (3 - 2 * k);
+        htThumbAt({ x: from.x + (p.x - from.x) * e, y: from.y + (p.y - from.y) * e });
+        if (each) each(e);
+        if (k >= 1) { clearInterval(id); res(); }
+      }, 30);
+    });
+  }
   const htWait = (ms, tok) => new Promise((res, rej) => {
     let left = ms, last = performance.now();
     const id = setInterval(() => {
@@ -11491,7 +11538,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   const HT_STEPS = [
     // ---- the launcher, on Pasture ----
-    { ch: "launcher", text: "Welcome to Pneuman! Load spuds into your pneumatic cart launcher and launch them at the targets in the field.", async run(tok) {
+    { ch: "launcher", text: "Welcome to Pneuman! The object: score as high as you can with a limited supply of spuds.", async run(tok) {
       htRound(0, 4242);
       // (the red ring, cleared of anything standing in the way of this one launch)
       const t = S.rings.filter((r) => r.form === "ring").sort((a, b) => b.pts - a.pts)[0];
@@ -11501,7 +11548,7 @@ body.lab .stage > :not(canvas) { display: none; }
       await htWait(4500, tok);
     } },
     // (each ring's number sign in turn, 10 to 25)
-    { ch: "launcher", text: "The rings score 10, 15, 20 and 25: the smaller the ring, the more it's worth. Each one scores once.", async run(tok) {
+    { ch: "launcher", text: "Hit all four rings, 10, 15, 20 and 25, to clear the level: +30, and on to the next.", async run(tok) {
       await htPoints(S.rings.slice().sort((a, b) => a.pts - b.pts).map((r) => [r.x, FLAG_H + 0.2, r.z + r.r]), 1400, tok);
       await htWait(500, tok);
     } },
@@ -11529,13 +11576,19 @@ body.lab .stage > :not(canvas) { display: none; }
       await htWait(900, tok);
     } },
     // (the map: the aim line, then a ring, a bonus object (green) and an animal (orange) on it)
-    { ch: "launcher", text: "The map shows the field from above. The red dashed line is where you're aimed: tap the map to aim there. Rings show in their colours, bonus objects as green squares, animals as orange.", async run(tok) {
+    // (the arrow rides the red dotted line as the cart swings a little either way and back, so the line's seen moving)
+    { ch: "launcher", text: "The map shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim.", async run(tok) {
+      const onMap = (x, z) => () => { const m = mapGeom(), yw = S.yaw * Math.PI / 180; return { x: m.MX(x != null ? x : S.lx + Math.sin(yw) * 25), y: m.MY(z != null ? z : Math.cos(yw) * 25) }; };
+      htPoint(onMap()); await htWait(700, tok);
+      const y0 = S.yaw;
+      for (const d of [-6, 6, 0]) { while (Math.abs(S.yaw - (y0 + d)) > 0.01) { if (tok !== HOWTO.token) throw HT_CANCEL; setYaw(S.yaw + Math.sign(y0 + d - S.yaw) * 0.5); await new Promise((r) => setTimeout(r, 40)); } await htWait(250, tok); }
+      await htWait(600, tok);
+    } },
+    { ch: "launcher", text: "On the map, rings show in their colours, bonus objects as green squares, animals as orange.", async run(tok) {
       const onMap = (x, z) => () => { const m = mapGeom(); return { x: m.MX(x), y: m.MY(z) }; };
-      const yw = S.yaw * Math.PI / 180, t = S.rings.filter((r) => r.form === "ring").sort((a, b) => b.pts - a.pts)[0];
+      const t = S.rings.filter((r) => r.form === "ring").sort((a, b) => b.pts - a.pts)[0];
       const obj = S.props.find((o) => !PROPS[o.kind].alive && !PROPS[o.kind].neutral), ani = S.props.find((o) => PROPS[o.kind].alive);
-      const list = [onMap(S.lx + Math.sin(yw) * 25, Math.cos(yw) * 25)];
-      if (t) list.push(onMap(t.x, t.z)); if (obj) list.push(onMap(obj.x, obj.z)); if (ani) list.push(onMap(ani.x, ani.z));
-      await htPoints(list, 2000, tok);
+      await htPoints([t && onMap(t.x, t.z), obj && onMap(obj.x, obj.z), ani && onMap(ani.x, ani.z)].filter(Boolean), 1900, tok);
     } },
     { ch: "launcher", text: "Launch! Press FIRE.", point: "#fire", async run(tok) {
       await htWait(900, tok); action(); htPoint(null);
@@ -11544,6 +11597,44 @@ body.lab .stage > :not(canvas) { display: none; }
       await htWait(3000, tok);
     } },
     { ch: "launcher", text: "After a launch, Re-live it plays it back from three angles, and Share sends a postcard of it.", async run(tok) { await htPoints(["#relive", "#shareBtn"], 2600, tok); } },
+    // ---- (v2.11) the same by touch, a finger on the cart itself, for a second launch at the next ring ----
+    { ch: "launcher", text: "You can also work the cart by touch. Load again first.", point: "#fire", async run(tok) {
+      // (the next best flat ring, cleared of anything in the way of this launch too)
+      const t = S.rings.filter((r) => r.form === "ring" && !r.hit).sort((a, b) => b.pts - a.pts)[0];
+      if (t) { S.props = S.props.filter((o) => Math.hypot(o.x - t.x, o.z - t.z) > t.r + 6); HOWTO.aim = htAimFor(t); }
+      await htWait(1200, tok); action(); await htUntil(() => S.loaded, tok, 5000); await htWait(500, tok);
+    } },
+    { ch: "launcher", text: "Tap the hand pump to pump.", thumb: true, async run(tok) {
+      htPoint(null);
+      const mid = (b) => ({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 });
+      await htThumbTo(mid(hitParts.pump), 600, tok);
+      while (S.psi < HOWTO.aim.psi - 0.05) {
+        if (tok !== HOWTO.token) throw HT_CANCEL;
+        htTap();
+        if (S.psi + 9 * (1 - S.psi / 170) > HOWTO.aim.psi) { S.psi = HOWTO.aim.psi; S.pumpAnim = 1; sfx.pump(); hud(); break; }
+        pumpStroke(); await htWait(380, tok);
+      }
+      await htWait(700, tok);
+    } },
+    // (the finger on the cart: sideways turns it to the ring; up a little moves the peg up, then back down)
+    { ch: "launcher", text: "Drag the cart to aim: sideways turns it, up and down sets the angle.", thumb: true, async run(tok) {
+      const at = () => { const q = P(S.lx, 1.0, 0.2); return { x: q.x, y: q.y }; };
+      const start = at(); await htThumbTo(start, 600, tok);
+      const yaw0 = S.yaw, dx = clamp((HOWTO.aim.yaw - yaw0) / 0.08, -W * 0.3, W * 0.3);
+      await htThumbTo({ x: start.x + dx, y: start.y }, 1400, tok, (k) => setYaw(yaw0 + (HOWTO.aim.yaw - yaw0) * k));
+      setYaw(HOWTO.aim.yaw);
+      const h0 = S.hole, p = { x: start.x + dx, y: start.y };
+      await htThumbTo({ x: p.x, y: p.y - 52 }, 700, tok, (k) => setHole(h0 + Math.round(2 * k)));
+      await htThumbTo(p, 700, tok, (k) => setHole(h0 + 2 - Math.round(2 * k)));
+      setHole(h0); await htWait(500, tok);
+    } },
+    { ch: "launcher", text: "Tap the blue valve to launch.", thumb: true, async run(tok) {
+      const v = hitParts.valve; await htThumbTo({ x: (v.x0 + v.x1) / 2, y: (v.y0 + v.y1) / 2 }, 600, tok);
+      await htWait(500, tok); htTap(); action(); await htWait(300, tok); htThumbHide();
+      await htUntil(() => S.phase === "aim" && !S.potato, tok, 15000);
+      htCap.textContent = `Tap the blue valve to launch. ${shotEl.textContent || ""}`;
+      await htWait(3000, tok);
+    } },
     // (an animal out in the field, then a bonus object)
     { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the water trough, are a +5 bonus, once each.", async run(tok) {
       const at = (o) => [o.x, (o.h || 1.5) + 0.3, o.z];
@@ -11552,7 +11643,7 @@ body.lab .stage > :not(canvas) { display: none; }
     } },
     { ch: "launcher", text: "Ten spuds a level. Clear every ring and each spare spud is +1. Most places have wind too: the arrow on the map shows it.", point: "#spudsOut", async run(tok) { await htWait(6000, tok); } },
     // ---- the MP levels, in Skeetza ----
-    { ch: "gun", text: "On the MP levels, skeet fly up and you launch mini spuds at them with the MP 10, which has two barrels.", async run(tok) {
+    { ch: "gun", text: "On the MP levels you launch mini spuds at skeet with the MP 10. Hit one of each colour to clear the level: +30.", async run(tok) {
       htRound(3, 777); await htWait(4500, tok);
     } },
     // (the arrow on the first loaded cabinet)
@@ -11587,7 +11678,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const htChapStart = (ch) => HT_STEPS.findIndex((s) => s.ch === ch);
   function htShow() {
     const s = HT_STEPS[HOWTO.step];
-    htCap.textContent = s.text; htPoint(s.point || null);
+    htCap.textContent = s.text; htPoint(s.point || null); if (!s.thumb) htThumbHide();
     for (const b of document.querySelectorAll(".ht-chaps button")) b.classList.toggle("on", b.dataset.ch === s.ch);
     $("htNext").textContent = HOWTO.step === HT_STEPS.length - 1 ? "Done ✓" : "Next ▶";
   }
@@ -11602,15 +11693,39 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the end: it waits on the last caption, Done closes)
     htPoint(null);
   }
+  // (v2.11) opened partway through a round (from Settings): the round is put aside as it is, S's own fields and the
+  // map's, and the walkthrough plays rounds of its own, which only ever put new things into S (a new place, new rings,
+  // a new gun); closing puts the round back exactly as it was and play carries on
   function openHowto(tab = "watch") {
-    audio(); HOWTO.on = true; HOWTO.started = false; HOWTO.step = 0; htEl.hidden = false; $("overlay").hidden = true;
-    htTab(tab); htPanelDown();
+    audio();
+    if (S.phase !== "title" && !HOWTO.saved) {
+      if (S.replay) stopRelive(); if (S.gunReplay) stopGunRelive();
+      HOWTO.saved = { S: { ...S }, keys: new Set(Object.keys(S)), MAP: { ...MAP }, overlay: $("overlay").hidden, relive: !reliveBtn.hidden, share: !shareBtn.hidden, built: built[lvl().scene] };
+      TRIG.on = false; stopEngines();
+    }
+    HOWTO.on = true; HOWTO.started = false; HOWTO.step = 0; htEl.hidden = false; $("overlay").hidden = true;
+    htHold(true); htTab(tab); htPanelDown();
   }
   function closeHowto() {
     HOWTO.token++; HOWTO.on = false; HOWTO.tick = null; HOWTO.paused = false; TRIG.on = false;
-    htEl.hidden = true; htPoint(null); clearTimeout(htTuckT); htPanel.classList.remove("tucked");
-    showStart(startPick);
+    htEl.hidden = true; htPoint(null); htThumbHide(); clearTimeout(htTuckT); htPanel.classList.remove("tucked"); htHold(false);
+    const sv = HOWTO.saved; HOWTO.saved = null;
+    if (!sv) { showStart(startPick); return; }
+    hideRelive(); stopEngines();
+    for (const k of Object.keys(S)) if (!sv.keys.has(k)) delete S[k];
+    Object.assign(S, sv.S); Object.assign(MAP, sv.MAP);
+    built[lvl().scene] = sv.built;
+    document.body.classList.toggle("gunmode", !!lvl().gun);
+    $("overlay").hidden = sv.overlay; reliveBtn.hidden = !sv.relive; shareBtn.hidden = !sv.share;
+    calm(); hud();
   }
+  // (while it plays, the page is held still at the top, and a control the arrow points at that's off the screen (a
+  // short screen, or one turned round and back) is scrolled into view)
+  function htHold(on) {
+    document.documentElement.style.overflow = on ? "hidden" : "";
+    if (on) window.scrollTo(0, 0);
+  }
+  window.addEventListener("resize", () => { if (HOWTO.on) setTimeout(() => window.scrollTo(0, 0), 250); });
   function htTab(tab) {
     for (const b of document.querySelectorAll(".ht-tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
     $("htWatch").hidden = tab !== "watch"; $("htRules").hidden = tab !== "rules";
