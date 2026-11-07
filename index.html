@@ -730,7 +730,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.15</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.16</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -1759,6 +1759,44 @@ body.lab .stage > :not(canvas) { display: none; }
     S.loaded = false; S.valveTarget = 1; S.puff = 1; S.lastPsi = Math.round(S.psi); S.psi = 0; sfx.fire(); hud();
   }
 
+  // ---- (v2.16) little pictures for the bonuses that aren't props: Milling's weather vane (a rooster on a pole over
+  // its N-S-E-W arms) and its Live Edge Charcuterie sign, and the Reservoir's green nav buoy. Drawn once, 128 × 100
+  // like the others, and kept as images ----
+  const BONUS_PICS = {
+    vane(c) {
+      c.strokeStyle = "#3a3d40"; c.lineCap = "round"; c.lineWidth = 4; c.beginPath(); c.moveTo(64, 96); c.lineTo(64, 34); c.stroke();
+      c.lineWidth = 3; c.beginPath(); c.moveTo(36, 70); c.lineTo(92, 70); c.stroke();
+      c.fillStyle = "#3a3d40"; c.font = "800 14px Nunito, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("W", 28, 70); c.fillText("E", 100, 70);
+      // the rooster: body, tail, head, comb, beak, legs on the pole
+      c.fillStyle = "#c9781e"; c.strokeStyle = "#5a3410"; c.lineWidth = 2;
+      c.beginPath(); c.ellipse(62, 26, 20, 12, 0, 0, 7); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(44, 24); c.lineTo(28, 6); c.lineTo(36, 26); c.lineTo(26, 18); c.lineTo(42, 32); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.arc(84, 14, 8, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = "#d63a2a"; c.beginPath(); c.arc(84, 5, 4, 0, 7); c.arc(89, 7, 3, 0, 7); c.fill();
+      c.fillStyle = "#f2b01e"; c.beginPath(); c.moveTo(91, 13); c.lineTo(99, 15); c.lineTo(91, 17); c.closePath(); c.fill();
+    },
+    sign(c) {
+      c.fillStyle = "#4a2e1a"; c.fillRect(30, 60, 6, 38); c.fillRect(92, 60, 6, 38);
+      c.fillStyle = "#1f7a6e"; c.strokeStyle = "#0f4a42"; c.lineWidth = 3; c.beginPath(); c.roundRect ? c.roundRect(10, 18, 108, 50, 6) : c.rect(10, 18, 108, 50); c.fill(); c.stroke();
+      c.fillStyle = "#f5ecd7"; c.font = "800 15px Nunito, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText("LIVE EDGE", 64, 35); c.font = "800 11px Nunito, sans-serif"; c.fillText("CHARCUTERIE", 64, 53);
+    },
+    buoy(c) {
+      // a green can buoy: its tapered body, white band and number, the light on its frame, its water line
+      c.fillStyle = "rgba(90,150,200,.5)"; c.beginPath(); c.ellipse(64, 90, 44, 8, 0, 0, 7); c.fill();
+      c.fillStyle = "#2f8a3a"; c.strokeStyle = "#164a1e"; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(42, 88); c.lineTo(48, 34); c.lineTo(80, 34); c.lineTo(86, 88); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = "#f5f5f0"; c.fillRect(46, 52, 36, 9);
+      c.fillStyle = "#164a1e"; c.font = "800 12px Nunito, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("5", 64, 75);
+      c.strokeStyle = "#3a3d40"; c.lineWidth = 3; c.beginPath(); c.moveTo(54, 34); c.lineTo(64, 14); c.lineTo(74, 34); c.stroke();
+      c.fillStyle = "#7fff8a"; c.beginPath(); c.arc(64, 12, 6, 0, 7); c.fill();
+    },
+  };
+  function bonusPic(k) {
+    const c = document.createElement("canvas"); c.width = 128; c.height = 100;
+    BONUS_PICS[k](c.getContext("2d"));
+    return c.toDataURL();
+  }
   // ---- (v2.12) the bonus strip: a little picture of each bonus object of the round, crossed out once it's hit (the
   // Cart Launcher levels' objects and boathouses, and Skeetza's drones). Rebuilt only when something changes ----
   let bonusSig = "";
@@ -1768,14 +1806,36 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.phase !== "title" && !lvl().gun) {
       items = (S.props || []).filter((o) => { const D = PROPS[o.kind]; return !D.alive && !D.neutral && !(lvl().noBonus || []).includes(o.kind); }).map((o) => ({ k: PROPS[o.kind].same || o.kind, hit: !!o.scored }));
       // (the lake's boathouses are no longer bonuses, v2.13)
-    } else if (S.phase !== "title" && lvl().gun && !S.scene.gp && S.gun) items = S.gun.drones.map((d) => ({ k: "drone", gun: true, hit: d.state !== "fly" }));
+    } else if (S.phase !== "title" && lvl().gun && S.gun) {
+      // (Skeetza: its two drones; Milling and the Reservoir: their own list (v2.16))
+      items = S.scene.gp ? (S.scene.gp.bonusList ? S.scene.gp.bonusList() : []) : S.gun.drones.map((d) => ({ k: "drone", gun: true, label: "the drone", hit: d.state !== "fly" }));
+    }
     const sig = items.map((i) => i.k + (i.hit ? "1" : "0")).join(",");
     if (sig === bonusSig) return;
     bonusSig = sig;
-    const pic = (i) => i.gun ? (thumbs["g:" + i.k] || (thumbs["g:" + i.k] = gunThumb(i.k))) : (thumbs[i.k] || (thumbs[i.k] = thumb(i.k)));
-    const name = (k) => (PROPS[k] && PROPS[k].label) || k;
-    el.innerHTML = items.map((i) => `<span class="bi${i.hit ? " hit" : ""}" title="${name(i.k)}${i.hit ? " (hit)" : ""}"><img src="${pic(i)}" alt="${name(i.k)}"></span>`).join("");
+    const pic = (i) => i.gun ? (thumbs["g:" + i.k] || (thumbs["g:" + i.k] = gunThumb(i.k))) : BONUS_PICS[i.k] ? (thumbs["b:" + i.k] || (thumbs["b:" + i.k] = bonusPic(i.k))) : (thumbs[i.k] || (thumbs[i.k] = thumb(i.k)));
+    const name = (i) => i.label || (PROPS[i.k] && PROPS[i.k].label) || i.k;
+    el.innerHTML = items.map((i) => `<span class="bi${i.hit ? " hit" : ""}" title="${name(i)}${i.hit ? " (hit)" : ""}"><img src="${pic(i)}" alt="${name(i)}"></span>`).join("");
+    placeBonusStrip();
   }
+  // (v2.16: where it sits, out of the flow always (so the field and controls never move for it): on the chips' last
+  // row, in from the right (12% on a full screen, at the edge on a phone) but never over a chip: if a chip runs
+  // long (the Reservoir's fifteen spuds), it sits just after it; if the row has no room at all, it goes up above the
+  // row, into the green beside the title, clear of the gear. A phone on its side has its own place, in the CSS)
+  function placeBonusStrip() {
+    const el = $("bonusStrip"), hud = el && el.parentElement;
+    if (!el || !el.children.length) return;
+    Object.assign(el.style, { left: "", right: "", top: "", bottom: "" });
+    if (matchMedia("(max-height: 540px) and (orientation: landscape)").matches) return;
+    const hr = hud.getBoundingClientRect(), sw = el.offsetWidth, chips = [...hud.querySelectorAll(".chip")].filter((c) => c.offsetParent).map((c) => c.getBoundingClientRect());
+    if (!chips.length) return;
+    const lastB = Math.max(...chips.map((c) => c.bottom)), rowRight = Math.max(...chips.filter((c) => Math.abs(c.bottom - lastB) < 4).map((c) => c.right)) - hr.left;
+    const want = hr.width - sw - (innerWidth <= 640 ? 2 : hr.width * 0.12), room = hr.width - sw - 2;
+    if (want >= rowRight + 10) Object.assign(el.style, { left: `${Math.round(want)}px`, right: "auto" });
+    else if (room >= rowRight + 10) Object.assign(el.style, { left: `${Math.round(rowRight + 10)}px`, right: "auto" });
+    else Object.assign(el.style, { left: "auto", right: "56px", bottom: "calc(100% + 6px)" });
+  }
+  window.addEventListener("resize", () => setTimeout(placeBonusStrip, 60));
   // ---- (v2.12) the One Shot Bonus (OSB), the Cart Launcher levels' answer to UP: hit every bonus object of the level
   // and a glowing golden spud is yours, an extra on top of the ten. An arc of six fuchsia rings hangs in the air along
   // a real flight path from where the cart stands (a pressure, peg hole and turn of its own, from the round's seed):
@@ -2408,7 +2468,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // ================= hud =================
   function hud() {
     $("lvlOut").textContent = `${S.level + 1} · ${lvl().name} · ${S.diff}`;
-    updateBonusStrip();
+    updateBonusStrip(); placeBonusStrip();
     document.body.classList.toggle("osblock", osbLock()); // (the angle and rotation greyed out while held on the arc)
     // (the One Shot Bonus done: Carry on up, the launcher's controls greyed out till it's pressed)
     $("osbGo").hidden = !osbWaiting(); document.body.classList.toggle("osbwait", osbWaiting());
@@ -10603,6 +10663,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // UP mode (v2.06): earned once both bonuses are hit, the weather vane and the sign. The waves cross out in the
       // yard, near the middle, a little lower than a pair, so the whole arc fits the still, pulled-back view
       upReady: () => bonusState.vaneHit != null && bonusState.signHit != null,
+      // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
+      bonusList: () => [{ k: "vane", label: "weather vane", hit: bonusState.vaneHit != null }, { k: "sign", label: "Live Edge Charcuterie sign", hit: bonusState.signHit != null }],
       upCross: () => [rnd(-2, 2), rnd(5.5, 7), rnd(15, 21)],
       upFlight: (l, C) => Math.max(rnd(2.0, 2.4), Math.hypot(C[0] - l.x, C[2] - l.z) / 7),
       // each pair's wind, from the round's seed (called inside its seeded draw): mostly across the yard, a little
@@ -11509,6 +11571,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // UP mode: earned once the drone's down and the nav buoy's been hit; the gold cushions go up from the same four
       // spots and cross all over the water in front, a little higher
       upReady: () => S.gun.drones.some((d) => d.state !== "fly") && NAV.hitAt != null,
+      // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
+      bonusList: () => [{ k: "drone", gun: true, label: "the drone", hit: S.gun.drones.some((d) => d.state !== "fly") }, { k: "buoy", label: "the green nav buoy", hit: NAV.hitAt != null }],
       // (near the middle of the view, so a wave from both sides meets there)
       upCross: () => [rnd(-7, 7), rnd(12, 18), rnd(42, 58)],
       upFlight: (l, C) => Math.max(rnd(3.2, 4.0), Math.hypot(C[0] - l.x, C[2] - l.z) / 20),
