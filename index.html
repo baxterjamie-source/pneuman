@@ -129,6 +129,13 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .stage.busy .sharebtn { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; }
 .stage.busy .relive { transform: translate(24px, 0); opacity: 0; pointer-events: none; animation: none; }
 @keyframes relive-pulse { 50% { transform: translate(-50%, -50%) scale(1.06); } }
+/* a green arrow nudging toward Re-live it and Share for 3 s once they're in their corner (v2.05) */
+.pointer { position: absolute; z-index: 4; width: 52px; height: 32px; pointer-events: none; filter: drop-shadow(0 2px 0 rgba(0,0,0,.25));
+  animation: pointer-nudge .5s ease-in-out 6, pointer-out .3s ease-in 2.7s forwards; }
+.pointer svg { display: block; width: 100%; height: 100%; }
+.stage.busy .pointer { opacity: 0; }
+@keyframes pointer-nudge { 0%, 100% { transform: translateX(-12px); } 50% { transform: translateX(0); } }
+@keyframes pointer-out { to { opacity: 0; } }
 .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; background: rgba(35,48,58,.45); padding: 10px; overflow-y: auto; }
 .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 18px; padding: 14px 20px; width: 100%; max-width: 30rem; display: grid; gap: 8px; box-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.05; color: var(--red); }
@@ -146,6 +153,12 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .xrow span { display: flex; gap: 0; flex-wrap: wrap; }
 .xrow img { width: 56px; height: 44px; }
 .xrow .xmore { align-self: center; font-weight: 800; font-size: .8rem; color: #2e9b3a; margin: 0 4px 0 -4px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+/* the difficulty switch on the start card, beside Play: meh / yup / gnarly, the one picked filled in */
+.diffsw { display: inline-flex; border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 0 var(--ink); align-self: center; }
+.diffsw button { border: 0; border-radius: 0; box-shadow: none; padding: 6px 12px; font-weight: 800; background: var(--paper); color: var(--ink); }
+.diffsw button + button { border-left: 2px solid var(--ink); }
+.diffsw button.on { background: var(--yellow); }
+.diffsw button:active { transform: none; box-shadow: none; }
 /* start card: one card per level, its number big and faint behind its name */
 /* one row that scrolls sideways as more levels come; on the start card the Play button sits right under it */
 .levels { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
@@ -393,8 +406,8 @@ body.lab .stage > :not(canvas) { display: none; }
     <div class="settings" id="settings" hidden>
       <h3>Settings</h3>
       <label class="set-row">Level <select id="lvlSel"></select></label>
+      <label class="set-row">Difficulty <select id="diffSel"><option value="meh">meh</option><option value="yup">yup</option><option value="gnarly">gnarly</option></select></label>
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
-      <label class="set-row">Distance stripes <input type="checkbox" id="stripesTgl" role="switch"></label>
       <!-- for testing (how fast it draws, and what it draws): folded away, and back to the defaults each time the game opens -->
       <details class="set-test">
         <summary>Test settings</summary>
@@ -442,6 +455,7 @@ body.lab .stage > :not(canvas) { display: none; }
     </div>
     <button class="relive" id="relive" type="button" hidden>⟲ Re-live it!</button>
     <button class="sharebtn" id="shareBtn" type="button" hidden>📮 Share</button>
+    <div class="pointer" id="pointer" hidden aria-hidden="true"><svg viewBox="0 0 60 36"><path d="M3 12h32V3l22 15-22 15v-9H3z" fill="#3ccf4e" stroke="#23303a" stroke-width="3" stroke-linejoin="round"/></svg></div>
     <div class="overlay" id="overlay">
       <div class="card">
         <span class="eyebrow" id="ovEyebrow">Pneumatic potato launcher</span>
@@ -566,7 +580,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.04</p>
+  <p class="ver">Pneuman v2.07</p>
 </div>
 
 <script>
@@ -574,11 +588,12 @@ body.lab .stage > :not(canvas) { display: none; }
   // ================= rules =================
   const RINGS = {
     // generous sizes (3.5 times the first version) so early rounds feel winnable
-    // (the 5's key is still "yellow" in the code, but it's orange now: yellow was too washed out, esp. on skeetzas)
-    yellow: { pts: 5, r: 11.9, color: "#ff9216", edge: "#d96a00", name: "orange" },
-    purple: { pts: 10, r: 8.8, color: "#b48cf2", edge: "#7b45c9", name: "purple" }, // purple stands out on grass
-    blue:   { pts: 15, r: 6.0, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
-    red:    { pts: 25, r: 3.7, color: "#e8302a", edge: "#b81f1a", name: "red" }, // a true red, clear of the orange 5
+    // (the orange ring's key is still "yellow" in the code: yellow was too washed out, esp. on skeetzas)
+    // points 10 / 15 / 20 / 25 since v2.05 (were 5 / 10 / 15 / 25)
+    yellow: { pts: 10, r: 11.9, color: "#ff9216", edge: "#d96a00", name: "orange" },
+    purple: { pts: 15, r: 8.8, color: "#b48cf2", edge: "#7b45c9", name: "purple" }, // purple stands out on grass
+    blue:   { pts: 20, r: 6.0, color: "#5aa8ff", edge: "#2f7fd6", name: "blue" },
+    red:    { pts: 25, r: 3.7, color: "#e8302a", edge: "#b81f1a", name: "red" }, // a true red, clear of the orange
   };
   // one ring of each kind, anywhere in the level's distance band
   const MIX = { yellow: 1, purple: 1, blue: 1, red: 1 };
@@ -607,6 +622,8 @@ body.lab .stage > :not(canvas) { display: none; }
       props: ["cow", "horse", "chicken", "turkey", "trough", "scarecrow", "junker"] },
     { id: "culdesac", name: "Cul de sac", scene: "culdesac", mix: MIX, z: [18, 78], wind: [6, 12], maxPsi: 120, mapZ: 112,
       targets: { yellow: "spinner", purple: "spinner", blue: "roof" },
+      // (noBonus: there and hittable, but worth nothing here: the driveway junker, so three bonuses a round, v2.05)
+      noBonus: ["junker"],
       // (the mower goes last, so its route can steer round everything else)
       props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour", "upNeighbour", "mower"] },
     // the family lake, from the dock
@@ -620,11 +637,12 @@ body.lab .stage > :not(canvas) { display: none; }
     // (between the two MP 10 levels, so they don't come one after the other)
     // (a level can also set hillOdds, the chance each ground ring goes on the front of one of its hills; Harvest's
     // hills are background scenery now, so nothing goes on them)
-    { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118,
+    // (stretch: its rings go farther out on yup and gnarly, nearer on meh: see DIFF)
+    { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118, stretch: true,
       targets: { yellow: "splat", purple: "splat" },
       props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
     // the winter sawmill yard, the MP 10 again, shooting live-edge cookies and slabs (and now with wind)
-    { id: "milling", name: "Milling", scene: "mill", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Wood", icon: "🪵" },
+    { id: "milling", name: "Milling", scene: "mill", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Wood", upNoun: "pieces", icon: "🪵" },
     // the reservoir from the ledge, with the MP 15 (three barrels), boat cushions three at a time (being built: no
     // penalties, bonuses or UP mode yet)
     { id: "reservoir", name: "Reservoir", scene: "reservoir", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Cushions", icon: CUSHION_ICON,
@@ -647,9 +665,24 @@ body.lab .stage > :not(canvas) { display: none; }
   };
   const LOAD_TIME = 1.5;
   try { S.muted = localStorage.getItem("pneuman-muted") === "1"; } catch (e) {}
-  // settings: 10 m distance stripes on the grass (off by default)
-  S.stripes = false;
-  try { S.stripes = localStorage.getItem("pneuman-stripes") === "1"; } catch (e) {}
+  // ---- difficulty: meh, yup, gnarly (v2.07; the game before was between meh and yup). Picked on the start card or in
+  // Settings, kept on the device; yup to start. Each round's total is multiplied by mult, and each level keeps a best
+  // for each. What each changes:
+  // ring: ground rings' (and splat targets') size; z: how far out the rings go, on levels that say so (stretch);
+  // wind: the wind's strength, gust: how much it swings shot to shot; near: how close the field's animals and
+  // objects are put to the rings (m past touching); hide: how many rings get a bale partly in front of them (Harvest);
+  // pace: how fast the gun levels' targets fly; tgt: their size (to hit and as drawn) ----
+  const DIFF = {
+    meh:    { name: "meh",    ring: 1.15, z: 0.88, wind: 0.6,  gust: 0.12, near: [2.5, 6],   hide: 0, pace: 0.85, tgt: 1.15, mult: 0.75 },
+    yup:    { name: "yup",    ring: 0.92, z: 1.05, wind: 1.1,  gust: 0.2,  near: [0.8, 3.5], hide: 0, pace: 1.05, tgt: 0.95, mult: 1 },
+    gnarly: { name: "gnarly", ring: 0.75, z: 1.18, wind: 1.5,  gust: 0.35, near: [0.3, 1.8], hide: 2, pace: 1.22, tgt: 0.8,  mult: 1.5 },
+  };
+  const DIFF_KEYS = Object.keys(DIFF);
+  // (diffPick: the one picked; diff: the one this round is played at, set as each round is laid out)
+  S.diffPick = "yup";
+  try { const d = localStorage.getItem("pneuman-diff"); if (DIFF[d]) S.diffPick = d; } catch (e) {}
+  S.diff = S.diffPick;
+  const dif = () => DIFF[S.diff] || DIFF.yup;
   // the test settings, for finding what slows a machine down (folded away in settings): animals in the field, the
   // scenery's animations in layers (the targets, the gun and the boards always move: that's the game), a frame-rate
   // readout, and full resolution on a sharp screen (off draws a quarter of the pixels on a laptop's 2× screen). Not
@@ -941,7 +974,7 @@ body.lab .stage > :not(canvas) { display: none; }
     load: () => { noise(0.5, 260, 0.3, 700); tone(120, 70, 0.15, 0.4, "triangle", 0.85); },
     fire: () => sample("fire") || (noise(0.4, 1500, 0.8, 180), tone(150, 40, 0.3, 0.6)),
     splat: () => { noise(0.18, 450, 0.5, 140); tone(95, 50, 0.12, 0.35); },
-    ring: (pts) => { const base = pts >= 25 ? 660 : pts >= 10 ? 587 : 523; tone(base, base, 0.12, 0.2, "triangle"); tone(base * 1.5, base * 1.5, 0.2, 0.2, "triangle", 0.1); if (pts >= 25) tone(base * 2, base * 2, 0.3, 0.2, "triangle", 0.22); },
+    ring: (pts) => { const base = pts >= 25 ? 660 : pts >= 15 ? 587 : 523; tone(base, base, 0.12, 0.2, "triangle"); tone(base * 1.5, base * 1.5, 0.2, 0.2, "triangle", 0.1); if (pts >= 25) tone(base * 2, base * 2, 0.3, 0.2, "triangle", 0.22); },
     done: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.18, 0.18, "square", i * 0.12)),
     // the silly hits play their recordings, with synthesised stand-ins if a recording is missing
     moo: () => sample("cow") || (tone(210, 150, 0.35, 0.3, "sawtooth"), tone(150, 115, 0.7, 0.3, "sawtooth", 0.3)),
@@ -1061,6 +1094,8 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   const FLAG_H = 1.3;
   const overlaps = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  // how far out a level's rings go: its own band, stretched by the difficulty where the level allows (stretch: true)
+  const zRange = (L) => (L.stretch ? [L.z[0] * dif().z, L.z[1] * dif().z] : L.z);
   // re-roll whole layouts until one has no rings overlapping on screen
   function layoutRings(L) {
     let best = null, bestBad = Infinity;
@@ -1125,7 +1160,8 @@ body.lab .stage > :not(canvas) { display: none; }
           let x, z;
           // (on the barn wall if it fits there, else back on its usual bale)
           const mkNow = mk === "barn" && tries >= 150 ? SPLAT[type].mount : mk;
-          const rr = form === "spinner" ? SPIN.foot : form === "splat" ? footOf(mkNow) : R.r;
+          // (a ring's size: its colour's, by the difficulty)
+          const rr = form === "spinner" ? SPIN.foot : form === "splat" ? footOf(mkNow) : R.r * dif().ring;
           if (mkNow === "barn") {
             // on the wall either side of the big doors, never on them
             const bn = S.scene.barn, rad = SPLAT[type].rad, p = solid(bn).Wp([(Math.random() < 0.5 ? -1 : 1) * rnd(2.7 + rad + 0.3, bn.w / 2 - rad - 0.3), 0, bn.d / 2 + 0.12]);
@@ -1137,7 +1173,8 @@ body.lab .stage > :not(canvas) { display: none; }
             if (!inBand(x, z, BAND.rings[type])) continue;
           } else {
             // big rings need room: the near edge stays well clear of the launcher
-            z = rnd(Math.max(L.z[0], rr + 8), L.z[1]);
+            const Z = zRange(L);
+            z = rnd(Math.max(Z[0], rr + 8), Z[1]);
             // the smaller the ring, the closer to straight ahead it sits (see BAND), so it stays in reach in a crosswind
             const halfW = (W / 2 + sx) / P(0, 0, z).s - rr - 1;
             x = rnd(-1, 1) * Math.max(2, Math.min(z * Math.tan(BAND.rings[type]), halfW * 0.9));
@@ -1160,7 +1197,7 @@ body.lab .stage > :not(canvas) { display: none; }
           // the spinner's disc faces the launcher
           if (form === "spinner") Object.assign(placed, { yaw: Math.atan2(-x, CAM.z0 - z), ang: 0, spin: 0 });
           // a splat target faces the launcher too, on its tree or bale
-          if (form === "splat") Object.assign(placed, { yaw, mk: mkNow, rad: SPLAT[type].rad, cy: MOUNT_CY[mkNow], marks: [], mount: makeMount(mkNow) });
+          if (form === "splat") Object.assign(placed, { yaw, mk: mkNow, rad: SPLAT[type].rad * Math.min(1, dif().ring) /* (never bigger: on a bale it'd reach the ground) */, cy: MOUNT_CY[mkNow], marks: [], mount: makeMount(mkNow) });
           if (hill && tries < 300) placed.hill = hill;
         }
         if (placed) rings.push(placed);
@@ -1183,13 +1220,15 @@ body.lab .stage > :not(canvas) { display: none; }
     return `${parts.join(", ")} of the ${tName(n)}`;
   }
   // each shot's wind comes from the round's seed (shot 1, 2, … each its own stream), so a challenge blows the same
+  // (a level's wind, km/h low to high, by the difficulty)
+  const windRange = (L) => [L.wind[0] * dif().wind, L.wind[1] * dif().wind];
   function rollWind() { withSeed(seedFor(S.seed, SEED.wind + (SPUDS - (S.spudsLeft ?? SPUDS))), rollWindNow); }
   function rollWindNow() {
-    const [a, b] = lvl().wind;
+    const [a, b] = windRange(lvl());
     if (b === 0) { S.wind = { x: 0, z: 0, kmh: 0 }; return; }
-    // a level keeps one prevailing direction; each shot wobbles a little
+    // a level keeps one prevailing direction; each shot wobbles a little (more on gnarly: dif().gust)
     if (S.windDir == null) S.windDir = rnd(0, Math.PI * 2);
-    const dir = S.windDir + rnd(-0.15, 0.15), kmh = Math.round(rnd(a, b));
+    const dir = S.windDir + rnd(-dif().gust, dif().gust), kmh = Math.round(rnd(a, b));
     const ms = kmh / 3.6;
     S.wind = { x: Math.sin(dir) * ms, z: Math.cos(dir) * ms, kmh, dir };
   }
@@ -1319,14 +1358,15 @@ body.lab .stage > :not(canvas) { display: none; }
         // a bit short or long lands), sometimes off to one side
         const ring = S.rings[Math.floor(Math.random() * S.rings.length)];
         const lx = ring.x, lz = ring.z - CAM.z0, ll = Math.hypot(lx, lz), ux = lx / ll, uz = lz / ll;
-        const inLine = Math.random() < 0.75, d = ring.r + D.r + rnd(0.8, 3.5);
+        // (how close: by the difficulty, closer on gnarly)
+        const inLine = Math.random() < 0.75, d = ring.r + D.r + rnd(...dif().near);
         const along = inLine ? d * (Math.random() < 0.5 ? -1 : 1) : rnd(-1.5, 1.5), across = inLine ? rnd(-1.2, 1.2) : d * (Math.random() < 0.5 ? -1 : 1);
         const x = ring.x + ux * along + uz * across, z = ring.z + uz * along - ux * across;
         if (Math.abs(x) > 48 || z < 10 || z > 165 || !inBand(x, z, BAND.props[kind] || BAND.animals)) continue;
         // on screen from the launcher (the camera is at home after the ring layout), and clear of the corner map
         const q = P(x, 0, z), mw = Math.min(150, W * 0.26), mh = Math.min(190, H * 0.5, mw * 1.3);
         if (q.x < 40 || q.x > W - 40 || (q.x > W - mw - 30 && q.y > H - mh - 30)) continue;
-        if (S.rings.some((r) => !onBuilding(r) && Math.hypot(r.x - x, r.z - z) < r.r + D.r + 1)) continue;
+        if (S.rings.some((r) => !onBuilding(r) && Math.hypot(r.x - x, r.z - z) < r.r + D.r + Math.min(1, dif().near[0]))) continue;
         if (S.props.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + D.r + 2)) continue;
         // and somewhere this place allows it (not in a house; the leaf pile and trampoline on a lawn)
         if (!S.scene.free(x, z, D.r, kind)) continue;
@@ -1400,6 +1440,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.lx = 0; S.roll = 0; // back in the middle (the layout below is worked out from there)
     hideRelive(); S.shots = []; S.rec = null; S.best = null; S.snapAt = null;
     S.level = i; S.seed = round ? round.seed : newSeed();
+    // (the difficulty for this round: a challenge's own, or the one picked)
+    S.diff = round && DIFF[round.diff] ? round.diff : S.diffPick;
     S.layoutView = round ? { w: round.w, h: round.h } : { w: Math.round(W), h: Math.round(H) };
     const keep = { W, H };
     W = S.layoutView.w; H = S.layoutView.h;
@@ -1408,7 +1450,10 @@ body.lab .stage > :not(canvas) { display: none; }
         // (the place is built afresh too, so its houses, trees, barn and hills are the round's)
         const L = LEVELS[i];
         S.scene = built[L.scene] = SCENE_BUILD[L.scene]();
-        S.rings = layoutRings(L); S.props = []; placeProps(propKinds());
+        S.rings = layoutRings(L); S.props = [];
+        // (gnarly: the most valuable flat rings get something partly in front of them, where the place can do it)
+        if (dif().hide && S.scene.screenRing) S.rings.filter((r) => r.form === "ring" && !r.hill).sort((a, b) => b.pts - a.pts).slice(0, dif().hide).forEach((r) => S.scene.screenRing(r));
+        placeProps(propKinds());
       });
     } finally { ({ W, H } = keep); camHome(); }
     S.birdCool = 0;
@@ -1602,6 +1647,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // (msg and say can stand in for the prop's own, e.g. the junker's bodywork)
   function award(prop, msg = PROPS[prop.kind].msg, say = PROPS[prop.kind].say) {
     const D = PROPS[prop.kind];
+    if ((lvl().noBonus || []).includes(prop.kind)) { shotNote(`${msg} ${say} (no bonus for that here)`); return; }
     if (prop.scored) { shotNote(`${msg} ${say} (bonus already won)`); return; }
     prop.scored = true; S.shotScores++; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
     shotNote(`${msg} ${say} +5 bonus!`);
@@ -1780,7 +1826,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const allHit = cleared(), L = lvl(), next = (S.level + 1) % LEVELS.length;
     const title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
     // each level keeps its own best (the level total, with bonuses and spare spuds), since levels can be played in any order
-    const tot = S.score + S.bonus + spare + unlaunched, prev = getBest(L), isBest = prev == null || tot > prev;
+    // (times the difficulty's multiplier: meh ×0.75, yup ×1, gnarly ×1.5, rounded)
+    const raw = S.score + S.bonus + spare + unlaunched, mult = dif().mult, tot = Math.round(raw * mult), prev = getBest(L), isBest = prev == null || tot > prev;
     if (isBest) setBest(L, tot);
     const body = isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`;
     if (S.challenge) {
@@ -1798,7 +1845,7 @@ body.lab .stage > :not(canvas) { display: none; }
       $("ovChal").onclick = () => openShare({ score: tot });
     }
     $("ovPick").onclick = () => { audio(); showStart(S.level); };
-    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched);
+    runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult);
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
     const forceTip = /[?&]aimhelp\b/.test(location.search);
@@ -1852,7 +1899,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // end-of-level tally: the ring points count up; then any points lost to animals count down (naming them); then the
   // bonus slides in (naming the objects hit) and counts up; then the spare spuds at +1 each; then it all combines into
   // the level total, which pops. Lines worth nothing are left out
-  function runTally(score, bonus, items, spare, penalty, hitAnimals, unlaunched = 0) {
+  function runTally(score, bonus, items, spare, penalty, hitAnimals, unlaunched = 0, mult = 1) {
     const el = $("tally"); el.hidden = false;
     const extra = spare || 0, unl = unlaunched || 0, rings = score + penalty;
     // "cow ×2, chicken"
@@ -1864,7 +1911,10 @@ body.lab .stage > :not(canvas) { display: none; }
     const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
     const spareRow = extra ? `<div class="trow bonus"><span>${lvl().gun ? "Spare barrels" : "Spare spuds"} <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
     const unlRow = unl ? `<div class="trow bonus"><span>Skeetzas not launched <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    // (the difficulty's multiplier, when it isn't ×1: what it adds or takes off the sum)
+    const sum = score + bonus + extra + unl, final = Math.round(sum * mult), dm = final - sum;
+    const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
+    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -1873,19 +1923,21 @@ body.lab .stage > :not(canvas) { display: none; }
         if (k >= 1) { clearInterval(id); done && done(); }
       }, 30);
     };
-    const [tS, tA, tB, tP, tU, tT] = ["tS", "tA", "tB", "tP", "tU", "tT"].map($);
+    const [tS, tA, tB, tP, tU, tM, tT] = ["tS", "tA", "tB", "tP", "tU", "tM", "tT"].map($);
     // one line after another: each slides in, counts up, then hands on to the next
     const steps = [
       tA && ((next) => { tA.parentNode.classList.add("in"); count(tA, penalty, "−", 350 + penalty * 25, next); }),
       tB && ((next) => { tB.parentNode.classList.add("in"); count(tB, bonus, "+", 350 + bonus * 25, next); }),
       tP && ((next) => { tP.parentNode.classList.add("in"); count(tP, extra, "+", 300 + extra * 60, next); }),
       tU && ((next) => { tU.parentNode.classList.add("in"); count(tU, unl, "+", Math.min(1200, 300 + unl * 25), next); }),
-      () => { tT.parentNode.classList.add("in"); count(tT, score + bonus + extra + unl, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
+      tM && ((next) => { tM.parentNode.classList.add("in"); count(tM, Math.abs(dm), dm >= 0 ? "+" : "−", 350 + Math.abs(dm) * 15, next); }),
+      () => { tT.parentNode.classList.add("in"); count(tT, final, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
     ].filter(Boolean);
     const run = (i) => setTimeout(() => steps[i](() => run(i + 1)), 250);
     count(tS, rings, "", Math.min(900, 250 + rings * 12), () => run(0));
   }
-  const bestKey = (L) => `pneuman-best-${L.id}`;
+  // (a best for each difficulty; yup keeps the old key, so the bests from before difficulties carry on as yup's)
+  const bestKey = (L) => `pneuman-best-${L.id}${S.diff === "yup" ? "" : `-${S.diff}`}`;
   function getBest(L) { try { const v = localStorage.getItem(bestKey(L)); return v == null ? null : Number(v); } catch (e) { return null; } }
   function setBest(L, v) { try { localStorage.setItem(bestKey(L), String(v)); } catch (e) {} }
   // the start card: how to play, then a card for each level (its number big and faint behind its name), and the
@@ -1898,7 +1950,10 @@ body.lab .stage > :not(canvas) { display: none; }
     showCard("Pneumatic potato launcher", "Pneuman", "Load, pump, aim and fire. Ten spuds per level; each target scores once. Pick a place:",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
+      // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
+      `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
       `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button>`, () => startLevel(startPick));
+    for (const b of document.querySelectorAll(".diffsw button")) b.onclick = () => { audio(); setDiff(b.dataset.d); };
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
     el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
       // the places still to come, greyed out
@@ -1907,6 +1962,16 @@ body.lab .stage > :not(canvas) { display: none; }
       b.onclick = () => { audio(); const i = Number(b.dataset.i); if (i === startPick) startLevel(i); else showStart(i); };
     });
     $("extras").hidden = false; extrasFor(LEVELS[sel]);
+  }
+  // the difficulty picked (start card or Settings): kept on the device, and used from the next round laid out (on the
+  // start card, at once: the level picked is laid out again for it). A challenge plays at the challenger's
+  function setDiff(d) {
+    if (!DIFF[d]) return;
+    S.diffPick = d;
+    try { localStorage.setItem("pneuman-diff", d); } catch (e) {}
+    if ($("diffSel")) $("diffSel").value = d;
+    if (S.phase === "title" && !S.challenge) { previewLevel(startPick); showStart(startPick); }
+    else if (S.diff !== d) note(`${cap(d)} from the next round`, 1800);
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
     $("tally").hidden = true; $("extras").hidden = true; $("levels").hidden = true; // (the pictures and level cards are for the start card)
@@ -1920,7 +1985,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= hud =================
   function hud() {
-    $("lvlOut").textContent = `${S.level + 1} · ${lvl().name}`;
+    $("lvlOut").textContent = `${S.level + 1} · ${lvl().name} · ${S.diff}`;
     if ($("lvlSel")) $("lvlSel").value = String(S.level);
     // (Skeetza has no top score: as many pairs fly as there are barrels to fire at them)
     $("scoreOut").textContent = lvl().gun ? `${S.score}` : `${S.score} / ${maxScore()}`;
@@ -2227,14 +2292,10 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     lap("rest");
   }
-  // the pasture's ground: plain grass with a few faint lighter and darker patches (the 10 m mowing stripes are a
-  // setting, off by default), the stream, then the trees and fence panels far to near, then tufts
+  // the pasture's ground: plain grass with a few faint lighter and darker patches, the stream, then the trees and
+  // fence panels far to near, then tufts
   function pastureBack() {
     ctx.fillStyle = "#73c94f"; ctx.fillRect(0, HZ, W, H - HZ);
-    if (S.stripes) {
-      ctx.fillStyle = "#67bb45";
-      for (let z = -5; z < 200; z += 20) if (pathClip([[-400, 0, z], [400, 0, z], [400, 0, z + 10], [-400, 0, z + 10]])) ctx.fill();
-    }
     for (const g of patches) {
       const pts = [];
       for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; pts.push([g.x + Math.cos(a) * g.r * g.sx, 0, g.z + Math.sin(a) * g.r]); }
@@ -3252,7 +3313,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const FLAT = { groundY: () => 0, hills: [], flats: [], water: () => false, hides: () => false, wallTargets: () => [], wheels: { range: [-12, 12], stop: "That's as far as it rolls" } };
   const PASTURE = {
     // (its ground, stream, trees and fences don't move: a still picture while the view holds still)
-    ...FLAT, skyline: "#9ad07a", back: () => still("pasture" + (S.stripes ? "-stripes" : ""), pastureBack), standing: [], front() {}, update() {}, reset() {},
+    ...FLAT, skyline: "#9ad07a", back: () => still("pasture", pastureBack), standing: [], front() {}, update() {}, reset() {},
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
@@ -4630,6 +4691,19 @@ body.lab .stage > :not(canvas) { display: none; }
         return !qs.some((q) => q.behind) && overlaps(box, { x0: Math.min(...qs.map((q) => q.x)), x1: Math.max(...qs.map((q) => q.x)), y0: Math.min(...qs.map((q) => q.y)), y1: Math.max(...qs.map((q) => q.y)) });
       },
       spots: (kind) => (kind === "farmer" ? seats.map((b) => ({ x: b.x, z: b.z, y0: b.r * 2 - 0.05 })) : null),
+      // (gnarly: a round bale set a few metres short of ring r and off to one side of the line from the launcher, so
+      // it covers part of the ring and a flat shot at that part stops on the bale: lob over it. True if one fitted)
+      screenRing(r) {
+        const lx = r.x, lz = r.z - CAM.z0, l = Math.hypot(lx, lz), ux = lx / l, uz = lz / l;
+        for (let i = 0; i < 30; i++) {
+          const back = r.r + rnd(2.5, 4.5), side = (Math.random() < 0.5 ? -1 : 1) * r.r * rnd(0.3, 0.6);
+          const x = r.x - ux * back + uz * side, z = r.z - uz * back - ux * side;
+          if (S.rings.some((o) => o !== r && !onBuilding(o) && Math.hypot(o.x - x, o.z - z) < o.r + 1.8)) continue;
+          const b = addBale(x, z, Math.atan2(-x, CAM.z0 - z) + Math.PI / 2);
+          if (b) { this.standing.push(b); return true; }
+        }
+        return false;
+      },
       // now and then the blue ring goes up on the barn roof, anywhere along it (over the lettering)
       roofTargets: (type) => (barn ? [-1, -0.5, 0, 0.5, 1].map((k) => roofRingAt(barn, type, k * (barn.w / 2 - 2.6 - 0.7), barn.d / 4)) : []),
       // more often a ring is painted on the barn's broad side, either side of the doors
@@ -6025,12 +6099,36 @@ body.lab .stage > :not(canvas) { display: none; }
     reliveBtn.textContent = RELIVE_LABEL; reliveBtn.hidden = false; reliveBtn.classList.add("big"); shareBtn.hidden = false;
     clearTimeout(reliveTimer); reliveTimer = setTimeout(shrinkRelive, RELIVE_BIG_MS);
   }
-  function shrinkRelive() { clearTimeout(reliveTimer); reliveBtn.classList.remove("big"); }
-  function hideRelive() { if (S.replay) stopRelive(); if (S.gunReplay) stopGunRelive(); S.gunRec = null; shrinkRelive(); reliveBtn.hidden = true; shareBtn.hidden = true; closeShare(); }
+  // (point: as it goes from big into its corner after a shot, the green arrow points it out; not when it's being
+  // pressed or put away)
+  function shrinkRelive(point = true) {
+    clearTimeout(reliveTimer);
+    const was = reliveBtn.classList.contains("big"); reliveBtn.classList.remove("big");
+    if (point && was && !reliveBtn.hidden && !S.replay && !S.gunReplay) pointAtRelive();
+  }
+  function hideRelive() { if (S.replay) stopRelive(); if (S.gunReplay) stopGunRelive(); S.gunRec = null; shrinkRelive(false); reliveBtn.hidden = true; shareBtn.hidden = true; hidePointer(); closeShare(); }
+  // ---- the green arrow: for 3 s, just left of Re-live it and Share, nudging toward them. After every shot on the
+  // launcher levels; on the gun levels (shots come quickly) after the first shot of a round only ----
+  const pointerEl = $("pointer");
+  let pointTimer = 0, pointedRound = null;
+  function hidePointer() { clearTimeout(pointTimer); pointerEl.hidden = true; }
+  function pointAtRelive() {
+    if (lvl().gun) { const k = S.level + ":" + S.seed; if (pointedRound === k) return; pointedRound = k; }
+    hidePointer();
+    // (once the button has finished moving into its corner)
+    pointTimer = setTimeout(() => {
+      if (reliveBtn.hidden || reliveBtn.classList.contains("big") || S.replay || S.gunReplay || stageEl.classList.contains("busy")) return;
+      const st = stageEl.getBoundingClientRect(), a = reliveBtn.getBoundingClientRect(), b = shareBtn.hidden ? a : shareBtn.getBoundingClientRect();
+      pointerEl.style.left = `${Math.min(a.left, b.left) - st.left - 58}px`;
+      pointerEl.style.top = `${(a.top + b.bottom) / 2 - st.top - 16}px`;
+      pointerEl.hidden = false; pointerEl.style.animation = "none"; void pointerEl.offsetWidth; pointerEl.style.animation = "";
+      pointTimer = setTimeout(hidePointer, 3100);
+    }, 500);
+  }
   function startRelive() {
     const rec = S.rec;
     if (!rec || !rec.arc || S.replay || S.potato) return;
-    audio(); shrinkRelive();
+    audio(); shrinkRelive(false); hidePointer();
     // what to put back afterwards
     const saved = { phase: S.phase, lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, valveTarget: S.valveTarget, arc: S.arc, bird: S.bird, overlay: $("overlay").hidden };
     // (and the scene as it is now: targets, objects, windows, splats, put back at the end)
@@ -6252,7 +6350,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (!rec || (!rec.gun && !rec.arc) || S.potato) return;
     if (S.gunReplay) stopGunRelive();
     if (S.replay) stopRelive();
-    audio(); shrinkRelive();
+    audio(); shrinkRelive(false); hidePointer();
     // (an epic spud's picture only says "Click image to see more!" on a computer, where the picture is the link; on a
     // phone it can't be tapped, and the Play Pneuman line goes with it instead)
     // (a challenge's likewise: "Click image to take the challenge!" only where the picture is the link)
@@ -6360,7 +6458,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const OLD_ORDER = ["pasture", "culdesac", "harvest", "lake"];
   function challengeLink(score, name) {
     const b = (n) => Math.round(n).toString(36);
-    const code = [lvl().id, b(S.seed), b(S.layoutView.w), b(S.layoutView.h), S.animals ? 1 : 0, b(score), GAME_V, name || ""].join("-");
+    // (the animals field carries the difficulty's first letter too, since v2.07: "1g" is animals on, gnarly)
+    const code = [lvl().id, b(S.seed), b(S.layoutView.w), b(S.layoutView.h), `${S.animals ? 1 : 0}${S.diff[0]}`, b(score), GAME_V, name || ""].join("-");
     return `${SHARE_URL}?${new URLSearchParams({ c: code })}`;
   }
   // a challenge in this page's address, or null (the short c= code, or the long form the first links used:
@@ -6371,12 +6470,13 @@ body.lab .stage > :not(canvas) { display: none; }
       const f = q.get("c").split("-"), n = (s) => parseInt(s, 36);
       const L = LEVELS.find((L) => L.id === (/^\d+$/.test(f[0]) ? OLD_ORDER[Number(f[0])] : f[0]));
       if (f.length < 7 || !L) return null;
-      q = new URLSearchParams({ level: L.id, seed: String(n(f[1])), w: String(n(f[2])), h: String(n(f[3])), a: f[4], score: String(n(f[5])), v: f[6], name: f.slice(7).join("-") });
+      const d = DIFF_KEYS.find((k) => k[0] === f[4][1]) || "yup";
+      q = new URLSearchParams({ level: L.id, seed: String(n(f[1])), w: String(n(f[2])), h: String(n(f[3])), a: f[4][0], d, score: String(n(f[5])), v: f[6], name: f.slice(7).join("-") });
     }
     const level = LEVELS.findIndex((L) => L.id === q.get("level"));
     const seed = Number(q.get("seed")), score = Number(q.get("score")), w = Number(q.get("w")), h = Number(q.get("h"));
     if (level < 0 || !q.has("seed") || !q.has("score") || !Number.isFinite(seed) || !Number.isFinite(score) || !(w >= 100 && w <= 4000) || !(h >= 100 && h <= 4000)) return null;
-    return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "" };
+    return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", diff: DIFF[q.get("d")] ? q.get("d") : "yup", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "" };
   }
   // one try: what this device knows of a challenge (null, { started }, or { score })
   const chKey = (c) => `pneuman-ch:${LEVELS[c.level].id}:${c.seed}:${c.name}:${c.score}`;
@@ -6405,7 +6505,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const old = c.v && c.v !== GAME_V ? ` (Sent from Pneuman v${c.v}; this is v${GAME_V}, so the round may differ a little.)` : "";
     const plain = () => { leaveChallenge(); showStart(c.level); };
     if (!mine) {
-      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name}. ${sameRound(L)}, one try. Your turn!${old}`, "",
+      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name} (${c.diff}). ${sameRound(L)}, one try. Your turn!${old}`, "",
         `<button id="ovGo" type="button">Play ${L.name}</button><button id="ovPick" type="button">Just play Pneuman</button>`,
         () => { chSave(c, { started: Date.now() }); startLevel(c.level, c); });
       $("ovPick").onclick = () => { audio(); plain(); };
@@ -6432,17 +6532,15 @@ body.lab .stage > :not(canvas) { display: none; }
     const i = Number(lvlSel.value); audio(); showSettings(false);
     if (S.phase === "title") showStart(i); else startLevel(i);
   });
-  const animalsTgl = $("animalsTgl"), stripesTgl = $("stripesTgl");
-  animalsTgl.checked = S.animals; stripesTgl.checked = S.stripes;
+  const animalsTgl = $("animalsTgl");
+  animalsTgl.checked = S.animals;
+  $("diffSel").value = S.diffPick;
+  $("diffSel").addEventListener("change", (e) => setDiff(e.target.value));
   animalsTgl.addEventListener("change", () => {
     S.animals = animalsTgl.checked;
     // take the animals out of the field, or bring them in among the current rings
     if (S.animals) placeProps(lvl().props.filter((k) => PROPS[k].animal));
     else S.props = S.props.filter((o) => !PROPS[o.kind].animal);
-  });
-  stripesTgl.addEventListener("change", () => {
-    S.stripes = stripesTgl.checked;
-    try { localStorage.setItem("pneuman-stripes", S.stripes ? "1" : "0"); } catch (e) {}
   });
   // the animation layers, and All off / All on for the lot (animals included)
   const animTgls = { workers: $("workersTgl"), machines: $("machinesTgl"), smoke: $("smokeTgl") }, animAllBtn = $("animAllBtn");
@@ -6689,7 +6787,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // debug: fast-forward the simulation from the console
   window.__pneuman = {
-    S, MAP, CAM, fencePanels, planStrike, startLevel, P, layoutOnce, ringBox, hitParts, buffers, sfx, thumb: (k) => thumb(k), view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
+    S, MAP, CAM, fencePanels, planStrike, startLevel, endLevel, P, tgtR: () => tgtR(), gunPace: () => gunPace(), layoutOnce, ringBox, hitParts, buffers, sfx, thumb: (k) => thumb(k), view: () => ({ W, H, HZ, CY, F }), step: (sec = 1) => { for (let t = 0; t < sec; t += 1 / 60) update(1 / 60); draw(); },
     // how many of n random layouts end up with rings overlapping on screen
     layoutCheck: (lv, n = 200) => { S.scene = sceneFor(LEVELS[lv]); let bad = 0, missing = 0; for (let i = 0; i < n; i++) { const r = layoutRings(LEVELS[lv]); if (r.some((a, j) => r.some((b, k) => k > j && overlaps(a.box, b.box)))) bad++; if (r.length < Object.values(LEVELS[lv].mix).reduce((a, b) => a + b)) missing++; } return { bad, missing, n }; },
   };
@@ -6829,7 +6927,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const pic = (k) => `<img src="${get(k)}" alt="${EXTRA_NAMES[k] || PROPS[k].label || k}" title="${EXTRA_NAMES[k] || PROPS[k].label || k}">` +
       (PROPS[k] && PROPS[k].big ? `<small class="xmore">(+${PROPS[k].big - 5})</small>` : "");
     // (the lake's boathouses are the place's own buildings, not props, but they're +5 too)
-    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive), ...(L.scene === "lake" ? ["boathouse"] : [])].map(pic).join("");
+    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive && !(L.noBonus || []).includes(k)),...(L.scene === "lake" ? ["boathouse"] : [])].map(pic).join("");
     $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : []), ...(L.scene === "lake" ? ["bird"] : [])].map(pic).join("");
   }
 
@@ -6853,7 +6951,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const gunBarrels = () => lvl().barrels || 2, gunPerPull = () => lvl().perPull || 2, gunName = () => lvl().gunName || "MP 10";
   const pullWord = () => (gunPerPull() === 3 ? "pull" : "pair");
   // (how big a target is to hit and to keep in view: a place's own, or a skeetza's)
-  const tgtR = () => (S.scene && S.scene.gp && S.scene.gp.tR) || GUN.pizzaR;
+  // (a target's size, to hit and as drawn: the place's own or a skeetza's, by the difficulty)
+  const tgtR = () => ((S.scene && S.scene.gp && S.scene.gp.tR) || GUN.pizzaR) * dif().tgt;
   // the windows, every one of them breakable (−5): a band high up each side wall, a lower row set in the brick
   // down the sides where the gun can swing round to them, and four in the back wall. side: −1 left, 1 right or
   // "back"; a0–a1 along the wall (z on a side wall, x on the back), y0–y1 up it
@@ -7140,8 +7239,8 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.fillStyle = b.c; ctx.beginPath(); ctx.ellipse(q.x, q.y, r, r * flat * (b.kind === "disc" ? 1 : 0.7), (b.a % 1) * 0.6, 0, 7); ctx.fill();
   }
   function drawFlop(f) {
-    groundCircle(f.x, f.z, GUN.pizzaR, 18, 0.01); ctx.fillStyle = f.ring ? RINGS[f.ring].edge : "#d99a48"; ctx.fill();
-    groundCircle(f.x, f.z, GUN.pizzaR * 0.8, 18, 0.012); ctx.fillStyle = "#e8b34a"; ctx.fill();
+    groundCircle(f.x, f.z, tgtR(), 18, 0.01); ctx.fillStyle = f.ring ? RINGS[f.ring].edge : f.hue ? f.hue[1] : "#d99a48"; ctx.fill();
+    groundCircle(f.x, f.z, tgtR() * 0.8, 18, 0.012); ctx.fillStyle = f.hue ? f.hue[2] : "#e8b34a"; ctx.fill();
     for (let i = 0; i < 5; i++) { const a = f.a + i * 1.26, q = P(f.x + Math.cos(a) * 0.22, 0.015, f.z + Math.sin(a) * 0.22); if (!q.behind) { ctx.fillStyle = f.top.dot; ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.07 * q.s, 0.03 * q.s, 0, 0, 7); ctx.fill(); } }
   }
 
@@ -7155,7 +7254,7 @@ body.lab .stage > :not(canvas) { display: none; }
     S.upScore = 0; TRIG.on = false;
     if (S.scene.gp && S.scene.gp.reset) S.scene.gp.reset();
   }
-  // ---- UP mode, "UNLIMITED PNEUMAN!" (the Reservoir's, once a round, once both its bonuses are hit): for 30 s the
+  // ---- UP mode, "UNLIMITED PNEUMAN!" (the gun levels', once a round, once all the level's bonuses are hit): for 30 s the
   // round stops (its cushions gone, its barrels and pulls not counted, nothing else to hit or miss) and the gun never
   // runs out: tap to fire, or hold FIRE (or the mouse button, or Space) and it fires 4 a second. Gold round cushions
   // go up from all round, never fewer than 6 in the air, 1 point each. The scene goes gold, a big countdown up top,
@@ -7168,6 +7267,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // the crossing to slowFor after: about a second of real time bunched in the air)
   const UP = { secs: 30, every: 0.25, inAir: 6, waveGap: 0.9, double: 2, triple: 5, quad: 10, pellets: 10, spread: 0.04, hitR: 1.5, slow: 0.25, slowFor: 0.14 };
   const TRIG = { on: false };
+  // (UP on Skeetza and Milling (v2.06): their own skeetzas and wood, in shades of magenta and pink to stand out
+  // against the gold wash: crust or live edge, its darker edge, and the cheese or the face)
+  const UP_HUES = [["#ff2fa8", "#8a0050", "#ffb8e2"], ["#e0149a", "#6e0046", "#ff9ad6"], ["#ff5ccf", "#a31a7c", "#ffd0ef"], ["#b81fd6", "#5c0a73", "#efb3ff"]];
+  // (earned: a place's own rule (the Reservoir's drone and buoy, Milling's vane and sign); Skeetza's: both drones down)
+  const upReadyNow = (g) => (S.scene.gp ? !!(S.scene.gp.upReady && S.scene.gp.upReady()) : g.drones.length > 0 && g.drones.every((d) => d.state !== "fly"));
+  // (how far the view pulls back in UP, so the arcs fit without following them: a place's own, or this)
+  const upZoom = () => (S.scene.gp && S.scene.gp.upZoom) || 0.8;
   function startUp(g) {
     // (a call still waiting for the pull's targets to come down: now, before UP clears them away)
     if (g.callQ) { const f = g.callQ; g.callQ = null; f(); }
@@ -7199,16 +7305,18 @@ body.lab .stage > :not(canvas) { display: none; }
   function spawnWave(g) {
     const gp = S.scene.gp, L = S.scene.launchers.slice(), n = Math.random() < 0.5 ? 4 : 3, from = [];
     while (from.length < n && L.length) from.push(L.splice(Math.floor(Math.random() * L.length), 1)[0]);
-    const C = gp.upCross ? gp.upCross(from[0]) : gp.cross(from[0], from[1]);
-    const t = Math.max(...from.map((l) => (gp.upFlight ? gp.upFlight(l, C) : gp.flight(l, l, C))));
+    // (Skeetza, with no hooks of its own: up the middle of the hall, 18-28 m out, 6.5-8.5 m up)
+    const C = gp && gp.upCross ? gp.upCross(from[0]) : gp && gp.cross ? gp.cross(from[0], from[1]) : [rnd(-2.5, 2.5), rnd(6.5, 8.5), rnd(18, 28)];
+    const t = Math.max(...from.map((l) => (gp && gp.upFlight ? gp.upFlight(l, C) : gp && gp.flight ? gp.flight(l, l, C) : rnd(1.3, 1.6))));
     // (tight: arriving a tenth of a second apart, at their speed, spread them over a metre or more and a triple
     // hardly ever came)
     for (const l of from) spawnGold(g, l, [C[0] + rnd(-0.25, 0.25), C[1] + rnd(-0.2, 0.2), C[2] + rnd(-0.25, 0.25)], t + rnd(-0.02, 0.02));
   }
   function spawnGold(g, l, C, t) {
     g.pizzas.push({ x: l.x, y: l.y, z: l.z, vx: (C[0] - l.x) / t, vy: (C[1] - l.y) / t + 0.5 * GUN.pg * t, vz: (C[2] - l.z) / t,
-      spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: TOPPINGS[0], ring: null, done: false, gold: true,
-      kind: "cushion", shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)), tc: t, age: 0 });
+      spin: rnd(0, 6), vs: rnd(3, 6) * (Math.random() < 0.5 ? 1 : -1), wob: rnd(0, 6), top: pick(TOPPINGS), ring: null, done: false, gold: true, hue: pick(UP_HUES),
+      // (the place's own kind: the Reservoir's square cushion, Milling's cookie or slab, Skeetza's pizza)
+      kind: S.scene.gp ? (S.scene.gp.upKind ? S.scene.gp.upKind() : Math.random() < 0.28 ? "slab" : "cookie") : null, shape: Array.from({ length: 14 }, () => rnd(0.9, 1.07)), tc: t, age: 0 });
     g.upLaunched = (g.upLaunched || 0) + 1;
     if (Math.random() < 0.35) sfx.pull();
   }
@@ -7234,7 +7342,9 @@ body.lab .stage > :not(canvas) { display: none; }
     txt(`+${cd.n + (cd.bonus || 0)}`, -h * 0.06, h * 0.34, "#ffffff");
     ctx.font = `800 ${h * 0.08}px Nunito, sans-serif`; ctx.fillStyle = "#5a3a00";
     const combos = [cd.doubles ? `${cd.doubles} double${cd.doubles > 1 ? "s" : ""}` : "", cd.triples ? `${cd.triples} triple${cd.triples > 1 ? "s" : ""}` : "", cd.quads ? `${cd.quads} quad${cd.quads > 1 ? "s" : ""}` : ""].filter(Boolean).join(", ");
-    ctx.fillText(`${cd.n} of ${cd.of} cushions${combos ? ` · ${combos}` : ""}`, 0, h * 0.19);
+    // (what they were: the level's upNoun, or its noun (Cushions), or skeetzas)
+    const what = lvl().upNoun || (lvl().noun || "skeetzas").toLowerCase();
+    ctx.fillText(`${cd.n} of ${cd.of} ${what}${combos ? ` · ${combos}` : ""}`, 0, h * 0.19);
     txt(upWord(cd.n), h * 0.35, h * 0.13, "#ff5a36", "#fff8dc");
     ctx.restore();
   }
@@ -7316,7 +7426,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // and turned sideways to follow them)
   // (how far down the gun can point: the Reservoir's ledge looks down onto the water)
   const gunPitchMin = () => -((S.scene && S.scene.gp && S.scene.gp.minPitch) || 0.2);
-  const gunPace = () => (S.scene && S.scene.gp && S.scene.gp.pace) || GUN.pace, gunTilt = () => (S.gun && S.gun.tilt) || 0, gunPan = () => (S.gun && S.gun.pan) || 0;
+  const gunPace = () => ((S.scene && S.scene.gp && S.scene.gp.pace) || GUN.pace) * dif().pace, gunTilt = () => (S.gun && S.gun.tilt) || 0, gunPan = () => (S.gun && S.gun.pan) || 0;
   // the view follows what's in the air (Skeetza and Milling alike): it tilts up to keep the highest piece in sight
   // when it climbs above the top, turns left or right to keep the ones heading off the sides in (between the two,
   // if they're off both sides at once), and eases back to where it was once they're down. The sights ride along with
@@ -7329,8 +7439,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // (each piece in the air: the turns that keep it in, from a to b)
     let up = 0;
     const live = [];
+    // (in UP mode it doesn't follow: the view's pulled back so the arcs fit, and it eases home)
     for (const p of g.pizzas) {
-      if (p.done) continue;
+      if (p.done || g.upm) continue;
       const dx = p.x - e[0], dz = p.z - e[2], d = Math.max(1, Math.hypot(dx, dz)), az = Math.atan2(dx, dz), r = tgtR() / d;
       up = Math.max(up, Math.atan2(p.y + tgtR() - e[1], d) - top);
       live.push({ p, a: az + r - side, b: az - r + side });
@@ -7417,14 +7528,16 @@ body.lab .stage > :not(canvas) { display: none; }
     if (p.kind) { burstWood(p); return; }
     p.done = true;
     sfx.hitSkeet(false);
-    S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(PIZZA_POPS), t: 0 });
+    // (UP mode, four shots a second: no bubble over each, and a lighter burst, as the Reservoir's cushions)
+    if (!p.gold) S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(PIZZA_POPS), t: 0 });
     S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
     // it bursts: crust (a coloured one's in its colour), cheese and toppings everywhere
     const bit = (kind, c, s, sp) => S.bits.push({ kind, x: p.x, y: p.y, z: p.z, vx: rnd(-sp, sp), vy: rnd(0.5, sp), vz: rnd(-sp, sp), a: rnd(0, 6), s, c, t: 0, ph: rnd(0, 6) });
-    for (let i = 0; i < 14; i++) bit("chunk", p.ring ? RINGS[p.ring].color : pick(["#e2a74f", "#c98a3c", "#f0c070"]), rnd(0.08, 0.16), 5);
-    for (let i = 0; i < 8; i++) bit("chunk", "#f6d36b", rnd(0.05, 0.1), 4);
-    for (let i = 0; i < 8; i++) bit("disc", p.top.dot, rnd(0.06, 0.09), 5);
-    for (let i = 0; i < 4; i++) bit("disc", p.top.bit, rnd(0.04, 0.07), 4);
+    const k = p.gold ? 0.4 : 1;
+    for (let i = 0; i < 14 * k; i++) bit("chunk", p.ring ? RINGS[p.ring].color : p.hue ? p.hue[0] : pick(["#e2a74f", "#c98a3c", "#f0c070"]), rnd(0.08, 0.16), 5);
+    for (let i = 0; i < 8 * k; i++) bit("chunk", p.hue ? p.hue[2] : "#f6d36b", rnd(0.05, 0.1), 4);
+    for (let i = 0; i < 8 * k; i++) bit("disc", p.top.dot, rnd(0.06, 0.09), 5);
+    for (let i = 0; i < 4 * k; i++) bit("disc", p.top.bit, rnd(0.04, 0.07), 4);
   }
   function hitDrone(dr, shot) {
     S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push("drone");
@@ -7558,7 +7671,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function startGunRelive() {
     const rec = S.gunRec;
     if (!rec || S.gunReplay) return;
-    audio(); shrinkRelive();
+    audio(); shrinkRelive(false); hidePointer();
     S.gunReplay = { rec, pass: 0, saved: { gun: S.gun, phase: S.phase, bits: S.bits, pops: S.pops, overlay: $("overlay").hidden } };
     S.phase = "replay"; $("overlay").hidden = true;
     beginGunPass();
@@ -7682,7 +7795,8 @@ body.lab .stage > :not(canvas) { display: none; }
         if (pz) { hits.pizza(pz, pl.shot); hitHere(); break; }
         const dr = g.drones.find((d) => d.state === "fly" && Math.hypot(pl.x - d.x, pl.y - d.y, pl.z - d.z) < 0.7);
         if (dr) { hits.drone(dr, pl.shot); hitHere(); break; }
-        const wk = g.workers.find((w) => pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.8) && Math.hypot(pl.x - w.x, pl.z - w.z) < 0.35);
+        // (in UP mode nothing but its own targets can be hit: no workers, no windows)
+        const wk = !g.upm && g.workers.find((w) => pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.8) && Math.hypot(pl.x - w.x, pl.z - w.z) < 0.35);
         if (wk) { hits.worker(wk, pl.shot); hitHere(); break; }
         if (S.scene.gp) {
           if (S.scene.gp.wind) { pl.vx += S.scene.gp.wind.x * 0.06 * h; pl.vz += S.scene.gp.wind.z * 0.06 * h; }
@@ -7694,7 +7808,7 @@ body.lab .stage > :not(canvas) { display: none; }
         // into a wall: a window not yet broken breaks (−5)
         if (Math.abs(pl.x) > HALL.x || pl.z > HALL.z1) {
           const wi = windowAt(pl);
-          if (wi >= 0 && !g.broken[wi]) { hits.window(wi, [clamp(pl.x, -HALL.x, HALL.x), pl.y, Math.min(pl.z, HALL.z1)], pl.shot); hitHere(); break; }
+          if (wi >= 0 && !g.broken[wi] && !g.upm) { hits.window(wi, [clamp(pl.x, -HALL.x, HALL.x), pl.y, Math.min(pl.z, HALL.z1)], pl.shot); hitHere(); break; }
         }
         if (pl.y <= 0 || Math.abs(pl.x) > HALL.x || pl.z > HALL.z1 || pl.y > roofY(pl.x) || pl.t > 2 ||
           S.scene.kit.some((m) => Math.abs(pl.x - m.x) < m.w / 2 && Math.abs(pl.z - m.z) < m.d / 2 && pl.y < m.h)) {
@@ -7730,7 +7844,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // as spare spuds), whatever else is in the air
     // UP mode: once a place's UP is earned (the Reservoir's: the drone down and the nav buoy hit), as soon as the
     // shot that earned it is done; it runs its 30 s instead of the round, which then carries on where it was
-    if (!g.upm && !g.upDone && g.phase !== "over" && !busy && S.scene.gp && S.scene.gp.upReady && S.scene.gp.upReady()) startUp(g);
+    if (!g.upm && !g.upDone && g.phase !== "over" && !busy && upReadyNow(g)) startUp(g);
     if (g.upm) upTick(g, dt);
     else if (g.phase !== "over" && cleared()) {
       if (!busy && (g.clearT = (g.clearT || 0) + dt) > 1.2) { g.phase = "over"; S.phase = "settle"; S.timer = 0.6; S.after = endLevel; }
@@ -7762,7 +7876,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!S.scene.gp && Math.abs(p.x) > HALL.x - 0.6) { p.x = Math.sign(p.x) * (HALL.x - 0.6); p.vx *= -0.3; }
       // (a place with wind: it pushes the wood along)
       if (S.scene.gp) S.scene.gp.drift(p, dt);
-      if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape, ph: p.wob, gold: p.gold }); S.scene.gp ? (S.scene.gp.land ? S.scene.gp.land(p) : sfx.thunk()) : sfx.splat(); }
+      if (p.y <= (S.scene.gp ? S.scene.gp.floor(p) : 0.02)) { p.done = true; g.flops.push({ x: p.x, y: p.y, z: p.z, a: p.spin, top: p.top, ring: p.ring, kind: p.kind, shape: p.shape, ph: p.wob, gold: p.gold, hue: p.hue }); S.scene.gp ? (S.scene.gp.land ? S.scene.gp.land(p) : sfx.thunk()) : sfx.splat(); }
     }
     g.pizzas = g.pizzas.filter((p) => !p.done);
     // (a call held back while the pull's targets were still up: now they're all down)
@@ -7930,13 +8044,13 @@ body.lab .stage > :not(canvas) { display: none; }
   function drawWood(p) {
     const q = P(p.x, p.y, p.z), sh = P(p.x, 0, p.z);
     if (q.behind) return;
-    const r = GUN.pizzaR * q.s, R = p.ring && RINGS[p.ring], slab = p.kind === "slab";
+    const r = tgtR() * q.s, R = p.ring && RINGS[p.ring], U = p.gold && p.hue, slab = p.kind === "slab";
     if (!sh.behind) { ctx.fillStyle = "rgba(60,72,84,.14)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
     ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(p.spin * 0.3); ctx.scale(1, 0.88 + 0.08 * Math.sin(p.spin * 0.7 + p.wob));
-    // the live edge, then the face inside it
-    woodOutline(p, r); ctx.fillStyle = R ? R.color : "#4b3a2d"; ctx.fill(); ctx.strokeStyle = R ? R.edge : "#2a1e16"; ctx.lineWidth = Math.max(1, 0.05 * r); ctx.stroke();
+    // the live edge, then the face inside it (UP mode's: both in its shade of magenta)
+    woodOutline(p, r); ctx.fillStyle = R ? R.color : U ? U[0] : "#4b3a2d"; ctx.fill(); ctx.strokeStyle = R ? R.edge : U ? U[1] : "#2a1e16"; ctx.lineWidth = Math.max(1, 0.05 * r); ctx.stroke();
     if (slab) { ctx.save(); ctx.scale(1, 0.72); woodOutline(p, r * 0.98); ctx.restore(); } else woodOutline(p, r * 0.8);
-    ctx.fillStyle = "#e3c493"; ctx.fill();
+    ctx.fillStyle = U ? U[2] : "#e3c493"; ctx.fill();
     ctx.strokeStyle = "rgba(150,108,66,.5)"; ctx.lineWidth = Math.max(1, 0.025 * r);
     if (slab) for (let k = -2; k <= 2; k++) { ctx.beginPath(); for (let i = 0; i <= 10; i++) { const x = -r * 1.1 + (2.2 * r * i) / 10; ctx.lineTo(x, k * r * 0.11 + Math.sin(i * 0.9 + k + p.wob) * r * 0.03); } ctx.stroke(); }
     else for (const k of [0.55, 0.32, 0.12]) { ctx.beginPath(); ctx.ellipse(r * 0.04, 0, r * k, r * k * 0.95, 0, 0, 7); ctx.stroke(); }
@@ -7954,13 +8068,15 @@ body.lab .stage > :not(canvas) { display: none; }
   function burstWood(p) {
     p.done = true;
     sfx.hitSkeet(true);
-    S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(WOOD_POPS), t: 0 });
+    // (UP mode: no bubble, a lighter burst, in its magenta)
+    if (!p.gold) S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(WOOD_POPS), t: 0 });
     S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
     // it bursts: bark chips (a coloured one's in its paint), splinters of pale wood, a puff of sawdust
     const bit = (kind, c, s, sp) => S.bits.push({ kind, x: p.x, y: p.y, z: p.z, vx: rnd(-sp, sp), vy: rnd(0.5, sp), vz: rnd(-sp, sp), a: rnd(0, 6), s, c, t: 0, ph: rnd(0, 6) });
-    for (let i = 0; i < 12; i++) bit("chunk", p.ring ? RINGS[p.ring].color : pick(["#4b3a2d", "#5c4636", "#3e2f25"]), rnd(0.08, 0.15), 5);
-    for (let i = 0; i < 12; i++) bit("chunk", pick(["#e3c493", "#d6b27c", "#f0d7a8"]), rnd(0.06, 0.14), 5);
-    for (let i = 0; i < 14; i++) bit("disc", "#ead2a2", rnd(0.03, 0.05), 3);
+    const k = p.gold ? 0.4 : 1;
+    for (let i = 0; i < 12 * k; i++) bit("chunk", p.ring ? RINGS[p.ring].color : p.hue ? p.hue[0] : pick(["#4b3a2d", "#5c4636", "#3e2f25"]), rnd(0.08, 0.15), 5);
+    for (let i = 0; i < 12 * k; i++) bit("chunk", p.hue ? p.hue[2] : pick(["#e3c493", "#d6b27c", "#f0d7a8"]), rnd(0.06, 0.14), 5);
+    for (let i = 0; i < 14 * k; i++) bit("disc", "#ead2a2", rnd(0.03, 0.05), 3);
   }
   // ---- the Reservoir's boat cushions: square ones and round ones, thrown like skeet. A plain one is classic marine
   // vinyl (navy, or now and then forest green) with its two webbing straps and the white label with the knot chart
@@ -8103,14 +8219,14 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.gunReplay && S.gunReplay.pass > 0) { drawPizza3D(p); return; }
     const q = P(p.x, p.y, p.z), sh = P(p.x, 0, p.z);
     if (q.behind) return;
-    const r = GUN.pizzaR * q.s, ry = r * (0.82 + 0.12 * Math.sin(p.spin * 0.7 + p.wob));
+    const r = tgtR() * q.s, ry = r * (0.82 + 0.12 * Math.sin(p.spin * 0.7 + p.wob));
     if (!sh.behind) { ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
     ctx.save(); ctx.translate(q.x, q.y);
-    // (a coloured one: its crust in its colour)
-    const R = p.ring && RINGS[p.ring];
-    ctx.fillStyle = R ? R.color : "#e2a74f"; ctx.strokeStyle = R ? R.edge : "#a8692a"; ctx.lineWidth = Math.max(1, (R ? 0.15 : 0.05) * r);
+    // (a coloured one: its crust in its colour; UP mode's: crust and cheese in its shade of magenta)
+    const R = p.ring && RINGS[p.ring], U = p.gold && p.hue;
+    ctx.fillStyle = R ? R.color : U ? U[0] : "#e2a74f"; ctx.strokeStyle = R ? R.edge : U ? U[1] : "#a8692a"; ctx.lineWidth = Math.max(1, (R || U ? 0.15 : 0.05) * r);
     ctx.beginPath(); ctx.ellipse(0, 0, r, ry, 0, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#f3c14b"; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, ry * 0.82, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = U ? U[2] : "#f3c14b"; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, ry * 0.82, 0, 0, 7); ctx.fill();
     ctx.fillStyle = "rgba(217,105,43,.55)"; ctx.beginPath(); ctx.ellipse(r * 0.2, -ry * 0.15, r * 0.3, ry * 0.22, 0.5, 0, 7); ctx.fill();
     for (let i = 0; i < 7; i++) {
       const a = p.spin + i * 0.9, rr = i % 2 ? 0.5 : 0.28;
@@ -8138,7 +8254,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const n = nrm([e[0] - p.x, e[1] - p.y + 1.5 * Math.sin(p.spin * 0.7 + p.wob), e[2] - p.z]);
     const u = nrm([n[2], 0, -n[0]]), v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
     const at = (a, r, off) => P(p.x + (u[0] * Math.cos(a) + v[0] * Math.sin(a)) * r + n[0] * off, p.y + (u[1] * Math.cos(a) + v[1] * Math.sin(a)) * r + n[1] * off, p.z + (u[2] * Math.cos(a) + v[2] * Math.sin(a)) * r + n[2] * off);
-    const R = GUN.pizzaR, T = 0.05, N = 28;
+    const R = tgtR(), T = 0.05, N = 28;
     const ring = (r, off) => Array.from({ length: N }, (_, i) => at((i / N) * Math.PI * 2, r, off));
     const fill = (pts, col, stroke) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } };
     const back = ring(R, -T), front = ring(R, T);
@@ -8458,7 +8574,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the skeetzas hit, as a round pizza and a count, beside the pair: the row below then has room to spare)
     $("gunOut").innerHTML = `<span class="pz">${S.scene.gp ? lvl().icon + " " : PIZZA_ICON}${g.hits}</span><span class="sep"> · </span>${pullWord()} ${Math.max(1, g.pulls)}/${GUN.pulls}`;
     const lb = document.querySelector(".ctl-gun .lbl"); if (lb) lb.textContent = g.upm ? `${gunName()} · UNLIMITED!` : `${gunName()} · 120 PSI`;
-    if (g.upm) $("gunOut").innerHTML = `<span class="pz">${lvl().icon} ${g.hits}</span><span class="sep"> · </span>UP +${(g.upHits || 0) + (g.upBonus || 0)}`;
+    if (g.upm) $("gunOut").innerHTML = `<span class="pz">${S.scene.gp ? lvl().icon : PIZZA_ICON} ${g.hits}</span><span class="sep"> · </span>UP +${(g.upHits || 0) + (g.upBonus || 0)}`;
     // (the colours: a dot each, filled once that colour's skeetza is hit; then the skeetzas hit, and drones down)
     const down = g.drones.filter((d) => d.state !== "fly").length;
     $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span>` +
@@ -8537,7 +8653,10 @@ body.lab .stage > :not(canvas) { display: none; }
     // (a tall phone field is narrow, so there it's a little closer in, so the skeetzas are big enough to hit, but
     // still wide enough to see the machines they come from)
     // (a place can size its own view: Milling, on a wide, short laptop field, zooms out to take in more of the yard and sky)
-    F0 = S.scene && S.scene.focal ? S.scene.focal() : W < H ? W * 1.15 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1; F = F0;
+    F0 = S.scene && S.scene.focal ? S.scene.focal() : W < H ? W * 1.15 : Math.max(W * 0.9, H * 1.2); CAM.zoom = 1;
+    // (UP mode: pulled back at once, so every arc fits: see upZoom)
+    if (S.gun && S.gun.upm) F0 *= upZoom();
+    F = F0;
     if (S.gunReplay) F = F0 * gunReliveCam();
     else setGunView();
     CY = CYhome = H * 0.5;
@@ -9972,9 +10091,14 @@ body.lab .stage > :not(canvas) { display: none; }
       flight: (a, b, C) => Math.max(rnd(2.0, 2.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 6.5)),
       // the calls, for a sawmill
       calls: { 1: { text: "Two Fer Charcuterie!", name: "Two Fer Charcuterie" }, 2: { text: "Double Charcuterie!", name: "Double Charcuterie" } },
+      // UP mode (v2.06): earned once both bonuses are hit, the weather vane and the sign. The waves cross out in the
+      // yard, near the middle, a little lower than a pair, so the whole arc fits the still, pulled-back view
+      upReady: () => bonusState.vaneHit != null && bonusState.signHit != null,
+      upCross: () => [rnd(-2, 2), rnd(5.5, 7), rnd(15, 21)],
+      upFlight: (l, C) => Math.max(rnd(2.0, 2.4), Math.hypot(C[0] - l.x, C[2] - l.z) / 7),
       // each pair's wind, from the round's seed (called inside its seeded draw): mostly across the yard, a little
       // toward or away from you
-      newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
+      newPair() { const L = lvl(), wr = windRange(L), kmh = rnd(wr[0], wr[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; },
       // the wind pushes the wood (light and flat) along as it flies
       drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * gp.pace; p.vz += gp.wind.z * 0.16 * dt * gp.pace; },
       // the wood flies a little quicker than Skeetza's pizzas (the same arcs, flown faster)
@@ -9986,9 +10110,11 @@ body.lab .stage > :not(canvas) { display: none; }
       // a mini spud: does it stop here? (into the snow, a building, a pile, the mill, the woods). Through the barn's
       // doorway and the shed's open front it goes on in, to the back wall
       pellet(pl, hits) {
+        // (in UP mode nothing's hit but its own targets: no hands, animals, bonuses or windows; the spuds just stop)
+        const upNow = !!S.gun.upm;
         // the hands (each once a shot)
         const ms = mstate();
-        for (const k of S.anim.workers ? CREW_KEYS : []) {
+        for (const k of S.anim.workers && !upNow ? CREW_KEYS : []) {
           const p = ms[k], w = CREWHIT[k];
           if (k === "cutter" && pl.z < SH.zf) continue;
           if (pl.y > 0 && pl.y < (w.hit > 0 ? 1.25 : 1.85) && Math.hypot(pl.x - p.x, pl.z - p.z) < 0.38) {
@@ -9998,34 +10124,34 @@ body.lab .stage > :not(canvas) { display: none; }
           }
         }
         // the deer, the terrier, a crow (each its recording, deer.mp3, dog.mp3, crow.mp3, up to 2 s, or a quick tone)
-        const d = deerNow();
+        const d = !upNow && deerNow();
         if (d && d.c.hitAt == null && Math.abs(pl.x - d.x) < 0.75 && Math.abs(pl.z - d.z) < 0.4 && pl.y > d.y + 0.45 && pl.y < d.y + 1.6) {
           hits.animal(animal("deer", "the deer", "It bolts!", [d.x, d.y + 1, d.z], () => { d.c.hitAt = gt(); d.c.xHit = d.x; S.pops.push({ x: d.x, y: d.y + 1.6, z: d.z, text: "SNORT!", t: 0 }); sample("deer", 0.9, 2) || tone(520, 260, 0.25, 0.08, "triangle"); }), pl.shot);
           return "hit";
         }
         const dog = dogNow();
-        if (S.animals && gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < (dog.front ? 0.82 : 0.6)) {
+        if (!upNow && S.animals && gt() - wild.dogScare > 2.5 && Math.hypot(pl.x - dog.x, pl.z - dog.z) < 0.34 && pl.y < (dog.front ? 0.82 : 0.6)) {
           hits.animal(animal("terrier", "the terrier", "YIP!", [dog.x, 0.5, dog.z], () => { frightDog(); S.pops.push({ x: dog.x, y: 0.9, z: dog.z, text: "YIP!", t: 0 }); sample("dog", 0.9, 2) || tone(980, 1400, 0.12, 0.08, "triangle"); }), pl.shot);
           return "hit";
         }
-        for (const c of crowsNow()) {
+        for (const c of upNow ? [] : crowsNow()) {
           if (c.b.down || Math.hypot(pl.x - c.x, pl.y - c.y, pl.z - c.z) > 0.42) continue;
           hits.animal(animal("bird", "a crow", "CAW!", [c.x, c.y, c.z], () => { c.b.down = { t: gt(), x: c.x, y: c.y }; S.pops.push({ x: c.x, y: c.y + 0.4, z: c.z, text: "CAW!", t: 0 }); sample("crow", 0.9, 2) || tone(420, 300, 0.18, 0.08, "sawtooth");
             for (let k = 0; k < 8; k++) S.bits.push({ kind: "chunk", x: c.x, y: c.y, z: c.z, vx: rnd(-1, 1), vy: rnd(-0.2, 1), vz: rnd(-1, 1), a: rnd(0, 6), s: rnd(0.05, 0.09), c: "#2a2c30", t: 0, ph: rnd(0, 6) }); }), pl.shot);
           return "hit";
         }
         // the bonuses: the weather vane's rooster, the sign's board
-        if (bonusState.vaneHit == null && Math.hypot(pl.x - VANE.x, pl.y - (VANE.y + 0.7), pl.z - VANE.z) < 0.85) {
+        if (!upNow && bonusState.vaneHit == null && Math.hypot(pl.x - VANE.x, pl.y - (VANE.y + 0.7), pl.z - VANE.z) < 0.85) {
           hits.bonus(bonusThing("weather vane", "weather vane", [VANE.x, VANE.y, VANE.z], () => { bonusState.vaneHit = gt(); sfx.clank(); S.pops.push({ x: VANE.x, y: VANE.y + 0.6, z: VANE.z, text: "CLANG!", t: 0 }); }), pl.shot);
           return "hit";
         }
-        if (bonusState.signHit == null && pl.x > SIGN.x0 && pl.x < SIGN.x1 && pl.y > SIGN.y0 && pl.y < SIGN.y1 && Math.abs(pl.z - SIGN.z) < 0.3) {
+        if (!upNow && bonusState.signHit == null && pl.x > SIGN.x0 && pl.x < SIGN.x1 && pl.y > SIGN.y0 && pl.y < SIGN.y1 && Math.abs(pl.z - SIGN.z) < 0.3) {
           hits.bonus(bonusThing("sign", "Live Edge Charcuterie sign", [pl.x, pl.y, SIGN.z], () => { bonusState.signHit = gt(); sfx.thunk(); sfx.glass(); signBits([(SIGN.x0 + SIGN.x1) / 2, (SIGN.y0 + SIGN.y1) / 2, SIGN.z]); S.pops.push({ x: pl.x, y: SIGN.y1 + 0.3, z: SIGN.z, text: "SMASH!", t: 0 }); }), pl.shot);
           return "hit";
         }
         // the barn's windows: over the door, and (through the doorway) the big one in the back wall
-        if (!S.gun.broken[0] && pl.z >= B.zf - 0.05 && pl.z < B.zf + 0.4 && pl.x > -8.1 && pl.x < -6.9 && pl.y > 4.2 && pl.y < 4.95) { hits.window(0, [pl.x, pl.y, B.zf - 0.05], pl.shot); return "hit"; }
-        if (!S.gun.broken[1] && pl.inBarn && pl.z >= BARN_WIN.z - 0.08 && pl.x > BARN_WIN.x0 && pl.x < BARN_WIN.x1 && pl.y > BARN_WIN.y0 && pl.y < BARN_WIN.y1) { hits.window(1, [pl.x, pl.y, BARN_WIN.z - 0.05], pl.shot); return "hit"; }
+        if (!upNow && !S.gun.broken[0] && pl.z >= B.zf - 0.05 && pl.z < B.zf + 0.4 && pl.x > -8.1 && pl.x < -6.9 && pl.y > 4.2 && pl.y < 4.95) { hits.window(0, [pl.x, pl.y, B.zf - 0.05], pl.shot); return "hit"; }
+        if (!upNow && !S.gun.broken[1] && pl.inBarn && pl.z >= BARN_WIN.z - 0.08 && pl.x > BARN_WIN.x0 && pl.x < BARN_WIN.x1 && pl.y > BARN_WIN.y0 && pl.y < BARN_WIN.y1) { hits.window(1, [pl.x, pl.y, BARN_WIN.z - 0.05], pl.shot); return "hit"; }
         if (pl.y <= gp.floor(pl)) return "stop";
         if (pl.x > B.x0 && pl.x < B.x1 && pl.z > B.zf && pl.z < B.zb && pl.y < roofAt(B, pl.z)) {
           const inDoor = pl.x > DOOR.x0 && pl.x < DOOR.x1 && pl.y < DOOR.top;
@@ -10047,9 +10173,9 @@ body.lab .stage > :not(canvas) { display: none; }
     function drawFallen() {
       for (const f of (S.gun && S.gun.flops) || []) {
         if (!f.kind) continue;
-        const y = (f.y != null ? Math.max(0.02, f.y) : 0.05), rx = f.kind === "slab" ? 0.72 : GUN.pizzaR, rz = f.kind === "slab" ? 0.45 : GUN.pizzaR;
-        quad(ell(f.x, f.z, rx, rz, y, 18), f.ring ? RINGS[f.ring].color : BARK);
-        quad(ell(f.x, f.z, rx * 0.84, rz * 0.8, y + 0.01, 18), "#e3c493");
+        const k = tgtR() / GUN.pizzaR, y = (f.y != null ? Math.max(0.02, f.y) : 0.05), rx = (f.kind === "slab" ? 0.72 : GUN.pizzaR) * k, rz = (f.kind === "slab" ? 0.45 : GUN.pizzaR) * k;
+        quad(ell(f.x, f.z, rx, rz, y, 18), f.ring ? RINGS[f.ring].color : f.hue ? f.hue[0] : BARK);
+        quad(ell(f.x, f.z, rx * 0.84, rz * 0.8, y + 0.01, 18), f.hue ? f.hue[2] : "#e3c493");
         quad(ell(f.x + 0.1, f.z - 0.05, rx * 0.9, rz * 0.5, y + 0.02, 12), "rgba(250,252,253,.55)");
       }
     }
@@ -10877,9 +11003,11 @@ body.lab .stage > :not(canvas) { display: none; }
       // (near the middle of the view, so a wave from both sides meets there)
       upCross: () => [rnd(-7, 7), rnd(12, 18), rnd(42, 58)],
       upFlight: (l, C) => Math.max(rnd(3.2, 4.0), Math.hypot(C[0] - l.x, C[2] - l.z) / 20),
+      // (UP's: square cushions, pulled back to 0.72 of the view)
+      upKind: () => "cushion", upZoom: 0.72,
       // (where the things on the water are at time t, for testing from the console)
       peek: (t) => ({ quads: QUADS.map((q) => ({ ...quadAt(q, t), z: q.lane })), launches: QUADS.map((q) => launchAt(q, t)), gull: gullAt(t), duck: duckAt(t), nav: NAV, worker: hydroWorker() }),
-      // (and the drone, +10: in slow loops over the water where the cushions cross, a little above them)
+      // (and the drone, +10: in slow loops over the water well beyond where the cushions cross, and higher)
       // (each round, from its seed: which of the two courses the rowers have, and where the nav buoy is: always out
       // past the flag pole at the end of the boathouse's docks (112-165 m), a long shot, across the water there,
       // and never in among the rowers (8 m clear of their lanes))
@@ -10890,7 +11018,8 @@ body.lab .stage > :not(canvas) { display: none; }
           const lo = Math.min(...rt.lanes) - 8, hi = Math.max(...rt.lanes) + 8;
           do NAV.z = rnd(112, 165); while (NAV.z > lo && NAV.z < hi);
           const [a, b] = waterX(NAV.z); NAV.x = rnd(Math.max(a + 8, -40), Math.min(b - 8, 40));
-        }); S.gun.drones = [makeDrone({ cz: 50, az: 10, cy: 16.5 }, 0)]; },
+        // (the drone farther out since v2.05, 80-96 m (was 40-60), as hitting it is half of earning UP)
+        }); S.gun.drones = [makeDrone({ cz: 88, az: 8, cy: 19 }, 0)]; },
       // a powerhouse window breaks: its hole and cracks (drawn by drawHydro), the glass falling
       smash(i, at) {
         const w = HYDRO_WINDOWS[i];
@@ -10910,7 +11039,7 @@ body.lab .stage > :not(canvas) { display: none; }
       flight: (a, b, C) => (C[2] > 70 ? Math.max(rnd(3.9, 4.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 14)) : Math.max(rnd(3.9, 4.4), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / 20))),
       calls: { 1: { text: "Two Fer Splash!", name: "Two Fer Splash" }, 2: { text: "Double Splash!", name: "Double Splash" } },
       kind: () => (Math.random() < 0.5 ? "cushion" : "cushionR"),
-      newPair() { const L = lvl(), kmh = rnd(L.wind[0], L.wind[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; gp.sweep = Math.random() < 0.5; },
+      newPair() { const L = lvl(), wr = windRange(L), kmh = rnd(wr[0], wr[1]) * 2.2, a = rnd(-0.45, 0.45) + (Math.random() < 0.5 ? Math.PI : 0), s = kmh / 3.6; gp.wind = { x: Math.cos(a) * s, z: Math.sin(a) * s, kmh: Math.round(kmh) }; gp.sweep = Math.random() < 0.5; },
       drift(p, dt) { p.vx += gp.wind.x * 0.16 * dt * gp.pace; p.vz += gp.wind.z * 0.16 * dt * gp.pace; },
       floor: () => 0,
       // down in the water: a splash, and it floats there
@@ -11036,7 +11165,7 @@ body.lab .stage > :not(canvas) { display: none; }
       get eye() { return EYE; },
       get look() { return W > H ? 0.035 : 0.06; },
       // (in UP mode, pulled back at once to a wider view, so every gold cushion's arc fits)
-      focal: () => (W < H ? W * 1.1 : Math.min(W * 0.85, H * 1.9)) * (S.gun && S.gun.upm ? 0.72 : 1), skyline: "#d9c9a8", ownSky: true, gun: true, gp, launchers,
+      focal: () => (W < H ? W * 1.1 : Math.min(W * 0.85, H * 1.9)), skyline: "#d9c9a8", ownSky: true, gun: true, gp, launchers,
       // (bits and spray that come down on the water sink at once)
       bitRest: 0,
       // (the still things as pictures, or, while Re-live it's view moves, everything as it is)
