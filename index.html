@@ -79,6 +79,13 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .hud { display: flex; flex-wrap: wrap; gap: 8px; }
 /* the bonus objects up over the field, toward the middle from the right; a red cross over each one hit (v2.12) */
 .bonusstrip { margin: 0 12% 0 auto; display: flex; gap: 6px; align-items: center; }
+/* (v2.13) on a full-size screen it's out of the flow, its bottom edge level with the chips' (rising into the green
+   above them), so the field and controls don't move down for it */
+@media (min-width: 641px) and (min-height: 541px) {
+  .hud { position: relative; }
+  .bonusstrip { position: absolute; right: 12%; bottom: 0; margin: 0; }
+}
+@media (max-width: 640px), (max-height: 540px) { .bonusstrip .bi { width: 36px; height: 30px; } .bonusstrip .bi img { width: 34px; } }
 .bonusstrip:empty { display: none; }
 .bonusstrip .bi { position: relative; width: 46px; height: 38px; background: var(--paper); border: 2px solid var(--ink); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
 .bonusstrip .bi img { width: 44px; height: auto; display: block; }
@@ -86,11 +93,14 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(
 .bonusstrip .bi.hit::before, .bonusstrip .bi.hit::after { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 3px; margin: -1.5px 0 0 -20px; background: rgba(229,57,53,.9); border-radius: 2px; }
 .bonusstrip .bi.hit::before { transform: rotate(40deg); } .bonusstrip .bi.hit::after { transform: rotate(-40deg); }
 @media (max-width: 640px) { .bonusstrip { margin-right: 0; } }
+.bonusstrip .bi.hit::before, .bonusstrip .bi.hit::after { width: 80%; margin-left: -40%; }
 .chip { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 4px 10px; font-weight: 800; display: flex; align-items: center; gap: 8px; width: max-content; max-width: 100%; font-variant-numeric: tabular-nums; }
 .chip .k { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
 .spuds { display: flex; gap: 3px; }
 .spud { width: 13px; height: 10px; border-radius: 50%; background: #c48a4a; border: 2px solid #7a4f22; }
 .spud.used { background: transparent; border-style: dashed; opacity: .4; }
+/* (v2.13) the cart held on the One Shot Bonus's arc: angle and rotation greyed out, only the pressure to find */
+body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: none; filter: grayscale(1); }
 /* the One Shot Bonus's golden spud, glowing (v2.12) */
 .spud.gold { background: #ffd23a; border-color: #b8860b; box-shadow: 0 0 6px 2px rgba(255,210,58,.9); animation: spud-glow 1s ease-in-out infinite; }
 @keyframes spud-glow { 50% { box-shadow: 0 0 12px 4px rgba(255,210,58,.6); } }
@@ -576,7 +586,7 @@ body.lab .stage > :not(canvas) { display: none; }
             <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then press <b>FIRE</b> to launch. Or work the cart by touch: tap the pump, drag the cart to aim, tap the blue valve to launch. On some levels it rolls sideways on its wheels.</li>
             <li><b>Rings</b> each score once. Some are spinners, targets on a tree or bale, or up on a roof.</li>
             <li><b>The map</b> (bottom right) shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim. Rings show in their colours, bonus objects as green squares, animals and people as orange, your landings as dots.</li>
-            <li><b>Objects</b> in the field (the junker, the trough, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
+            <li><b>Objects</b> in the field (the junker, the mailbox, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
             <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. Launch it through the arc of six rings in the air: +20 each, 120 for all six. Calm air for that one, and nothing else counts.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
@@ -708,7 +718,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.12</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.13</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -748,14 +758,14 @@ body.lab .stage > :not(canvas) { display: none; }
   const LEVELS = [
     // (stretch: rings farther out the harder it is; screen: what partly hides a ring on gnarly; see DIFF)
     { id: "pasture", name: "Pasture", scene: "pasture", mix: MIX, z: [12, 72], wind: [0, 0], stretch: true, screen: "panel", ringMax: 1,
-      props: ["cow", "horse", "chicken", "turkey", "trough", "scarecrow", "junker"] },
+      props: ["cow", "horse", "chicken", "turkey", "scarecrow", "junker"] }, // (v2.13: no trough: two bonuses, the OSB in reach)
     // (hideBy: on gnarly its best flat ring goes where a yard tree or a house corner covers part of it)
     { id: "culdesac", name: "Cul de sac", scene: "culdesac", mix: MIX, z: [18, 78], wind: [6, 12], maxPsi: 120, mapZ: 112, hideBy: "place",
       targets: { yellow: "spinner", purple: "spinner", blue: "roof" },
       // (noBonus: there and hittable, but worth nothing here: the driveway junker, so three bonuses a round, v2.05)
       noBonus: ["junker"],
       // (the mower goes last, so its route can steer round everything else)
-      props: ["leaves", "mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour", "upNeighbour", "mower"] },
+      props: ["mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour", "upNeighbour", "mower"] },
     // the family lake, from the dock
     { id: "lake", name: "Lake", scene: "lake", mix: MIX, z: [20, 65], wind: [3, 10], mapZ: 125, stretch: true, screen: "anchored",
       // the 5 and 25 are rings of floats on the water (the 25 up on the cottage's or the left boathouse's roof half
@@ -770,7 +780,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (stretch: its rings go farther out on yup and gnarly, nearer on meh: see DIFF)
     { id: "harvest", name: "Harvest", scene: "harvest", mix: MIX, z: [18, 80], wind: [5, 12], mapZ: 118, stretch: true,
       targets: { yellow: "splat", purple: "splat" },
-      props: ["cow", "chicken", "scarecrow", "pumpkins", "tractor", "sheep", "farmer"] },
+      props: ["cow", "chicken", "pumpkins", "tractor", "sheep", "farmer"] }, // (v2.13: no scarecrow)
     // the winter sawmill yard, the MP 10 again, shooting live-edge cookies and slabs (and now with wind)
     { id: "milling", name: "Milling", scene: "mill", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Wood", upNoun: "pieces", icon: "🪵" },
     // the reservoir from the ledge, with the MP 15 (three barrels), boat cushions three at a time (being built: no
@@ -875,7 +885,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const x1 = dx * cy - dz * sy, z1 = dx * sy + dz * cy;
     return [x1, dy * cq + z1 * sq, z1 * cq - dy * sq];
   }
-  function arcCam(v, a = S.arc) {
+  // (what View arc shows: the last spud's path, or, while the golden spud waits, the One Shot Bonus's rings (v2.13))
+  const arcPts = () => (S.osb && S.osb.state === "ready" && S.osb.rings.length ? S.osb.rings.map((r) => [r.x, r.y, r.z]) : S.arc);
+  function arcCam(v, a = arcPts()) {
     const A = a[0], B = a[a.length - 1];
     // what must be in frame: the whole arc (apex and landing) and the launcher
     const pts = [...a, [S.lx, 0, 0], [S.lx, 2.6, 0], [S.lx - 1.4, 0, 0], [S.lx + 1.4, 0, 0]];
@@ -938,7 +950,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // Re-live it's second and third passes: from the View arc angles, on the replayed shot's arc
       const v = arcCam(ARC_VIEWS[R.pass - 1], R.rec.arc);
       wantP = v.pitch; wantYaw = v.yaw; wantY = v.y; wantX = v.x; wantZpos = v.z; wantZ = v.F / F0; wantCY = H / 2; k = 30;
-    } else if (S.arcView != null && S.arc) {
+    } else if (S.arcView != null && arcPts()) {
       // looking at the last arc from one of the side angles, aimed at the middle of the screen
       const v = arcCam(ARC_VIEWS[S.arcView]);
       wantP = v.pitch; wantYaw = v.yaw; wantY = v.y; wantX = v.x; wantZpos = v.z; wantZ = v.F / F0; wantCY = H / 2; k = 3;
@@ -1669,11 +1681,14 @@ body.lab .stage > :not(canvas) { display: none; }
     S.pumpAnim = 1; sfx.pump(); hud();
   }
   function bleed() { if (!canAdjust() || S.psi <= 0) return; leaveArc(); S.psi = Math.max(0, Math.round(S.psi) - 1); sfx.bleed(); hud(); }
-  function setHole(h) { leaveArc(); const n = Math.max(0, Math.min(HOLES.length - 1, h)); if (n !== S.hole) { S.hole = n; sfx.click(); } hud(); }
+  // (v2.13: while the golden spud waits, the cart's held on the One Shot Bonus's arc: no turning, peg or rolling)
+  const osbLock = () => !!(S.osb && S.osb.state === "ready");
+  function setHole(h) { if (osbLock()) return; leaveArc(); const n = Math.max(0, Math.min(HOLES.length - 1, h)); if (n !== S.hole) { S.hole = n; sfx.click(); } hud(); }
   // the launcher turns up to 40° each way, plenty to allow for wind on targets kept within ±25–30° (see BAND)
-  function setYaw(v) { leaveArc(); S.yaw = Math.max(-40, Math.min(40, Math.round(v * 2) / 2)); hud(); }
+  function setYaw(v) { if (osbLock()) return; leaveArc(); S.yaw = Math.max(-40, Math.min(40, Math.round(v * 2) / 2)); hud(); }
   // rolling the launcher sideways on its wheels, as far as the place lets it (a curb, say)
   function rollTo(v) {
+    if (osbLock()) return;
     const [a, b] = S.scene.wheels.range, n = Math.max(a, Math.min(b, v));
     // (stop: what stops it, or [on the left, on the right] when the two ends differ)
     const st = S.scene.wheels.stop;
@@ -1740,7 +1755,7 @@ body.lab .stage > :not(canvas) { display: none; }
     let items = [];
     if (S.phase !== "title" && !lvl().gun) {
       items = (S.props || []).filter((o) => { const D = PROPS[o.kind]; return !D.alive && !D.neutral && !(lvl().noBonus || []).includes(o.kind); }).map((o) => ({ k: PROPS[o.kind].same || o.kind, hit: !!o.scored }));
-      for (const h of S.scene.boathouses || []) items.push({ k: "boathouse", hit: !!h.scored });
+      // (the lake's boathouses are no longer bonuses, v2.13)
     } else if (S.phase !== "title" && lvl().gun && !S.scene.gp && S.gun) items = S.gun.drones.map((d) => ({ k: "drone", gun: true, hit: d.state !== "fly" }));
     const sig = items.map((i) => i.k + (i.hit ? "1" : "0")).join(",");
     if (sig === bonusSig) return;
@@ -1757,12 +1772,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // nothing and costs nothing. Once a round; then the round carries on (or ends, if that was the end of it) ----
   // (r: a ring's radius, m. At 1.0 the exact setting gets all six, half a degree or two off four or five, 2° off one;
   // a peg hole off, none. At 1.6, 2° off still got all six)
-  const OSB = { n: 6, pts: 20, r: 1.0 };
+  // (v2.13: easier: the cart is set on the arc for you (only the pressure to find) and the rings are bigger, 1.4)
+  const OSB = { n: 6, pts: 20, r: 1.4 };
   // every bonus object of this round hit (the props that win a bonus, and the lake's boathouses); none, no OSB
   function osbEarned() {
     if (lvl().gun) return false;
     const objs = (S.props || []).filter((o) => { const D = PROPS[o.kind]; return !D.alive && !D.neutral && !(lvl().noBonus || []).includes(o.kind); });
-    const houses = (S.scene.boathouses || []);
+    const houses = []; // (the lake's boathouses were bonuses till v2.13)
     return objs.length + houses.length > 0 && objs.every((o) => o.scored) && houses.every((h) => h.scored);
   }
   // the arc: launched from where the cart is, at a peg hole of 30-45°, a turn within 18° either way and a whole
@@ -1788,7 +1804,7 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       if (blocked || path.length < 60) continue;
       const rings = Array.from({ length: OSB.n }, (_, i) => {
-        const q = path[Math.round((0.2 + (0.62 * i) / (OSB.n - 1)) * (path.length - 1))], l = Math.hypot(q.vx, q.vy, q.vz);
+        const q = path[Math.round((0.1 + (0.6 * i) / (OSB.n - 1)) * (path.length - 1))], l = Math.hypot(q.vx, q.vy, q.vz);
         return { x: q.x, y: q.y, z: q.z, n: [q.vx / l, q.vy / l, q.vz / l], hit: false, flash: 0 };
       });
       const ok = rings.every((r) => {
@@ -1804,11 +1820,12 @@ body.lab .stage > :not(canvas) { display: none; }
     const arc = withSeed(seedFor(S.seed, SEED.osb), buildOsbArc);
     if (!arc) { S.osb = { state: "done", rings: [], score: 0 }; S.phase = "aim"; rollWind(); hud(); return; }
     S.osb = { state: "ready", rings: arc.rings, score: 0, show: true, set: arc };
-    S.phase = "aim"; hud();
+    // (v2.13: the cart's set on the arc, its turn and peg hole held there (greyed out): only the pressure to find)
+    S.yaw = arc.yaw; S.hole = arc.hole; S.phase = "aim"; hud();
     sfx.zaTriple();
     const c = arc.rings[2];
     S.pops.push({ x: c.x, y: c.y + 2.5, z: c.z, text: "ONE SHOT BONUS!", col: "#ff2fa8", fancy: true, size: clamp(W * 0.05, 24, 46), t: 0 });
-    shotNote("One Shot Bonus! A golden spud, extra: launch it through the arc of rings, +20 each. Calm air for this one.");
+    shotNote("One Shot Bonus! A golden spud, extra. The cart's set on the arc: just find the pressure. +20 a ring. View arc shows it from the side.");
   }
   // the golden spud, from prev to p: through a ring's middle (within its radius as it crosses the ring's face), +20
   function osbPass(prev, p) {
@@ -2089,12 +2106,12 @@ body.lab .stage > :not(canvas) { display: none; }
     }
   }
   // a boathouse on the lake: anywhere on it wins its +5, once for each of them
+  // (v2.13: no longer a bonus: every Cart Launcher level has just two bonus objects, the lake's the fishing boat and
+  // the Sea-Doo. A boathouse is a thunk, like any building)
   function boathouseBonus(hit) {
     const h = hit.house;
     sfx.thunk(); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: PROPS.boathouse.say, t: 0 });
-    if (h.scored) { shotNote(`Thunk! The ${h.name} again (bonus already won)`); return; }
-    h.scored = true; S.shotScores++; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(h.name);
-    shotNote(`Right on the ${h.name}! THUNK! +5 bonus!`);
+    shotNote(`Thunk! Off the ${h.name}`);
   }
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
   const maxScore = () => lvl().gun ? Object.values(RINGS).reduce((a, r) => a + r.pts, 0) : S.rings.reduce((a, r) => a + r.pts, 0);
@@ -2326,6 +2343,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function hud() {
     $("lvlOut").textContent = `${S.level + 1} · ${lvl().name} · ${S.diff}`;
     updateBonusStrip();
+    document.body.classList.toggle("osblock", osbLock()); // (the angle and rotation greyed out while held on the arc)
     if ($("lvlSel")) $("lvlSel").value = String(S.level);
     // (Skeetza has no top score: as many pairs fly as there are barrels to fire at them)
     $("scoreOut").textContent = lvl().gun ? `${S.score}` : `${S.score} / ${maxScore()}`;
@@ -2342,7 +2360,7 @@ body.lab .stage > :not(canvas) { display: none; }
     $("rotOut").innerHTML = `${Math.abs(S.yaw).toFixed(1).replace(/\.0$/, "")}<small>° ${S.yaw < 0 ? "left" : S.yaw > 0 ? "right" : ""}</small>`; rotIn.value = S.yaw;
     // "View arc" shows once the last spud has landed and the camera is back at rest; while viewing it names the angle
     const ab = $("arcBtn");
-    ab.hidden = !(S.arc && !S.potato && canAdjust());
+    ab.hidden = !(arcPts() && !S.potato && canAdjust());
     ab.textContent = S.arcView == null ? "View arc" : `${ARC_VIEWS[S.arcView].name} ▸`;
     const adj = canAdjust();
     ["pump", "bleed", "angUp", "angDown", "rotL", "rotR"].forEach((id) => ($(id).disabled = !adj));
@@ -2543,8 +2561,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const dist = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z);
     // looking at the last arc from off to one side, the place's houses and trees between the camera and the arc are
     // left out so they don't hide it
-    const arcPts = S.replay && S.replay.pass > 0 ? S.replay.rec.arc : S.arcView != null ? S.arc : null;
-    const arcNear = arcPts ? Math.min(...arcPts.map(([x, , z]) => Math.hypot(x - CAM.x, z - CAM.z))) - 3 : 0;
+    const arcSeen = S.replay && S.replay.pass > 0 ? S.replay.rec.arc : S.arcView != null ? arcPts() : null;
+    const arcNear = arcSeen ? Math.min(...arcSeen.map(([x, , z]) => Math.hypot(x - CAM.x, z - CAM.z))) - 3 : 0;
     const standing = [
       ...rings.filter((r) => !onBuilding(r) && !r.hill).map((r) => ({ d: dist(r), f: () => (r.form === "spinner" ? drawSpinner(r) : r.form === "splat" ? drawSplatTarget(r) : drawFlag(r, [r.x, S.scene.groundY(r.x, r.z + r.r), r.z + r.r])) })),
       ...(S.props || []).map((o) => ({ d: dist(o), f: () => drawProp(o), k: S.prof && "prop:" + o.kind })),
@@ -6374,6 +6392,11 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5;
     const ms = MAP.big ? 10 : 7;
     for (const o of seen) { ctx.fillStyle = PROPS[o.kind].alive ? "#ff5a1f" : "#39ff14"; ctx.fillRect(MX(o.x) - ms / 2, MY(o.z) - ms / 2, ms, ms); ctx.strokeRect(MX(o.x) - ms / 2, MY(o.z) - ms / 2, ms, ms); }
+    // (v2.13: a tick on each ring scored and each bonus object won, so what's left stands out)
+    const tick = (x, y, s) => { ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(x - s * 0.55, y); ctx.lineTo(x - s * 0.15, y + s * 0.45); ctx.lineTo(x + s * 0.6, y - s * 0.5);
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke(); ctx.strokeStyle = "#1f8a3a"; ctx.lineWidth = 2; ctx.stroke(); ctx.restore(); };
+    for (const r of S.rings) if (r.hit) tick(MX(r.x), MY(r.z), 6);
+    for (const o of seen) if (o.scored && !PROPS[o.kind].alive) tick(MX(o.x), MY(o.z), ms);
     // zoomed in close, the things in the field get little name tags, to find them by
     if (MAP.zoom >= 1.8) {
       ctx.font = "800 9px Nunito, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
@@ -7123,7 +7146,7 @@ body.lab .stage > :not(canvas) { display: none; }
   $("resetView").addEventListener("click", resetView);
   // each press shows the last arc from the next angle; after the last one it goes back to the normal view
   $("arcBtn").addEventListener("click", () => {
-    if (!S.arc || S.potato) return;
+    if (!arcPts() || S.potato) return;
     S.view = null; $("resetView").hidden = true;
     S.arcView = S.arcView == null ? 0 : S.arcView + 1;
     if (S.arcView >= ARC_VIEWS.length) S.arcView = null;
@@ -7312,7 +7335,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const pic = (k) => `<img src="${get(k)}" alt="${EXTRA_NAMES[k] || PROPS[k].label || k}" title="${EXTRA_NAMES[k] || PROPS[k].label || k}">` +
       (PROPS[k] && PROPS[k].big ? `<small class="xmore">(+${PROPS[k].big - 5})</small>` : "");
     // (the lake's boathouses are the place's own buildings, not props, but they're +5 too)
-    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive && !(L.noBonus || []).includes(k)),...(L.scene === "lake" ? ["boathouse"] : [])].map(pic).join("");
+    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive && !(L.noBonus || []).includes(k))].map(pic).join("");
     $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : []), ...(L.scene === "lake" ? ["bird"] : [])].map(pic).join("");
   }
 
@@ -11612,9 +11635,21 @@ body.lab .stage > :not(canvas) { display: none; }
     htTuckT = setTimeout(() => { if (!HOWTO.paused && $("htRules").hidden) htPanel.classList.add("tucked"); htSayTop(); }, ms);
     htSayTop();
   }
+  // (v2.13: the caption sits near the middle of the screen, where the eye is (the arrows are mostly low, at the
+  // controls); when the arrow or the finger, and what it's at, is where the caption would be, it moves just above or
+  // below them, whichever has room; never up under the controls while they're down)
+  let htAvoid = null;
   function htSayTop() {
-    const down = !htPanel.classList.contains("tucked");
-    htSayBox.style.setProperty("--say-top", `${down ? Math.round(htPanel.getBoundingClientRect().bottom + 8) : 14}px`);
+    const down = !htPanel.classList.contains("tucked"), minTop = down ? Math.round(htPanel.getBoundingClientRect().bottom + 8) : 14;
+    const h = htSayBox.offsetHeight || 64, maxTop = innerHeight - h - 8;
+    let top = Math.max(minTop, Math.round(innerHeight * 0.42 - h / 2));
+    const av = htAvoid;
+    if (av && top < av.y1 && top + h > av.y0) {
+      const above = av.y0 - h - 10, below = av.y1 + 10;
+      const aboveOk = above >= minTop, belowOk = below <= maxTop;
+      top = aboveOk && (!belowOk || av.y0 + av.y1 > innerHeight) ? above : belowOk ? below : Math.max(minTop, above);
+    }
+    htSayBox.style.setProperty("--say-top", `${Math.round(Math.min(Math.max(top, minTop), Math.max(minTop, maxTop)))}px`);
     htSayBox.hidden = !$("htRules").hidden;
   }
   $("htBlock").addEventListener("pointerdown", () => htPanelDown(4000));
@@ -11625,7 +11660,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function htPoint(t) { htTarget = t || null; placeHtArrow(); }
   function placeHtArrow() {
     const t = htTarget;
-    if (!t || !HOWTO.on || !$("htRules").hidden) { htArrow.hidden = true; return; }
+    if (!t || !HOWTO.on || !$("htRules").hidden) { htArrow.hidden = true; htAvoid = HOWTO.on ? htThumbAvoid() : null; return; }
     let r = null;
     if (typeof t === "string" || t instanceof Element) {
       const el = typeof t === "string" ? document.querySelector(t) : t;
@@ -11638,8 +11673,11 @@ body.lab .stage > :not(canvas) { display: none; }
       const c = cv.getBoundingClientRect(), p = typeof t === "function" ? t() : (() => { const q = P(t[0], t[1], t[2]); return q.behind ? null : q; })();
       if (p && p.x > -10 && p.x < W + 10 && p.y > -10 && p.y < H + 10) r = { x: c.left + p.x, top: c.top + p.y, bottom: c.top + p.y };
     }
-    if (!r) { htArrow.hidden = true; return; }
+    if (!r) { htArrow.hidden = true; htAvoid = htThumbAvoid(); return; }
     const up = r.top < innerHeight * 0.4;
+    // (what the caption keeps clear of: the thing, its arrow, and the finger if it's out)
+    const tA = htThumbAvoid();
+    htAvoid = { y0: Math.min(up ? r.top - 10 : r.top - 92, tA ? tA.y0 : Infinity), y1: Math.max(up ? r.bottom + 92 : r.bottom + 10, tA ? tA.y1 : -Infinity) };
     htArrow.classList.toggle("up", up);
     htArrow.style.left = `${Math.round(Math.max(30, Math.min(innerWidth - 30, r.x)))}px`;
     htArrow.style.top = `${Math.round(up ? r.bottom + 6 : r.top - 82)}px`;
@@ -11657,6 +11695,12 @@ body.lab .stage > :not(canvas) { display: none; }
     htThumbEl.style.left = `${c.left + p.x}px`; htThumbEl.style.top = `${c.top + p.y}px`; htThumbEl.hidden = false;
   }
   function htThumbHide() { htThumbEl.hidden = true; htThumbP = null; }
+  // (the finger's spot on the screen, for the caption to keep clear of: the touch spot and the hand under it)
+  function htThumbAvoid() {
+    if (htThumbEl.hidden || !htThumbP) return null;
+    const c = cv.getBoundingClientRect(), y = c.top + htThumbP.y;
+    return { y0: y - 30, y1: y + 70 };
+  }
   function htTap() { htThumbEl.classList.remove("tap"); void htThumbEl.offsetWidth; htThumbEl.classList.add("tap"); }
   // glide to p over ms (from where it is, or straight there if it isn't showing); each(k) along the way, k 0 to 1
   function htThumbTo(p, ms, tok, each) {
@@ -11816,7 +11860,7 @@ body.lab .stage > :not(canvas) { display: none; }
       await htWait(3000, tok);
     } },
     // (an animal out in the field, then a bonus object)
-    { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the water trough, are a +5 bonus, once each.", async run(tok) {
+    { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the scarecrow, are a +5 bonus, once each.", async run(tok) {
       const at = (o) => [o.x, (o.h || 1.5) + 0.3, o.z];
       const ani = S.props.find((o) => PROPS[o.kind].alive), obj = S.props.find((o) => !PROPS[o.kind].alive && !PROPS[o.kind].neutral);
       await htPoints([ani && at(ani), obj && at(obj)].filter(Boolean), 3000, tok);
