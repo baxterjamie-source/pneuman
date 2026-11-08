@@ -217,6 +217,21 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .hs tr.me td { background: var(--yellow); }
 .hs .none { opacity: .6; font-style: italic; }
 .campnote { font-weight: 800; color: #b3541e; }
+/* (v2.20) the intro: the title and tagline spring in on a dark screen, then it goes see-through and the field (the
+   only thing left showing) plays two moments; a tap or any key skips it */
+body.introon { background: #13202a; }
+body.introon header, body.introon .tray, body.introon .ver, body.introon .stage > :not(#cv) { visibility: hidden; }
+body.introon .stage { border-color: #13202a; transition: opacity .18s; }
+body.introon .stage.dip { opacity: 0; }
+.intro { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #13202a; transition: background .35s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.intro.clips { background: transparent; }
+.introttl { text-align: center; transition: opacity .3s, transform .3s; }
+.intro.clips .introttl { opacity: 0; transform: scale(.85); }
+.introttl h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(3rem, 13vw, 7rem); line-height: 1; color: var(--paper); text-shadow: 0 6px 0 rgba(0,0,0,.35); animation: intro-pop .7s cubic-bezier(.2, 1.6, .4, 1) both; }
+.introttl p { margin: .4em 0 0; color: var(--yellow); font-weight: 800; font-style: italic; font-size: clamp(1rem, 3.6vw, 1.6rem); letter-spacing: .03em; animation: intro-up .5s ease-out .45s both; }
+.introskip { position: fixed; right: 14px; bottom: 12px; color: var(--paper); opacity: .45; font-size: .75rem; font-weight: 800; }
+@keyframes intro-pop { from { opacity: 0; transform: scale(.3) rotate(-6deg); } to { opacity: 1; transform: none; } }
+@keyframes intro-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
 .trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
@@ -532,6 +547,7 @@ body.lab .stage > :not(canvas) { display: none; }
         </div>
       </details>
       <button class="set-btn" id="howtoSetBtn" type="button">How to play ›</button>
+      <button class="set-btn" id="introSetBtn" type="button">Watch intro ›</button>
       <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
     </div>
     <!-- the controls that aren't obvious, opened from settings so they don't take room under the field -->
@@ -713,6 +729,11 @@ body.lab .stage > :not(canvas) { display: none; }
     </div>
   </div>
 
+  <!-- (v2.20) the intro, on a device's first visit: the title and tagline, then two moments from the game -->
+  <div class="intro" id="intro" hidden aria-label="Pneuman intro: tap to skip">
+    <div class="introttl"><h2>Pneuman</h2><p>potatoes, pressure, patience</p></div>
+    <span class="introskip">tap to skip</span>
+  </div>
   <section class="tray" aria-label="Launcher settings">
     <div class="ctl ctl-ang">
       <div class="ctl-head"><span class="lbl">Angle <span id="holeOut" class="hole">hole 7/13</span></span><span class="val" id="angOut">40<small>°</small></span></div>
@@ -749,7 +770,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.18</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.20</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2454,9 +2475,10 @@ body.lab .stage > :not(canvas) { display: none; }
     $("ovFree").onclick = () => { audio(); showStart(startPick); };
     $("ovHowto").onclick = () => openHowto();
   }
-  // the levels of a run: the same order every run, so scores compare; Cart Launcher and MP levels take turns, the two
-  // water levels apart, Harvest (the farthest shots) last. A new level slots in here once it's built
-  const CAMP_ORDER = ["pasture", "skeetza", "lake", "milling", "culdesac", "reservoir", "harvest"].filter((id) => LEVELS.some((L) => L.id === id));
+  // the levels of a run: the same order every run, so scores compare. A warm-up of the two gentlest (Pasture, no wind;
+  // Cul de sac), then Cart Launcher and MP levels taking turns, Harvest's long shots just before the finale, and the
+  // Reservoir (the most satisfying) last (v2.19). A new level slots in here once it's built
+  const CAMP_ORDER = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir"].filter((id) => LEVELS.some((L) => L.id === id));
   // a run, kept on the device after every level: { diff, order, best: {id: the best clear's level total},
   // tries: {id: rounds played}, cleared: {id: true}, started }. A level part-played isn't kept
   const CAMP_KEY = "pneuman-camp", campTopKey = (d) => `pneuman-camp-top-${d}`;
@@ -2940,7 +2962,7 @@ body.lab .stage > :not(canvas) { display: none; }
       drawLauncher();
       lap("launcher");
       // the corner map would cover part of the arc, so it steps aside while viewing the arc
-      if (S.arcView == null && !(S.replay && S.replay.pass > 0)) drawMinimap();
+      if (S.arcView == null && !(S.replay && S.replay.pass > 0) && !INTRO.on) drawMinimap();
       lap("minimap");
     }
     lap("gun");
@@ -10824,6 +10846,8 @@ body.lab .stage > :not(canvas) { display: none; }
       upReady: () => bonusState.vaneHit != null && bonusState.signHit != null,
       // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
       bonusList: () => [{ k: "vane", label: "weather vane", hit: bonusState.vaneHit != null }, { k: "sign", label: "Live Edge Charcuterie sign", hit: bonusState.signHit != null }],
+      // (where the vane's rooster is, for the intro's scripted shot at it, v2.20)
+      vaneAt: [VANE.x, VANE.y + 0.7, VANE.z],
       upCross: () => [rnd(-2, 2), rnd(5.5, 7), rnd(15, 21)],
       upFlight: (l, C) => Math.max(rnd(2.0, 2.4), Math.hypot(C[0] - l.x, C[2] - l.z) / 7),
       // each pair's wind, from the round's seed (called inside its seeded draw): mostly across the yard, a little
@@ -12281,6 +12305,142 @@ body.lab .stage > :not(canvas) { display: none; }
   $("htEndClose").onclick = (e) => { e.stopPropagation(); audio(); closeHowto(); };
   $("htPause").onclick = () => { audio(); HOWTO.paused = !HOWTO.paused; $("htPause").textContent = HOWTO.paused ? "▶ Play" : "❚❚ Pause"; htPanelDown(); };
 
+  // ================= (v2.20) the intro =================
+  // On a device's first visit (and from Settings, Watch intro): the title and tagline spring in (1.5 s), then two
+  // moments from the game, played live by the game itself, no captions of our own (the game's own calls only):
+  // Lake, the cart beans the Sea-Doo (2.2 s), and Milling, the MP 10 takes the weather vane and then both pieces of
+  // a pull with one barrel, the triple (2.3 s). Each is a seeded round stepped at a fixed 1/60 s, so it goes the same
+  // way every time: its run-up is stepped through out of sight (silently), and the shown part is stepped as it's
+  // drawn (sped up a little). A tap or any key skips it. Then wherever the game was going: "Which mode?", a level's
+  // start card or a challenge
+  const INTRO_KEY = "pneuman-intro-seen", STEP = 1 / 60;
+  const INTRO = { on: false, clip: null, n: 0, acc: 0, dest: null, timers: [] };
+  // where the cart must point, and the pressure, to land at (x, z) at peg hole `hole` (no wind); and how long it flies
+  function introAim(x, z, hole) {
+    const keep = [S.yaw, S.hole];
+    S.hole = hole; S.yaw = (Math.atan2(x - S.lx, z) * 180) / Math.PI;
+    const want = Math.hypot(x - S.lx, z), fly = (psi) => {
+      const m = muzzle(), d = dirVec(), v = MUZZLE * Math.sqrt(psi), p = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v }, h = 1 / 240;
+      let t = 0;
+      for (; t < 30 && (p.y > 0 || p.vy > 0); t += h) { const sp = Math.hypot(p.vx, p.vy, p.vz); p.vx -= K * p.vx * sp * h; p.vy -= (G + K * p.vy * sp) * h; p.vz -= K * p.vz * sp * h; p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; }
+      return { d: Math.hypot(p.x - S.lx, p.z), t };
+    };
+    let lo = 3, hi = maxPsi();
+    for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (fly(mid).d < want) lo = mid; else hi = mid; }
+    const out = { yaw: S.yaw, hole, psi: (lo + hi) / 2, tf: fly((lo + hi) / 2).t };
+    [S.yaw, S.hole] = keep;
+    return out;
+  }
+  // the MP's sights on a point, allowing for the mini spuds' drop on the way (as htLead does)
+  function introSight(pt) {
+    const g = S.gun, e = gunEye(), dx = pt[0] - e[0], dz = pt[2] - e[2], hd = Math.hypot(dx, dz), t = Math.hypot(dx, pt[1] - e[1], dz) / GUN.speed, drop = 0.5 * G * 0.35 * t * t;
+    g.mouse = null; g.yaw = Math.atan2(dx, dz); g.pitch = Math.atan2(pt[1] - e[1] + drop, hd);
+  }
+  // the two moments. seed: the round; prep(c): set it up (after the round's laid out); at(c, n): what to do at step n
+  // of the round (null once the run-up's done and it should be shown from here); speed: steps per frame shown
+  const INTRO_CLIPS = [
+    { level: "lake", seed: 101, secs: 2.2, speed: 1.5, hole: 3, over: 1.2,
+      prep(c) { const sd = S.props.find((o) => o.kind === "seadoo"); if (sd) sd.wait = 0.05; c.sd = sd; c.fireAt = null; },
+      at(c, n) {
+        const sd = c.sd;
+        if (!sd) return n < 30 ? true : null;
+        // once it's on its run: where it'll be a little after crossing straight ahead, and when to fire to meet it there
+        if (c.fireAt == null && sd.run) {
+          const r = sd.run;
+          let xt = 0, aim = null, k = -1;
+          for (let tries = 0; tries < 40 && k < 6; tries++, xt += r.dir * 2) {
+            // (aimed to come down `over` m past it, as it hits the Sea-Doo on the way down rather than at the waterline)
+            const zt = r.z + Math.sin(xt * 0.08) * 1.5, dx = xt - S.lx, f = (Math.hypot(dx, zt) + c.over) / Math.hypot(dx, zt);
+            aim = introAim(S.lx + dx * f, zt * f, c.hole);
+            k = Math.round((((xt - sd.x) * r.dir) / r.v - aim.tf) / STEP);
+          }
+          c.aim = aim; c.fireAt = n + Math.max(1, k);
+        }
+        if (c.fireAt != null && n === c.fireAt) {
+          S.wind = { x: 0, z: 0, kmh: 0, dir: S.wind.dir || 0 }; S.birdCool = 99;
+          S.hole = c.aim.hole; S.yaw = c.aim.yaw; S.psi = c.aim.psi; S.loaded = true; S.phase = "aim"; fire();
+        }
+        // shown from just before the launch
+        return c.fireAt == null || n < c.fireAt - 8 ? true : null;
+      } },
+    // (seed 45's first pull: its two pieces line up, seen from the MP 10, 172 steps after the pull, at pairAim; a
+    // barrel fired 153 steps in, sighted there, takes both. Found by stepping its flight through; recheck if
+    // Milling's flights, its pieces' sizes or meh's pace change)
+    { level: "milling", seed: 45, secs: 2.1, speed: 1, vaneAt: 100, pairAt: 153, pairAim: [-0.15, 7.33, 27.24], showFrom: 88,
+      prep(c) { c.pullN = null; },
+      at(c, n) {
+        const g = S.gun;
+        if (n === 1) pickUp(0);
+        if (c.pullN == null && g.pulls === 1) c.pullN = n;
+        if (c.pullN == null) return true;
+        const k = n - c.pullN;
+        // the weather vane first (the pull's bonus), then both pieces with the other barrel: the triple
+        if (k === c.vaneAt && S.scene.gp && S.scene.gp.vaneAt) { introSight(S.scene.gp.vaneAt); shoot(); }
+        if (k === c.pairAt) { introSight(c.pairAim); shoot(); }
+        // shown from a moment before the vane's hit, the pieces already up
+        return k < c.showFrom ? true : null;
+      } },
+  ];
+  function introStep() {
+    const c = INTRO.clip; INTRO.n++;
+    const more = c.at(c, INTRO.n);
+    update(STEP);
+    return more;
+  }
+  // a clip: its round laid out, its run-up stepped through out of sight (silently), then shown
+  function introClip(i) {
+    const c = { ...INTRO_CLIPS[i] }, li = levelIx(c.level);
+    if (li < 0) { introNext(i); return; }
+    INTRO.clip = c; INTRO.n = 0; INTRO.acc = 0; INTRO.idx = i;
+    S.phase = "intro";
+    startLevel(li, { seed: c.seed, w: Math.round(W), h: Math.round(H), diff: "meh" });
+    S.birdCool = 99; c.prep(c);
+    const muted = S.muted; S.muted = true;
+    for (let k = 0; k < 60 * 40 && introStep(); k++);
+    S.muted = muted; stopEngines();
+    c.endN = INTRO.n + Math.round(c.secs * 60 * c.speed);
+    $("intro").classList.add("clips"); document.querySelector(".stage").classList.remove("dip");
+  }
+  function introNext(i) {
+    if (!INTRO.on) return;
+    if (i + 1 < INTRO_CLIPS.length) {
+      document.querySelector(".stage").classList.add("dip");
+      INTRO.timers.push(setTimeout(() => INTRO.on && introClip(i + 1), 180));
+    } else endIntro();
+  }
+  // each frame while it's on: the shown part, a step or two a frame (sped up), till the clip's time is up
+  function introFrame() {
+    const c = INTRO.clip;
+    if (!c || !c.endN) return;
+    INTRO.acc += c.speed;
+    while (INTRO.acc >= 1 && INTRO.n < c.endN) { INTRO.acc--; introStep(); }
+    if (INTRO.n >= c.endN && !c.ending) { c.ending = true; introNext(INTRO.idx); }
+  }
+  function playIntro(dest) {
+    try { localStorage.setItem(INTRO_KEY, "1"); } catch (e) {}
+    INTRO.on = true; INTRO.dest = dest; INTRO.clip = null; INTRO.timers = [];
+    document.body.classList.add("introon"); $("overlay").hidden = true;
+    const el = $("intro"); el.hidden = false; el.classList.remove("clips");
+    // (the title's animation restarts each time)
+    const t = el.querySelector(".introttl"); t.replaceWith(t.cloneNode(true));
+    document.querySelector(".stage").classList.add("dip");
+    INTRO.timers.push(setTimeout(() => INTRO.on && introClip(0), 1500));
+  }
+  function endIntro() {
+    if (!INTRO.on) return;
+    INTRO.on = false; INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.clip = null;
+    stopEngines(); hideRelive();
+    $("intro").hidden = true; document.body.classList.remove("introon"); document.querySelector(".stage").classList.remove("dip");
+    S.phase = "intro"; S.score = 0; S.bonus = 0; S.pops = [];
+    const d = INTRO.dest; INTRO.dest = null; d && d();
+  }
+  $("intro").addEventListener("pointerdown", (e) => { e.preventDefault(); endIntro(); });
+  window.addEventListener("keydown", (e) => { if (INTRO.on) { e.preventDefault(); e.stopImmediatePropagation(); endIntro(); } }, true);
+  $("introSetBtn").addEventListener("click", (e) => {
+    e.stopPropagation(); showSettings(false);
+    askRestart("Watching the intro", () => { leaveChallenge(); campOff(); audio(); playIntro(showModes); });
+  });
+
   // ================= go =================
   // a shared link (?level=culdesac) opens on that level's start card, ready to play
   const linked = Math.max(0, LEVELS.findIndex((L) => L.id === new URLSearchParams(location.search).get("level")));
@@ -12303,7 +12463,10 @@ body.lab .stage > :not(canvas) { display: none; }
   const challenge = readChallenge();
   S.phase = "title";
   // (v2.18: no link, "Which mode?" first)
-  if (challenge) showChallenge(challenge); else if (new URLSearchParams(location.search).has("level")) showStart(linked); else showModes();
+  const dest = challenge ? () => showChallenge(challenge) : new URLSearchParams(location.search).has("level") ? () => showStart(linked) : showModes;
+  // (v2.20: a device's first visit plays the intro first; ?nointro skips it)
+  let seen = true; try { seen = localStorage.getItem(INTRO_KEY) === "1"; } catch (e) {}
+  if (!seen && !new URLSearchParams(location.search).has("nointro")) playIntro(dest); else dest();
   let last = performance.now(), oops = false;
   // the speed test's readout, bottom right of the field: frames a second, and how long each frame's own work takes
   // (over 16 ms and it can't keep up with 60), averaged over the last half second or so
@@ -12347,7 +12510,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the next frame is asked for first, so a frame that goes wrong is just skipped rather than stopping the game
     // on a blank field; what went wrong shows once, so it can be reported)
     requestAnimationFrame(frame);
-    try { const t0 = performance.now(); update(dt); draw(); drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
+    // (the intro steps its own scripted rounds, at a fixed rate, so its shots go the same way every time)
+    try { const t0 = performance.now(); if (INTRO.on) introFrame(); else update(dt); draw(); drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
       console.error(err);
       if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
     }
