@@ -198,6 +198,25 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .lvl.on { background: var(--yellow); }
 .lvl.soon, .lvl.soon:disabled { opacity: .55; background: #e6e1d6; color: #6b6f73; border-color: #8a8f94; box-shadow: 0 3px 0 #8a8f94; cursor: default; }
 .lvl.soon small { font-style: italic; opacity: .9; }
+/* (v2.18) the "Which mode?" screen and the campaign: two big buttons, each with a line of small print; the campaign's
+   levels as a row of chips (ticked when cleared) and its top-10 table */
+.card.modes { max-width: 24rem; }
+.card.modes #ovBody { font-family: var(--display); font-size: 1.3rem; }
+.modebtn { flex: 1 1 100%; display: grid; gap: 2px; text-align: left; padding-block: 10px; }
+.modebtn small { font-size: .78rem; font-weight: 700; opacity: .8; }
+.cardbtns .back { background: var(--paper); }
+.camprow { display: flex; flex-wrap: wrap; gap: 4px; }
+.camprow span { font-size: .75rem; font-weight: 800; padding: 2px 7px; border: 2px solid var(--ink); border-radius: 8px; background: #fff1cf; }
+.camprow span.done { background: #bfe8b8; }
+.camprow span.now { background: var(--yellow); }
+.hs { width: 100%; border-collapse: collapse; font-size: .85rem; font-weight: 800; }
+.hs caption { text-align: left; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; padding-bottom: 2px; }
+.hs td { padding: 2px 6px; border-top: 1px solid rgba(0,0,0,.12); }
+.hs td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.hs td.d { font-size: .72rem; opacity: .65; }
+.hs tr.me td { background: var(--yellow); }
+.hs .none { opacity: .6; font-style: italic; }
+.campnote { font-weight: 800; color: #b3541e; }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
 .trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
@@ -607,7 +626,7 @@ body.lab .stage > :not(canvas) { display: none; }
           <h3>MP levels <small>(Skeetza, Milling, Reservoir)</small></h3>
           <ul>
             <li><b>Grab</b> a loaded MP from its cabinet: the MP 10 has two barrels, the Reservoir's MP 15 three. <b>Aim</b> with the mouse or a finger; <b>launch</b> with FIRE, a click or Space.</li>
-            <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 10; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; then spare barrels and skeet never launched are +1 each.</li>
+            <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 5; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; then spare barrels and pulls not used are +1 each.</li>
             <li><b>Calls:</b> both of a pair with one barrel (Two Fer), both with a barrel each (Double), both and the drone (Amazing Triple).</li>
             <li>The <b>drone</b> (and each level's own bonuses) are a bonus; <b>workers, windows and animals cost 5</b>.</li>
             <li><b>UP mode:</b> hit all of a level's bonuses to earn 30 s of UNLIMITED PNEUMAN. Hold FIRE to keep launching; waves of skeet worth 1 each, doubles +2, triples +5, quadruples +10.</li>
@@ -730,7 +749,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.16</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.18</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -1629,7 +1648,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.level = i; S.seed = round ? round.seed : newSeed();
     S.osb = null; S.osbScore = 0; // (the One Shot Bonus: not earned yet this round)
     // (the difficulty for this round: a challenge's own, or the one picked)
-    S.diff = round && DIFF[round.diff] ? round.diff : S.diffPick;
+    // (a campaign run: the run's, the same for every level of it)
+    S.diff = round && DIFF[round.diff] ? round.diff : S.camp ? S.camp.diff : S.diffPick;
     S.layoutView = round ? { w: round.w, h: round.h } : { w: Math.round(W), h: Math.round(H) };
     const keep = { W, H };
     W = S.layoutView.w; H = S.layoutView.h;
@@ -2249,9 +2269,9 @@ body.lab .stage > :not(canvas) { display: none; }
   function endLevel() {
     // clearing every ring earns +1 for each spud left over (Skeetza: each barrel not fired)
     const spare = cleared() ? S.spudsLeft : 0;
-    // Skeetza: clearing also earns +1 for each skeetza never launched (of the 40), so it pays to clear early rather
-    // than wait for the perfect pair
-    const unlaunched = lvl().gun && cleared() ? Math.max(0, GUN.pulls * gunPerPull() - S.gun.launched) : 0;
+    // MP levels: clearing also earns +1 for each pull not used (of the 20), so it pays to clear early rather than wait
+    // for the perfect pair (v2.17: per pull, not per skeet, so the Reservoir's threes don't count half again as much)
+    const unlaunched = lvl().gun && cleared() ? Math.max(0, GUN.pulls - S.gun.pulls) : 0;
     S.phase = "levelEnd";
     shrinkRelive(); // (into its corner, clear of the card, to watch that last shot again)
     sfx.done();
@@ -2280,6 +2300,9 @@ body.lab .stage > :not(canvas) { display: none; }
         `<button id="ovGo" type="button">Challenge back</button><button id="ovPick" type="button">Play Pneuman</button>`,
         () => openShare({ score: tot, vs: { name: c.name, score: c.score } }));
       $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score } }); // (the card stays up behind it)
+    } else if (S.camp) {
+      // (a campaign run: on only once cleared; Replay as often as you like, the best clear counting)
+      campEndCard(L, tot, allHit, counts);
     } else {
       // (Next is always offered here; "only once cleared" is for the single-player campaign, still to come)
       const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">Challenge a friend</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
@@ -2287,7 +2310,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // this round, sent to a friend with the score to beat
       $("ovChal").onclick = () => openShare({ score: tot });
     }
-    $("ovPick").onclick = () => { audio(); showStart(S.level); };
+    if (!S.camp) $("ovPick").onclick = () => { audio(); showStart(S.level); };
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult, clearB, lvl().gun ? 0 : S.osbScore || 0);
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
@@ -2354,7 +2377,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const penaltyRow = penalty ? `<div class="trow minus"><span>${onlyAnimals ? "Animals hit" : "Penalties"} <small>(${tallyNames(hitAnimals)})</small></span><b id="tA">−0</b></div>` : "";
     const bonusRow = bonus ? `<div class="trow bonus"><span>Bonus${what}</span><b id="tB">+0</b></div>` : "";
     const spareRow = extra ? `<div class="trow bonus"><span>${lvl().gun ? "Spare barrels" : "Spare spuds"} <small>(${extra} × 1)</small></span><b id="tP">+0</b></div>` : "";
-    const unlRow = unl ? `<div class="trow bonus"><span>Skeetzas not launched <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
+    const unlRow = unl ? `<div class="trow bonus"><span>Pulls not used <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
     // (the difficulty's multiplier, when it isn't ×1: what it adds or takes off the sum)
     const sum = score + bonus + extra + unl + clearB, final = Math.round(sum * mult), dm = final - sum;
     const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} stars)</small></span><b id="tO">+0</b></div>` : "") +
@@ -2393,7 +2416,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // +5 / −5 pictures for the level picked. Picking one sets it up behind the card; Play starts it
   let startPick = 0;
   function showStart(sel = startPick) {
-    leaveChallenge();
+    leaveChallenge(); campOff(); menuAt = "start";
     startPick = sel;
     if (S.level !== sel || S.phase !== "title") { S.phase = "title"; previewLevel(sel); }
     // (v2.09: no eyebrow or rules line any more, for room: How to play has them)
@@ -2402,9 +2425,10 @@ body.lab .stage > :not(canvas) { display: none; }
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
-      `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button><button id="ovHowto" type="button">How to play</button>`, () => startLevel(startPick));
+      `<button id="ovGo" type="button">Play ${LEVELS[sel].name}</button><button id="ovHowto" type="button">How to play</button><button id="ovModes" class="back" type="button">‹ Modes</button>`, () => startLevel(startPick));
     for (const b of document.querySelectorAll(".diffsw button")) b.onclick = () => { audio(); setDiff(b.dataset.d); };
     $("ovHowto").onclick = () => openHowto();
+    $("ovModes").onclick = () => { audio(); showModes(); };
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
     el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
       // the places still to come, greyed out
@@ -2413,6 +2437,141 @@ body.lab .stage > :not(canvas) { display: none; }
       b.onclick = () => { audio(); const i = Number(b.dataset.i); if (i === startPick) startLevel(i); else showStart(i); };
     });
     $("extras").hidden = false; extrasFor(LEVELS[sel]);
+  }
+
+  // ================= (v2.18) "Which mode?" and the single-player campaign =================
+  // the game opens here (unless a level or challenge link says otherwise): Campaign, Free play (the start card with
+  // its row of levels, the sandbox) and How to play, which comes back here when it's closed
+  let menuAt = "modes"; // (where How to play goes back to when it was opened from a menu: "modes", "start", "camp")
+  function showModes() {
+    leaveChallenge(); campOff(); menuAt = "modes";
+    if (S.phase !== "title") { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(startPick); }
+    showCard("", "Pneuman", "Which mode?", "",
+      `<button id="ovGo" class="modebtn" type="button">Campaign<small>All ${CAMP_ORDER.length} levels in a row, one total. Clear each one to move on.</small></button>` +
+      `<button id="ovFree" class="modebtn" type="button">Free play<small>Any level, any difficulty, as often as you like.</small></button>` +
+      `<button id="ovHowto" class="back" type="button">How to play</button>`, () => showCampaign());
+    document.querySelector(".card").classList.add("modes");
+    $("ovFree").onclick = () => { audio(); showStart(startPick); };
+    $("ovHowto").onclick = () => openHowto();
+  }
+  // the levels of a run: the same order every run, so scores compare; Cart Launcher and MP levels take turns, the two
+  // water levels apart, Harvest (the farthest shots) last. A new level slots in here once it's built
+  const CAMP_ORDER = ["pasture", "skeetza", "lake", "milling", "culdesac", "reservoir", "harvest"].filter((id) => LEVELS.some((L) => L.id === id));
+  // a run, kept on the device after every level: { diff, order, best: {id: the best clear's level total},
+  // tries: {id: rounds played}, cleared: {id: true}, started }. A level part-played isn't kept
+  const CAMP_KEY = "pneuman-camp", campTopKey = (d) => `pneuman-camp-top-${d}`;
+  const levelIx = (id) => LEVELS.findIndex((L) => L.id === id);
+  function campSaved() {
+    try { const r = JSON.parse(localStorage.getItem(CAMP_KEY) || "null"); return r && DIFF[r.diff] && Array.isArray(r.order) && r.order.length && r.order.every((id) => levelIx(id) >= 0) ? r : null; } catch (e) { return null; }
+  }
+  const campSave = (r) => { try { localStorage.setItem(CAMP_KEY, JSON.stringify(r)); } catch (e) {} };
+  const campDrop = () => { try { localStorage.removeItem(CAMP_KEY); } catch (e) {} };
+  // the top 10 for each difficulty: { name, total, tries, at }
+  const campTop = (d) => { try { const t = JSON.parse(localStorage.getItem(campTopKey(d)) || "[]"); return Array.isArray(t) ? t : []; } catch (e) { return []; } };
+  const campTotal = (r) => r.order.reduce((s, id) => s + (r.best[id] || 0), 0);
+  const campTries = (r) => r.order.reduce((s, id) => s + (r.tries[id] || 0), 0);
+  const campDone = (r) => r.order.filter((id) => r.cleared[id]).length;
+  // (the first level of the run not cleared yet; the run's length once they all are)
+  function campNext(r) { const k = r.order.findIndex((id) => !r.cleared[id]); return k < 0 ? r.order.length : k; }
+  function campStep() { return S.camp ? Math.max(0, S.camp.order.indexOf(lvl().id)) : 0; }
+  // the difficulty picked for a new run (its own, kept on the device; the free-play one to start with)
+  let campPick = S.diffPick;
+  try { const d = localStorage.getItem("pneuman-camp-diff"); if (DIFF[d]) campPick = d; } catch (e) {}
+  // in a run the level and difficulty are the run's: greyed out in Settings, as in a challenge
+  function campOn(r) { S.camp = r; lvlSel.disabled = true; $("diffSel").disabled = true; $("diffSel").value = r.diff; }
+  function campOff() { if (!S.camp) return; S.camp = null; lvlSel.disabled = false; $("diffSel").disabled = false; $("diffSel").value = S.diffPick; }
+  function campTable(d, mark) {
+    const t = campTop(d);
+    const rows = t.length ? t.map((e, i) => `<tr class="${mark && e.at === mark ? "me" : ""}"><td class="n">${i + 1}</td><td>${esc(String(e.name || "—"))}</td><td class="n">${e.total}</td><td class="n">${e.tries} tries</td><td class="d">${new Date(e.at).toLocaleDateString()}</td></tr>`).join("")
+      : `<tr><td class="none" colspan="5">No runs finished on ${d} yet.</td></tr>`;
+    return `<table class="hs"><caption>Top 10 · ${d}</caption>${rows}</table>`;
+  }
+  const campChips = (r) => (r ? r.order : CAMP_ORDER).map((id, k) => {
+    const done = r && r.cleared[id], now = r && !done && k === campNext(r);
+    return `<span class="${done ? "done" : now ? "now" : ""}">${done ? "✓ " : ""}${k + 1} ${LEVELS[levelIx(id)].name}</span>`;
+  }).join("");
+  // a yes/no card over everything (the "Start over?" one, worded for the moment)
+  function confirmAsk(title, body, yes, no, go) {
+    const box = $("confirmBox"), keep = [$("cfTitle").textContent, $("cfYes").textContent, $("cfNo").textContent];
+    const done = () => { box.hidden = true; [$("cfTitle").textContent, $("cfYes").textContent, $("cfNo").textContent] = keep; };
+    $("cfTitle").textContent = title; $("cfBody").textContent = body; $("cfYes").textContent = yes; $("cfNo").textContent = no;
+    box.hidden = false; setTimeout(() => $("cfNo").focus({ preventScroll: true }), 30);
+    $("cfYes").onclick = () => { audio(); done(); go(); };
+    $("cfNo").onclick = () => { audio(); done(); };
+  }
+  // the campaign card: a run in progress to continue, or a new one at the difficulty picked; the top 10 for it
+  function showCampaign(mark) {
+    leaveChallenge(); campOff(); menuAt = "camp";
+    const r = campSaved(), order = r ? r.order : CAMP_ORDER, at = r ? Math.min(campNext(r), order.length - 1) : 0;
+    if (S.phase !== "title" || S.level !== levelIx(order[at])) { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(levelIx(order[at])); }
+    const body = r
+      ? `Run in progress on ${r.diff}: ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far, ${campTries(r)} ${campTries(r) === 1 ? "try" : "tries"}.`
+      : `All ${order.length} levels in a row, one total. Clear a level (hit every colour) to move on. Replay a level as often as you like: your best clear counts.`;
+    const cont = r ? `<button id="ovCont" type="button">${campNext(r) >= r.order.length ? "Finish run" : `Continue: ${LEVELS[levelIx(r.order[campNext(r)])].name}`}</button>` : "";
+    showCard("", "Campaign", body, `<div class="camprow">${campChips(r)}</div>` + campTable(campPick, mark),
+      cont + `<div class="diffsw" role="group" aria-label="Difficulty for a new run">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === campPick ? "on" : ""}" aria-pressed="${k === campPick}">${k}</button>`).join("")}</div>` +
+      `<button id="ovGo" type="button"${r ? ' class="back"' : ""}>New run</button><button id="ovBack" class="back" type="button">‹ Modes</button>`,
+      () => {
+        if (!r) { campNew(); return; }
+        confirmAsk("New run?", `A new run on ${campPick} ends the one in progress (${r.diff}, ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far).`, "New run", "Keep it", campNew);
+      });
+    for (const b of document.querySelectorAll(".diffsw button")) b.onclick = () => {
+      audio(); campPick = b.dataset.d; try { localStorage.setItem("pneuman-camp-diff", campPick); } catch (e) {} showCampaign();
+    };
+    if (r) { $("ovCont").onclick = () => { audio(); campPlay(r); }; setTimeout(() => $("ovCont") && $("ovCont").focus({ preventScroll: true }), 40); }
+    $("ovBack").onclick = () => { audio(); showModes(); };
+  }
+  function campNew() {
+    const r = { diff: campPick, order: CAMP_ORDER.slice(), best: {}, tries: {}, cleared: {}, started: Date.now() };
+    campSave(r); campPlay(r);
+  }
+  // on to the run's first level not cleared yet (or, all cleared, its finish)
+  function campPlay(r) {
+    const k = campNext(r);
+    if (k >= r.order.length) { campFinish(r); return; }
+    campOn(r); startLevel(levelIx(r.order[k]));
+  }
+  // the end of a level in a run: its try counted, its best clear kept; on only once it's cleared
+  function campEndCard(L, tot, clearedNow, counts) {
+    const r = S.camp, id = L.id, was = r.best[id];
+    r.tries[id] = (r.tries[id] || 0) + 1;
+    if (clearedNow) { r.cleared[id] = true; if (was == null || tot > was) r.best[id] = tot; }
+    campSave(r);
+    const n = r.order.length, k = r.order.indexOf(id), nx = campNext(r), total = campTotal(r);
+    const progress = `Run total ${total} (${campDone(r)} of ${n} cleared).`;
+    let title, body, btns, go;
+    if (r.cleared[id]) {
+      title = !clearedNow ? "Not cleared this time" : was == null ? `${L.name} cleared!` : tot > was ? "New best clear!" : "Cleared again";
+      body = `${was != null && !(clearedNow && tot > was) ? `Your best clear here stays ${was}. ` : ""}${progress}`;
+      btns = `<button id="ovGo" type="button">${nx >= n ? "Finish run" : `Next: ${LEVELS[levelIx(r.order[nx])].name}`}</button><button id="ovRetry" type="button">Replay ${L.name}</button>`;
+      go = () => campPlay(r);
+    } else {
+      title = "Not cleared yet";
+      body = `Hit every numbered (coloured) target to clear ${L.name} and move on. Replay as often as you like: your best clear counts.`;
+      btns = `<button id="ovGo" type="button">Try again</button>`;
+      go = () => startLevel(S.level);
+    }
+    showCard(`Campaign ${k + 1}/${n} · ${L.name} · ${r.diff}`, title, body, counts, btns + `<button id="ovPick" class="back" type="button">Save &amp; quit</button>`, go);
+    if (!r.cleared[id]) $("ovBody").classList.add("campnote"); // (the hint stands out; showCard's next use clears it)
+    $("ovPick").onclick = () => { audio(); showCampaign(); };
+  }
+  // every level cleared: the run's total, a name for the table, and onto the top 10
+  function campFinish(r) {
+    campOff(); menuAt = "camp";
+    const total = campTotal(r), tries = campTries(r), top = campTop(r.diff), rank = top.filter((e) => e.total > total || (e.total === total && e.tries <= tries)).length;
+    showCard(`Campaign · ${r.diff}`, "Campaign complete!",
+      `All ${r.order.length} levels cleared: ${total} in ${tries} tries.${rank < 10 ? ` That's #${rank + 1} on the ${r.diff} table!` : ""}`,
+      `<label class="sharename">Your name <input id="campName" maxlength="20" value="${esc(playerName())}" placeholder="For the high-score table" autocomplete="nickname"></label>` + campTable(r.diff),
+      `<button id="ovGo" type="button">Save my score</button>`, () => {
+        const name = ($("campName").value || "").trim().slice(0, 20);
+        if (name) setPlayerName(name);
+        const at = Date.now(), t = campTop(r.diff);
+        t.push({ name: name || "Player", total, tries, at });
+        t.sort((a, b) => b.total - a.total || a.tries - b.tries || a.at - b.at);
+        try { localStorage.setItem(campTopKey(r.diff), JSON.stringify(t.slice(0, 10))); } catch (e) {}
+        campDrop(); campPick = r.diff; showCampaign(at);
+      });
+    cheer(Math.min(total, 100));
   }
   // ---- the scroll hint (v2.08): whichever card is up in front (the start card, the end card, Share, a challenge, the
   // tips, "Start over?"), if it runs past the bottom of its space, a small bobbing down arrow sits at the bottom of it
@@ -2457,8 +2616,8 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
     $("tally").hidden = true; $("extras").hidden = true; $("levels").hidden = true; // (the pictures and level cards are for the start card)
-    document.querySelector(".card").classList.remove("start");
-    $("ovEyebrow").textContent = eyebrow; $("ovEyebrow").hidden = !eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body; $("ovBody").hidden = !body;
+    document.querySelector(".card").classList.remove("start", "modes");
+    $("ovEyebrow").textContent = eyebrow; $("ovEyebrow").hidden = !eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body; $("ovBody").hidden = !body; $("ovBody").classList.remove("campnote");
     $("legend").innerHTML = legendHtml; $("ovBtns").innerHTML = btnsHtml;
     $("ovGo").onclick = () => { audio(); go(); };
     const r = $("ovRetry"); if (r) r.onclick = () => { audio(); startLevel(S.level); };
@@ -2467,7 +2626,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= hud =================
   function hud() {
-    $("lvlOut").textContent = `${S.level + 1} · ${lvl().name} · ${S.diff}`;
+    $("lvlOut").textContent = S.camp ? `Campaign ${campStep() + 1}/${S.camp.order.length} · ${lvl().name} · ${S.diff}` : `${S.level + 1} · ${lvl().name} · ${S.diff}`;
     updateBonusStrip(); placeBonusStrip();
     document.body.classList.toggle("osblock", osbLock()); // (the angle and rotation greyed out while held on the arc)
     // (the One Shot Bonus done: Carry on up, the launcher's controls greyed out till it's pressed)
@@ -7490,7 +7649,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // pairs from behind the ovens, freezers and proofer. Five prototype MP 10s (V1 to V5) stand in glass-fronted
   // cabinets, pumped to 120 PSI: grab one (the glass smashes) and it comes up ready, a pair goes up ("PULL!"), and you
   // have both barrels; a barrel you don't fire is kept for the next pair. Once both are fired it's done with, and you
-  // grab the next. Pairs keep coming until all 10 barrels are fired (or 20 pairs have flown), skeetzas +10 each, and
+  // grab the next. Pairs keep coming until all 10 barrels are fired (or 20 pairs have flown), plain skeetzas +5 each (v2.17), and
   // 10 of them clears the level.
   // A drone drifting about under the roof is +15 (once); the four workers on the floor are −5 each hit. Each pair's
   // machines and arcs (they cross somewhere different every time, so one shot can take both), the drone's loops and
@@ -7498,7 +7657,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // (pace: how fast the skeetzas' flight plays out, 0.75 = three-quarter speed: the same arcs, a third longer in the air)
   // (cases: the prototype MP 10s in their cabinets, each used once, both barrels: 5 × 2 = the 10 shots)
   // (pts: a plain skeetza; a coloured one is worth its colour's points, as the rings are; drone: each of the two)
-  const GUN = { shots: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 10, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, pizzaR: 0.6, pg: 5.5, drone: 10 };
+  const GUN = { shots: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 5, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, pizzaR: 0.6, pg: 5.5, drone: 10 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // (a level's own gun: the MP 15 has three barrels and its targets go up three at a time; the MP 10, two and two)
   const gunBarrels = () => lvl().barrels || 2, gunPerPull = () => lvl().perPull || 2, gunName = () => lvl().gunName || "MP 10";
@@ -8152,7 +8311,7 @@ body.lab .stage > :not(canvas) { display: none; }
     2: { text: "Double Za!", col: "#1e9be0", pts: 5, name: "Double Za", sound: "zaDouble" },
     1: { text: "Two Fer Za!", col: "#f28c00", pts: 10, name: "Two Fer Za", sound: "zaTwofer" },
     // (all three of a pull of three: the Reservoir's)
-    4: { text: "Triple Splash!", col: "#8e44ad", pts: 20, name: "Triple Splash", sound: "zaTriple" },
+    4: { text: "Triple Splash!", col: "#8e44ad", pts: 15, name: "Triple Splash", sound: "zaTriple" },
   };
   // the snapshot of the round's best moment (see shotDone), taken once the frame it's due in has been drawn: the
   // field as it is on the screen, kept at its own size for the postcard (not during Re-live it, which isn't the round)
@@ -12083,7 +12242,8 @@ body.lab .stage > :not(canvas) { display: none; }
     HOWTO.token++; HOWTO.on = false; HOWTO.tick = null; HOWTO.paused = false; TRIG.on = false;
     htEl.hidden = true; htPoint(null); htThumbHide(); clearTimeout(htTuckT); htPanel.classList.remove("tucked"); htHold(false);
     const sv = HOWTO.saved; HOWTO.saved = null;
-    if (!sv) { showStart(startPick); return; }
+    // (opened from a menu: back to it, "Which mode?", the start card or the campaign's)
+    if (!sv) { if (menuAt === "modes") showModes(); else if (menuAt === "camp") showCampaign(); else showStart(startPick); return; }
     hideRelive(); stopEngines();
     for (const k of Object.keys(S)) if (!sv.keys.has(k)) delete S[k];
     Object.assign(S, sv.S); Object.assign(MAP, sv.MAP);
@@ -12142,7 +12302,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // a challenge link opens on its challenge card; anything else on the start card
   const challenge = readChallenge();
   S.phase = "title";
-  if (challenge) showChallenge(challenge); else showStart(linked);
+  // (v2.18: no link, "Which mode?" first)
+  if (challenge) showChallenge(challenge); else if (new URLSearchParams(location.search).has("level")) showStart(linked); else showModes();
   let last = performance.now(), oops = false;
   // the speed test's readout, bottom right of the field: frames a second, and how long each frame's own work takes
   // (over 16 ms and it can't keep up with 60), averaged over the last half second or so
