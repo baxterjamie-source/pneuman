@@ -217,21 +217,14 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .hs tr.me td { background: var(--yellow); }
 .hs .none { opacity: .6; font-style: italic; }
 .campnote { font-weight: 800; color: #b3541e; }
-/* (v2.20) the intro: the title and tagline spring in on a dark screen, then it goes see-through and the field (the
-   only thing left showing) plays two moments; a tap or any key skips it */
+/* (v2.20, v2.21) the intro: all of it drawn on the field's canvas, the only thing left showing, the page round it dark
+   to match; a see-through layer over everything takes the tap that skips it (How to play's finger shows above it) */
 body.introon { background: #13202a; }
-body.introon header, body.introon .tray, body.introon .ver, body.introon .stage > :not(#cv) { visibility: hidden; }
-body.introon .stage { border-color: #13202a; transition: opacity .18s; }
-body.introon .stage.dip { opacity: 0; }
-.intro { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #13202a; transition: background .35s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.intro.clips { background: transparent; }
-.introttl { text-align: center; transition: opacity .3s, transform .3s; }
-.intro.clips .introttl { opacity: 0; transform: scale(.85); }
-.introttl h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(3rem, 13vw, 7rem); line-height: 1; color: var(--paper); text-shadow: 0 6px 0 rgba(0,0,0,.35); animation: intro-pop .7s cubic-bezier(.2, 1.6, .4, 1) both; }
-.introttl p { margin: .4em 0 0; color: var(--yellow); font-weight: 800; font-style: italic; font-size: clamp(1rem, 3.6vw, 1.6rem); letter-spacing: .03em; animation: intro-up .5s ease-out .45s both; }
+body.introon header, body.introon .hud, body.introon .tray, body.introon .ver, body.introon .stage > :not(#cv) { visibility: hidden; }
+body.introon .stage { border-color: #13202a; }
+body.introon .ht-thumb { z-index: 61; }
+.intro { position: fixed; inset: 0; z-index: 60; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .introskip { position: fixed; right: 14px; bottom: 12px; color: var(--paper); opacity: .45; font-size: .75rem; font-weight: 800; }
-@keyframes intro-pop { from { opacity: 0; transform: scale(.3) rotate(-6deg); } to { opacity: 1; transform: none; } }
-@keyframes intro-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
 .trow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 12px; border-radius: 10px; background: #fff1cf; font-weight: 800; opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s; }
@@ -730,10 +723,7 @@ body.lab .stage > :not(canvas) { display: none; }
   </div>
 
   <!-- (v2.20) the intro, on a device's first visit: the title and tagline, then two moments from the game -->
-  <div class="intro" id="intro" hidden aria-label="Pneuman intro: tap to skip">
-    <div class="introttl"><h2>Pneuman</h2><p>potatoes, pressure, patience</p></div>
-    <span class="introskip">tap to skip</span>
-  </div>
+  <div class="intro" id="intro" hidden aria-label="Pneuman intro: tap to skip"><span class="introskip">tap to skip</span></div>
   <section class="tray" aria-label="Launcher settings">
     <div class="ctl ctl-ang">
       <div class="ctl-head"><span class="lbl">Angle <span id="holeOut" class="hole">hole 7/13</span></span><span class="val" id="angOut">40<small>°</small></span></div>
@@ -770,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.20</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.24</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -12305,16 +12295,33 @@ body.lab .stage > :not(canvas) { display: none; }
   $("htEndClose").onclick = (e) => { e.stopPropagation(); audio(); closeHowto(); };
   $("htPause").onclick = () => { audio(); HOWTO.paused = !HOWTO.paused; $("htPause").textContent = HOWTO.paused ? "▶ Play" : "❚❚ Pause"; htPanelDown(); };
 
-  // ================= (v2.20) the intro =================
-  // On a device's first visit (and from Settings, Watch intro): the title and tagline spring in (1.5 s), then two
-  // moments from the game, played live by the game itself, no captions of our own (the game's own calls only):
-  // Lake, the cart beans the Sea-Doo (2.2 s), and Milling, the MP 10 takes the weather vane and then both pieces of
-  // a pull with one barrel, the triple (2.3 s). Each is a seeded round stepped at a fixed 1/60 s, so it goes the same
-  // way every time: its run-up is stepped through out of sight (silently), and the shown part is stepped as it's
-  // drawn (sped up a little). A tap or any key skips it. Then wherever the game was going: "Which mode?", a level's
-  // start card or a challenge
-  const INTRO_KEY = "pneuman-intro-seen", STEP = 1 / 60;
-  const INTRO = { on: false, clip: null, n: 0, acc: 0, dest: null, timers: [] };
+  // ================= (v2.20, v2.21) the intro =================
+  // On a device's first visit (and from Settings, Watch intro), about 15 s in beats, all of it on the field's canvas
+  // (the page round it dark; the header, chips and tray hidden):
+  //  open (1.6 s): on black, the title slides in from the left, high up, as the cart and the MP 10 slide in from the
+  //    right, side by side: three barrels;
+  //  tag (1.9 s): each barrel fires a word of the tagline (the cart's, then the MP 10's two), a puff of smoke, a dotted
+  //    arc tracing it, and it drops into place under the title;
+  //  Milling (2 s): the MP 10 clangs the weather vane, then takes both pieces of a pull with one barrel: the triple;
+  //  finger (2.3 s): on black, the cart big in the middle, worked by a finger: a tap and the arm tamps a spud down, three
+  //    taps on the pump, a drag that raises the barrel, a tap on the blue valve, and the spud flies off the top;
+  //  Lake (1.8 s): that spud, it seems, coming down onto the Sea-Doo (WHOA!);
+  //  still (1.2 s): black, the title and tagline, nothing moving;
+  //  Reservoir (2 s): UNLIMITED PNEUMAN, the MP 15 emptying into waves of gold: doubles, triples, quadruples;
+  //  end (2.4 s): black, the title and tagline fade in, a spud flies in and bursts them like a skeet; then it fades
+  //    into wherever the game was going ("Which mode?", a level's start card, a challenge).
+  // The game's own calls only, no captions of ours. A tap or any key skips it. Each moment from a level is a seeded
+  // round stepped at a fixed 1/60 s, its run-up stepped through out of sight and silently, so it goes the same way
+  // every time (the Reservoir's UP waves aren't seeded, so its shots are aimed as it goes, at each wave as it bunches)
+  const INTRO_KEY = "pneuman-intro-seen", STEP = 1 / 60, INTRO_BG = "#13202a";
+  const INTRO = { on: false, beat: -1, t: 0, clip: null, n: 0, acc: 0, dest: null, fx: null };
+  // (v2.22: at the game's own speed; slow: how much slower a beat on black plays than it was first drawn, its secs
+  // already allowing for it)
+  const INTRO_BEATS = [
+    { kind: "open", secs: 2.2, slow: 1.4 }, { kind: "tag", secs: 2.85, slow: 1.5 }, { kind: "clip", clip: 1, secs: 2.0 }, { kind: "finger", secs: 3.2, slow: 1.4 },
+    { kind: "clip", clip: 0, secs: 2.7 }, { kind: "still", secs: 1.5 }, { kind: "clip", clip: 2, secs: 3.0 }, { kind: "end", secs: 3.25, slow: 1.35 },
+  ];
+  const TAG_WORDS = ["potatoes,", "pressure,", "patience"];
   // where the cart must point, and the pressure, to land at (x, z) at peg hole `hole` (no wind); and how long it flies
   function introAim(x, z, hole) {
     const keep = [S.yaw, S.hole];
@@ -12331,20 +12338,23 @@ body.lab .stage > :not(canvas) { display: none; }
     [S.yaw, S.hole] = keep;
     return out;
   }
-  // the MP's sights on a point, allowing for the mini spuds' drop on the way (as htLead does)
+  // the MP's sights on a point, allowing for the mini spuds' drop on the way (as htLead does; the Reservoir's fly faster)
   function introSight(pt) {
-    const g = S.gun, e = gunEye(), dx = pt[0] - e[0], dz = pt[2] - e[2], hd = Math.hypot(dx, dz), t = Math.hypot(dx, pt[1] - e[1], dz) / GUN.speed, drop = 0.5 * G * 0.35 * t * t;
+    const g = S.gun, e = gunEye(), spd = (S.scene.gp && S.scene.gp.pelletSpeed) || GUN.speed;
+    const dx = pt[0] - e[0], dz = pt[2] - e[2], hd = Math.hypot(dx, dz), t = Math.hypot(dx, pt[1] - e[1], dz) / spd, drop = 0.5 * G * 0.35 * t * t;
     g.mouse = null; g.yaw = Math.atan2(dx, dz); g.pitch = Math.atan2(pt[1] - e[1] + drop, hd);
   }
-  // the two moments. seed: the round; prep(c): set it up (after the round's laid out); at(c, n): what to do at step n
-  // of the round (null once the run-up's done and it should be shown from here); speed: steps per frame shown
+  // the moments from levels. seed: the round; prep(c): set it up once it's laid out; at(c, n): what to do at step n
+  // of the round, and true while it's still run-up (stepped through unseen), null once it should be shown; speed:
+  // steps a frame while it's shown
   const INTRO_CLIPS = [
-    { level: "lake", seed: 101, secs: 2.2, speed: 1.5, hole: 3, over: 1.2,
+    // Lake: the Sea-Doo's run starts at once; where it'll cross just ahead and when to fire to meet it there come from
+    // its run. Shown from partway through the spud's flight, so it reads as the finger beat's spud coming down
+    { level: "lake", seed: 101, speed: 1, hole: 3, over: 1.2, fromFlight: 40,
       prep(c) { const sd = S.props.find((o) => o.kind === "seadoo"); if (sd) sd.wait = 0.05; c.sd = sd; c.fireAt = null; },
       at(c, n) {
         const sd = c.sd;
         if (!sd) return n < 30 ? true : null;
-        // once it's on its run: where it'll be a little after crossing straight ahead, and when to fire to meet it there
         if (c.fireAt == null && sd.run) {
           const r = sd.run;
           let xt = 0, aim = null, k = -1;
@@ -12360,13 +12370,12 @@ body.lab .stage > :not(canvas) { display: none; }
           S.wind = { x: 0, z: 0, kmh: 0, dir: S.wind.dir || 0 }; S.birdCool = 99;
           S.hole = c.aim.hole; S.yaw = c.aim.yaw; S.psi = c.aim.psi; S.loaded = true; S.phase = "aim"; fire();
         }
-        // shown from just before the launch
-        return c.fireAt == null || n < c.fireAt - 8 ? true : null;
+        return c.fireAt == null || n < c.fireAt + c.fromFlight ? true : null;
       } },
     // (seed 45's first pull: its two pieces line up, seen from the MP 10, 172 steps after the pull, at pairAim; a
     // barrel fired 153 steps in, sighted there, takes both. Found by stepping its flight through; recheck if
     // Milling's flights, its pieces' sizes or meh's pace change)
-    { level: "milling", seed: 45, secs: 2.1, speed: 1, vaneAt: 100, pairAt: 153, pairAim: [-0.15, 7.33, 27.24], showFrom: 88,
+    { level: "milling", seed: 45, speed: 1, vaneAt: 100, pairAt: 153, pairAim: [-0.15, 7.33, 27.24], showFrom: 92,
       prep(c) { c.pullN = null; },
       at(c, n) {
         const g = S.gun;
@@ -12377,62 +12386,284 @@ body.lab .stage > :not(canvas) { display: none; }
         // the weather vane first (the pull's bonus), then both pieces with the other barrel: the triple
         if (k === c.vaneAt && S.scene.gp && S.scene.gp.vaneAt) { introSight(S.scene.gp.vaneAt); shoot(); }
         if (k === c.pairAt) { introSight(c.pairAim); shoot(); }
-        // shown from a moment before the vane's hit, the pieces already up
         return k < c.showFrom ? true : null;
+      } },
+    // the Reservoir in UP mode from the start, mayhem (v2.22): the sights hang where the waves bunch, low in the middle
+    // of the view, and it fires like mad, ten a second (more than holding FIRE gives), a little scatter round the spot.
+    // The spot: where the most gold cushions are about to cross (each one's crossing worked out from how it's flying).
+    // Its waves take about 4 s to reach their crossings far out over the water, so it's shown from then, for 3 s
+    // (v2.23: it keeps going past its 3 s until it's shown a DOUBLE, a TRIPLE and a QUADRUPLE, then a moment more for
+    // the last call; never more than maxSecs)
+    { level: "reservoir", seed: 303, waves: 1, speed: 1, showFrom: 240, every: 0.1, maxSecs: 10,
+      until: () => S.gun.upDoubles > 0 && S.gun.upTriples > 0 && S.gun.upQuads > 0,
+      prep(c) { c.cool = 0; c.spot = null; c.rng = mulberry32(c.waves); },
+      at(c, n) {
+        const g = S.gun;
+        if (n === 1) startUp(g);
+        if (g.upm) {
+          const soon = g.pizzas.filter((p) => !p.done && p.gold && p.tc != null && p.tc - (p.age || 0) > -0.2 && p.tc - (p.age || 0) < 1.2).map((p) => {
+            const u = p.tc - (p.age || 0);
+            return [p.x + p.vx * u, p.y + p.vy * u - 0.5 * GUN.pg * u * u, p.z + p.vz * u];
+          });
+          let best = 0;
+          for (const a of soon) { const near = soon.filter((b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 2); if (near.length > best) { best = near.length; c.spot = [0, 1, 2].map((i) => near.reduce((s, b) => s + b[i], 0) / near.length); } }
+          // (v2.23) a bunch in the air right now: the most within 1.6 m of one another, where they'll be when the spuds
+          // get there (they're in slow motion at their crossing). A shot right into it, else the spray at the spot
+          const live = g.pizzas.filter((p) => !p.done && p.gold), e = gunEye(), spd = (S.scene.gp && S.scene.gp.pelletSpeed) || GUN.speed;
+          let bunch = [];
+          for (const a of live) { const near = live.filter((b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1.6); if (near.length > bunch.length) bunch = near; }
+          if ((c.cool -= STEP) <= 0) {
+            if (bunch.length >= 2) {
+              const m = [0, 1, 2].map((i) => bunch.reduce((s, p) => s + [p.x, p.y, p.z][i], 0) / bunch.length), v = [0, 1, 2].map((i) => bunch.reduce((s, p) => s + [p.vx, p.vy, p.vz][i], 0) / bunch.length);
+              const lead = (Math.hypot(m[0] - e[0], m[1] - e[1], m[2] - e[2]) / spd) * gunPace() * UP.slow;
+              introSight(m.map((x, i) => x + v[i] * lead)); shoot(); c.cool = c.every;
+            } else if (c.spot) { introSight([c.spot[0] + rnd(-0.35, 0.35), c.spot[1] + rnd(-0.25, 0.25), c.spot[2]]); shoot(); c.cool = c.every; }
+          }
+        }
+        return n < c.showFrom ? true : null;
       } },
   ];
   function introStep() {
     const c = INTRO.clip; INTRO.n++;
-    const more = c.at(c, INTRO.n);
-    update(STEP);
-    return more;
+    // (a moment with its own random stream, c.rng: the Reservoir's UP waves, which a round's seed doesn't cover, so
+    // they go the same way every time too)
+    const keep = Math.random;
+    if (c.rng) Math.random = c.rng;
+    try { const more = c.at(c, INTRO.n); update(STEP); return more; } finally { Math.random = keep; }
   }
-  // a clip: its round laid out, its run-up stepped through out of sight (silently), then shown
-  function introClip(i) {
+  // a moment from a level: its round laid out, its run-up stepped through unseen and silent, then shown for secs
+  function introClip(i, secs) {
     const c = { ...INTRO_CLIPS[i] }, li = levelIx(c.level);
-    if (li < 0) { introNext(i); return; }
-    INTRO.clip = c; INTRO.n = 0; INTRO.acc = 0; INTRO.idx = i;
+    if (li < 0) return false;
+    INTRO.clip = c; INTRO.n = 0; INTRO.acc = 0;
     S.phase = "intro";
     startLevel(li, { seed: c.seed, w: Math.round(W), h: Math.round(H), diff: "meh" });
     S.birdCool = 99; c.prep(c);
     const muted = S.muted; S.muted = true;
     for (let k = 0; k < 60 * 40 && introStep(); k++);
     S.muted = muted; stopEngines();
-    c.endN = INTRO.n + Math.round(c.secs * 60 * c.speed);
-    $("intro").classList.add("clips"); document.querySelector(".stage").classList.remove("dip");
+    c.endN = INTRO.n + Math.round(secs * 60 * c.speed);
+    if (c.maxSecs) c.capN = INTRO.n + Math.round(c.maxSecs * 60 * c.speed);
+    return true;
   }
-  function introNext(i) {
-    if (!INTRO.on) return;
-    if (i + 1 < INTRO_CLIPS.length) {
-      document.querySelector(".stage").classList.add("dip");
-      INTRO.timers.push(setTimeout(() => INTRO.on && introClip(i + 1), 180));
-    } else endIntro();
+
+  // ---- the beats on black, drawn straight onto the field's canvas ----
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3), easeBack = (t) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
+  let introFace = null;
+  const introFont = (px) => `${px}px ${introFace || (introFace = getComputedStyle(document.documentElement).getPropertyValue("--display").trim() || "sans-serif")}`;
+  // the title's size and place (y: its middle), and where each word of the tagline sits under it
+  function introLayout(y) {
+    const size = clamp(Math.min(W * 0.17, H * 0.22), 40, 140), tsize = Math.max(14, size * 0.26);
+    ctx.font = `italic 800 ${tsize}px Nunito, sans-serif`;
+    const sp = ctx.measureText(" ").width, ws = TAG_WORDS.map((w) => ctx.measureText(w).width), all = ws.reduce((a, b) => a + b, 0) + sp * 2;
+    let x = W / 2 - all / 2;
+    const slots = ws.map((w) => { const s = { x: x + w / 2, y: y + size * 0.66 }; x += w + sp; return s; });
+    ctx.font = introFont(size);
+    return { size, tsize, y, slots, tw: ctx.measureText("Pneuman").width };
   }
-  // each frame while it's on: the shown part, a step or two a frame (sped up), till the clip's time is up
-  function introFrame() {
-    const c = INTRO.clip;
-    if (!c || !c.endN) return;
-    INTRO.acc += c.speed;
-    while (INTRO.acc >= 1 && INTRO.n < c.endN) { INTRO.acc--; introStep(); }
-    if (INTRO.n >= c.endN && !c.ending) { c.ending = true; introNext(INTRO.idx); }
+  function introTitle(L, x, a = 1) {
+    ctx.save(); ctx.globalAlpha = a; ctx.font = introFont(L.size); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillText("Pneuman", x, L.y + L.size * 0.07);
+    ctx.fillStyle = "#fffaf0"; ctx.fillText("Pneuman", x, L.y);
+    ctx.restore();
+  }
+  function introWord(L, i, x, y, a = 1, s = 1) {
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(s, s);
+    ctx.font = `italic 800 ${L.tsize}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffcf33"; ctx.fillText(TAG_WORDS[i], 0, 0);
+    ctx.restore();
+  }
+  // the cart on its own in a box (as the ?lab sheet draws it), with what's put on it for the moment (f: its peg hole,
+  // turn, valve, the tamper, pump, puff); where its muzzle, pump and valve are on the screen
+  function introCart(bx, by, bw, bh, f) {
+    const FW = W, FH = H, keys = ["yaw", "hole", "angDisp", "valve", "psi", "phase", "lx", "loadT", "pumpAnim", "puff", "kick"], keep = {};
+    for (const k of keys) keep[k] = S[k];
+    W = bw; H = bh;
+    Object.assign(S, { yaw: 0, hole: 6, valve: 0, psi: 60, phase: "aim", lx: 0, loadT: 0, pumpAnim: 0, puff: 0, kick: 0 }, f);
+    if (f.angDisp == null) S.angDisp = HOLES[S.hole];
+    camHome();
+    const l = P(-1.6, 0, 0), rt = P(1.4, 0, 0), hi = P(0, 3.4, 1.5), lo = P(0, 0, -1.1);
+    const k = Math.min(bw * 0.9 / (rt.x - l.x), bh * 0.9 / Math.max(1, lo.y - hi.y)), mx = (l.x + rt.x) / 2, my = (hi.y + lo.y) / 2;
+    const at = (q) => q && { x: bx + bw / 2 + (q.x - mx) * k, y: by + bh / 2 + (q.y - my) * k };
+    ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, bx * dpr, by * dpr);
+    ctx.translate(bw / 2, bh / 2); ctx.scale(k, k); ctx.translate(-mx, -my);
+    drawLauncher();
+    ctx.restore();
+    const m = muzzle(), mid = (b) => b && at({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 });
+    const out = { muzzle: at(P(m.x, m.y, m.z)), pump: mid(hitParts.pump), valve: mid(hitParts.valve), k };
+    W = FW; H = FH; Object.assign(S, keep); camHome();
+    return out;
+  }
+  // a puff of smoke from a muzzle, age seconds old
+  function introPuff(x, y, age, s = 1) {
+    if (age < 0 || age > 0.9) return;
+    const a = 1 - age / 0.9;
+    ctx.save();
+    for (let i = 0; i < 5; i++) {
+      const ang = i * 1.3, r = (5 + age * 38) * s * (0.7 + (i % 3) * 0.2);
+      ctx.fillStyle = `rgba(222,216,204,${0.45 * a})`; ctx.beginPath(); ctx.arc(x + Math.cos(ang) * age * 26 * s, y + Math.sin(ang) * age * 18 * s - age * 20 * s, r, 0, 7); ctx.fill();
+    }
+    if (age < 0.08) { ctx.fillStyle = `rgba(255,214,90,${1 - age / 0.08})`; ctx.beginPath(); ctx.arc(x, y, 12 * s, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+  // the cart and the MP 10 side by side, low on the screen, slid off to the right by off; puffs: when each of the
+  // three barrels fired (or null). Their three muzzles: the cart's, then the MP 10's upper and lower barrels
+  function introPair(off, t, puffs, L) {
+    const s = Math.min(W, H * 1.6) / 900;
+    // (v2.23: both down at the bottom of the screen, so the words fly farther)
+    const bw = Math.min(W * 0.32, H * 0.56), bh = H * 0.5, bx = W * 0.25 - bw / 2 + off, by = H * 0.525;
+    const cartAge = puffs[0] == null ? -1 : t - puffs[0];
+    const cart = introCart(bx, by, bw, bh, { yaw: 24, hole: 7, valve: cartAge >= 0 ? 1 : 0, puff: 0, kick: cartAge >= 0 ? Math.max(0, 1 - cartAge * 3) : 0 });
+    // (v2.22) the MP 10 on the right, pointing up and back toward the title: drawn mirrored, so its gauge stays on top
+    const ML = Math.min(W * 0.34, H * 0.72), mx = W * 0.8 + off, my = H - ML * 0.045, ma = Math.atan2(L.y + L.size * 0.5 - my, mx - W / 2);
+    const kick = (age) => (age >= 0 && age < 0.25 ? (1 - age / 0.25) * ML * 0.03 : 0);
+    const kk = Math.max(kick(puffs[1] == null ? -1 : t - puffs[1]), kick(puffs[2] == null ? -1 : t - puffs[2]));
+    ctx.save(); ctx.translate(mx, my); ctx.scale(-1, 1); drawMP10(ctx, -Math.cos(ma) * kk, -Math.sin(ma) * kk, ma, ML); ctx.restore();
+    const w = ML * 0.085, tip = (o) => ({ x: mx - (Math.cos(ma) * ML - Math.sin(ma) * o * w), y: my + Math.sin(ma) * ML + Math.cos(ma) * o * w });
+    const mz = [cart.muzzle, tip(-0.3), tip(0.3)];
+    mz.forEach((m, i) => puffs[i] != null && m && introPuff(m.x, m.y, t - puffs[i], s));
+    return mz;
+  }
+  // once per beat: a sound, a tap of the finger
+  const introOnce = (key, f) => { if (!INTRO.fx.once[key]) { INTRO.fx.once[key] = true; f(); } };
+  const qpt = (a, c, b, u) => ({ x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * c.x + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * c.y + u * u * b.y });
+  const TAG_AT = [0.1, 0.65, 1.2], TAG_FLY = 0.5;
+  const INTRO_PAINT = {
+    open(t) {
+      const L = introLayout(H * 0.2);
+      introTitle(L, -W * 0.45 + (W / 2 + W * 0.45) * easeBack(clamp(t / 0.9, 0, 1)));
+      introPair(W * (1 - easeOut(clamp((t - 0.2) / 1.0, 0, 1))), t, [null, null, null], L);
+    },
+    tag(t) {
+      const L = introLayout(H * 0.2);
+      introTitle(L, W / 2);
+      const puffs = TAG_AT.map((a) => (t >= a ? a : null)), mz = introPair(0, t, puffs, L);
+      TAG_AT.forEach((a, i) => {
+        if (t < a) return;
+        introOnce(`fire${i}`, () => { sfx.fire(); INTRO.fx.from[i] = mz[i]; });
+        const p0 = INTRO.fx.from[i] || mz[i], p2 = L.slots[i], c = { x: (p0.x + p2.x) / 2, y: Math.min(p0.y, p2.y) - H * 0.2 }, u = clamp((t - a) / TAG_FLY, 0, 1);
+        // the dotted arc, traced as far as the word has got
+        ctx.save(); ctx.setLineDash([3, 7]); ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(255,250,240,.75)"; ctx.beginPath(); ctx.moveTo(p0.x, p0.y);
+        for (let k = 1; k <= 24; k++) { const q = qpt(p0, c, p2, (u * k) / 24); ctx.lineTo(q.x, q.y); }
+        ctx.stroke(); ctx.restore();
+        const q = qpt(p0, c, p2, u);
+        introWord(L, i, q.x, q.y, 1, 0.45 + 0.55 * u);
+      });
+    },
+    finger(t) {
+      // the finger's moments: tap to load (0.12), pump (0.8, 1.0, 1.2), then (v2.23) the cart turns to face straight
+      // ahead as its barrel goes up to the top peg hole (1.3 to 1.7, no finger), a tap on the valve (1.8), and the spud's
+      // away, straight up
+      const load = clamp((t - 0.12) / 0.6, 0, 1), pumps = [0.8, 1.0, 1.2].filter((p) => t >= p), lastPump = pumps.length ? t - pumps[pumps.length - 1] : 9;
+      const raise = easeOut(clamp((t - 1.3) / 0.4, 0, 1)), fireAge = t - 1.8, h0 = 5, h1 = HOLES.length - 1;
+      const f = {
+        yaw: -28 * (1 - raise), hole: raise >= 1 ? h1 : h0, angDisp: HOLES[h0] + (HOLES[h1] - HOLES[h0]) * raise,
+        phase: t >= 0.12 && load < 1 ? "loading" : "aim", loadT: load * LOAD_TIME, valve: t < 0.12 ? 1 : fireAge >= 0 ? clamp(fireAge / 0.12, 0, 1) : 0,
+        psi: pumps.length * 20, pumpAnim: Math.max(0, 1 - lastPump * 5), puff: fireAge >= 0 ? Math.max(0, 1 - fireAge * 1.4) : 0, kick: fireAge >= 0 ? Math.max(0, 1 - fireAge * 3) : 0,
+      };
+      // (down at the bottom of the screen, so the spud has the whole height to fly)
+      const bw = Math.min(W * 0.45, H * 0.75), bh = H * 0.6, cart = introCart(W / 2 - bw / 2, H * 0.42, bw, bh, f);
+      // the spud, away straight up and off the top
+      if (fireAge >= 0 && cart.muzzle) {
+        introOnce("fire", () => { sfx.fire(); INTRO.fx.from[0] = cart.muzzle; });
+        const m0 = INTRO.fx.from[0], y = m0.y - fireAge * H * 1.6 - fireAge * fireAge * H * 1.2;
+        if (y > -40) drawPotato(m0.x, y, Math.max(5, cart.k * 0.16), fireAge * 14);
+      }
+      // the finger (How to play's), smoothed toward where it's working (away while the cart turns)
+      const want = t < 0.6 ? cart.muzzle : t < 1.25 ? cart.pump : t >= 1.6 && t < 2.0 ? cart.valve : null;
+      if (want) {
+        const p = INTRO.fx.th || want; INTRO.fx.th = { x: p.x + (want.x - p.x) * 0.35, y: p.y + (want.y - p.y) * 0.35 }; htThumbAt(INTRO.fx.th);
+      } else htThumbHide();
+      if (t >= 0.12) introOnce("load", () => { htTap(); sfx.load(); });
+      pumps.forEach((p, i) => introOnce(`pump${i}`, () => { htTap(); sfx.pump(); }));
+      if (fireAge >= 0) introOnce("valve", () => htTap());
+    },
+    still() {
+      const L = introLayout(H * 0.42);
+      introTitle(L, W / 2); L.slots.forEach((s, i) => introWord(L, i, s.x, s.y));
+    },
+    end(t) {
+      const L = introLayout(H * 0.42), hitAt = 1.6;
+      if (t < hitAt) {
+        const a = clamp(t / 1.1, 0, 1);
+        introTitle(L, W / 2, a); L.slots.forEach((s, i) => introWord(L, i, s.x, s.y, a));
+        // a spud comes in from low on the left, straight at it
+        if (t > 1.25) { const u = (t - 1.25) / (hitAt - 1.25), q = qpt({ x: W * 0.06, y: H * 1.05 }, { x: W * 0.22, y: H * 0.1 }, { x: W / 2, y: L.y }, u); drawPotato(q.x, q.y, Math.max(6, L.size * 0.13), u * 12); }
+        return;
+      }
+      // …and it bursts like a skeet: chunks of the title and tagline flying, a flash where it hit
+      introOnce("burst", () => {
+        sfx.hitSkeet(false);
+        const cols = ["#fffaf0", "#fffaf0", "#ffcf33", "#e2a74f", "#c98a3c", "#f6d36b"];
+        INTRO.fx.bits = Array.from({ length: 110 }, () => {
+          const x = W / 2 + rnd(-0.5, 0.5) * L.tw, y = L.y + rnd(-0.35, 0.9) * L.size;
+          return { x, y, vx: (x - W / 2) * rnd(1.5, 3.5) + rnd(-90, 90), vy: rnd(-460, -60), s: rnd(3, 9) * (L.size / 90), c: pick(cols), r: rnd(0, 6), vr: rnd(-12, 12) };
+        });
+      });
+      const a = t - hitAt;
+      if (a < 0.25) { ctx.fillStyle = `rgba(255,236,170,${0.8 * (1 - a / 0.25)})`; ctx.beginPath(); ctx.arc(W / 2, L.y, L.size * (0.4 + a * 3), 0, 7); ctx.fill(); }
+      for (const b of INTRO.fx.bits) {
+        ctx.save(); ctx.globalAlpha = clamp(1.4 - a * 1.6, 0, 1); ctx.translate(b.x + b.vx * a, b.y + b.vy * a + 450 * a * a); ctx.rotate(b.r + b.vr * a);
+        ctx.fillStyle = b.c; ctx.fillRect(-b.s / 2, -b.s / 2, b.s, b.s * 0.7); ctx.restore();
+      }
+    },
+  };
+  // ---- running it ----
+  function introBeat(i) {
+    INTRO.beat = i; INTRO.t = 0; INTRO.fx = { once: {}, from: [], th: null, bits: [] }; htThumbHide();
+    const b = INTRO_BEATS[i];
+    if (!b) { introFinish(); return; }
+    if (b.kind === "clip" && !introClip(b.clip, b.secs)) introBeat(i + 1);
+  }
+  // each frame while it's on: a moment from a level is stepped (a step or two a frame) and drawn as the game draws;
+  // a beat on black is drawn here
+  function introFrame(dt) {
+    const b = INTRO_BEATS[INTRO.beat];
+    if (!b) return;
+    INTRO.t += Math.min(dt, 0.05);
+    if (b.kind === "clip") {
+      const c = INTRO.clip;
+      // (v2.24: by the clock, 60 steps a second whatever the screen's refresh rate; one step a frame ran a 120 Hz
+      // screen at double speed)
+      INTRO.acc += Math.min(dt, 0.05) * 60 * c.speed;
+      let stepped = false;
+      while (INTRO.acc >= 1 && INTRO.n < c.endN) { INTRO.acc--; introStep(); stepped = true; }
+      // (drawn only when it's moved on: drawing twice a step on a fast screen changed how the Reservoir's went)
+      if (stepped) draw();
+      if (INTRO.n >= c.endN) {
+        // (a moment that runs till something's happened: on, a step at a time, then 0.75 s more once it has)
+        if (c.until && !c.got && INTRO.n < c.capN) { if (c.until()) { c.got = true; c.endN = INTRO.n + 45; } else c.endN = INTRO.n + 1; }
+        else introBeat(INTRO.beat + 1);
+      }
+      return;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = INTRO_BG; ctx.fillRect(0, 0, W, H);
+    INTRO_PAINT[b.kind](Math.min(INTRO.t, b.secs) / (b.slow || 1));
+    if (INTRO.t >= b.secs) introBeat(INTRO.beat + 1);
   }
   function playIntro(dest) {
     try { localStorage.setItem(INTRO_KEY, "1"); } catch (e) {}
-    INTRO.on = true; INTRO.dest = dest; INTRO.clip = null; INTRO.timers = [];
-    document.body.classList.add("introon"); $("overlay").hidden = true;
-    const el = $("intro"); el.hidden = false; el.classList.remove("clips");
-    // (the title's animation restarts each time)
-    const t = el.querySelector(".introttl"); t.replaceWith(t.cloneNode(true));
-    document.querySelector(".stage").classList.add("dip");
-    INTRO.timers.push(setTimeout(() => INTRO.on && introClip(0), 1500));
+    INTRO.on = true; INTRO.dest = dest; INTRO.clip = null;
+    document.body.classList.add("introon"); $("overlay").hidden = true; $("intro").hidden = false;
+    introBeat(0);
   }
+  // put the game back as it was and go on; skipped (a tap or a key), straight there
   function endIntro() {
     if (!INTRO.on) return;
-    INTRO.on = false; INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.clip = null;
-    stopEngines(); hideRelive();
-    $("intro").hidden = true; document.body.classList.remove("introon"); document.querySelector(".stage").classList.remove("dip");
+    INTRO.on = false; INTRO.clip = null; INTRO.beat = -1;
+    htThumbHide(); stopEngines(); hideRelive();
+    $("intro").hidden = true; document.body.classList.remove("introon");
     S.phase = "intro"; S.score = 0; S.bonus = 0; S.pops = [];
     const d = INTRO.dest; INTRO.dest = null; d && d();
+  }
+  // played to the end: the last picture fades out over wherever it's going
+  function introFinish() {
+    const r = cv.getBoundingClientRect(), snap = document.createElement("canvas");
+    snap.width = cv.width; snap.height = cv.height; snap.getContext("2d").drawImage(cv, 0, 0);
+    Object.assign(snap.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, zIndex: 59, pointerEvents: "none", transition: "opacity .5s" });
+    document.body.appendChild(snap);
+    endIntro();
+    setTimeout(() => { snap.style.opacity = "0"; }, 30); setTimeout(() => snap.remove(), 650);
   }
   $("intro").addEventListener("pointerdown", (e) => { e.preventDefault(); endIntro(); });
   window.addEventListener("keydown", (e) => { if (INTRO.on) { e.preventDefault(); e.stopImmediatePropagation(); endIntro(); } }, true);
@@ -12511,7 +12742,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // on a blank field; what went wrong shows once, so it can be reported)
     requestAnimationFrame(frame);
     // (the intro steps its own scripted rounds, at a fixed rate, so its shots go the same way every time)
-    try { const t0 = performance.now(); if (INTRO.on) introFrame(); else update(dt); draw(); drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
+    try { const t0 = performance.now(); if (INTRO.on) introFrame(dt); else { update(dt); draw(); } drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
       console.error(err);
       if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
     }
