@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.24</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.25</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -829,6 +829,11 @@ body.lab .stage > :not(canvas) { display: none; }
     // penalties, bonuses or UP mode yet)
     { id: "reservoir", name: "Reservoir", scene: "reservoir", mix: {}, z: [10, 50], wind: [2, 8], gun: true, props: [], noun: "Cushions", icon: CUSHION_ICON,
       gunName: "MP 15", barrels: 3, perPull: 3 },
+    // the finale (v2.25): Squash Head, Downtown at night. An MP 15 level (two racks of five cabinets: 30 spuds) till it's
+    // knocked down, then a Cart Launcher level for the lob onto its stem (5 spuds, no wind): gun is true till then
+    // (S.bossCart). See buildBoss
+    { id: "squashhead", name: "Squash Head", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: "🎃",
+      get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 2, lobs: 5, mapZ: 60 },
   ];
   // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
   const COMING_SOON = ["Winery", "Downtown", "Golf"];
@@ -964,7 +969,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const hz = Math.max(H * 0.06, H * 0.88 - F0 * (tb + Math.tan(th - CAM.base)));
     CYhome = hz + F0 * tb;
     // (the camera stays behind the launcher as it rolls side to side)
-    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = S.lx, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
+    // (camHoldX: the view held still while the cart rolls in, Squash Head's)
+    let wantP = CAM.base, wantYaw = 0, wantY = CAM.y0, wantZ = 1, wantX = S.camHoldX != null ? S.camHoldX : S.lx, wantZpos = CAM.z0, wantCY = CYhome, k = 2;
     // (Re-live it's first pass follows its replayed spud the same way)
     const R = S.replay;
     // (v2.12: the One Shot Bonus's golden spud waiting: framed as if a spud were at the arc's highest ring top, so the
@@ -1241,6 +1247,9 @@ body.lab .stage > :not(canvas) { display: none; }
   const SEED = { layout: 0, wind: 100, bird: 200, seadoo: 300, spin: 400, pizza: 500, drone: 600, worker: 700, osb: 800 };
   const ang = () => HOLES[S.hole];
   const lvl = () => LEVELS[S.level];
+  // a round's spuds: the gun levels' barrels (a rack of cabinets, or Squash Head's two), the cart levels' ten (Squash
+  // Head's lob: its five)
+  const spudTotal = (L = lvl()) => (L.gun ? GUN.cases * (L.barrels || 2) * (L.racks || 1) : L.lobs || SPUDS);
   // the gauge's dial always reads to 120; a level can stop the pump lower
   const maxPsi = () => lvl().maxPsi || MAX_PSI;
   const noteEl = $("note"); let noteT = null;
@@ -1408,6 +1417,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const onBuilding = (t) => t.form === "roof" || t.form === "wallring";
   // "3.2 m short, 1.5 m left of the blue ring", for the nearest target not yet scored
   function missNote(x, z) {
+    if (S.scene.missNote) return S.scene.missNote(x, z); // (Squash Head's: from its stem)
     const open = S.rings.filter((r) => !r.hit);
     if (!open.length) return "";
     const n = open.reduce((a, b) => (Math.hypot(a.x - x, a.z - z) < Math.hypot(b.x - x, b.z - z) ? a : b));
@@ -1655,6 +1665,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // is laid out for the challenger's field size, whatever this one is
   function previewLevel(i, round = null) {
     S.lx = 0; S.roll = 0; // back in the middle (the layout below is worked out from there)
+    S.bossCart = false; S.bossWon = false; S.camHoldX = null; // (Squash Head: its gun phase to start)
     hideRelive(); S.shots = []; S.rec = null; S.best = null; S.snapAt = null;
     S.level = i; S.seed = round ? round.seed : newSeed();
     S.osb = null; S.osbScore = 0; // (the One Shot Bonus: not earned yet this round)
@@ -1692,11 +1703,11 @@ body.lab .stage > :not(canvas) { display: none; }
   function startLevel(i, round = null) {
     if (!round) leaveChallenge();
     previewLevel(i, round);
-    S.spudsLeft = LEVELS[i].gun ? GUN.cases * (LEVELS[i].barrels || 2) : SPUDS; S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
+    S.spudsLeft = spudTotal(LEVELS[i]); S.score = 0; S.bonus = 0; S.bonusItems = []; S.penalty = 0; S.penaltyItems = [];
     MAP.zoom = 1; MAP.ox = MAP.oz = 0; MAP.pin = null;
     rollWind(); S.phase = "aim"; $("overlay").hidden = true; shotNote(""); resetView(); hud();
     const L = LEVELS[i];
-    if (L.gun) { startGun(); note(`${i + 1} · ${L.name} · grab an ${L.gunName || "MP 10"}`, 3600); return; }
+    if (L.gun) { startGun(); note(L.boss ? `${i + 1} · ${L.name}` : `${i + 1} · ${L.name} · grab an ${L.gunName || "MP 10"}`, 3600); return; }
     note(`${i + 1} · ${L.name} · ${S.wind.kmh ? `wind ${S.wind.kmh} km/h` : "no wind"}${L.maxPsi && L.maxPsi < MAX_PSI ? ` · max ${L.maxPsi} PSI` : ""}`);
   }
 
@@ -1764,7 +1775,8 @@ body.lab .stage > :not(canvas) { display: none; }
     S.phase = "loading"; S.loadT = 0; S.valveTarget = 0; sfx.load(); hud();
   }
   // the Fire button loads first, then fires
-  function action() { if (lvl().gun) { gunAction(); return; } if (osbWaiting()) { osbCarryOn(); return; } if (S.phase !== "aim") return; leaveArc(); S.loaded ? fire() : loadSpud(); }
+  // (a place can take it first: Squash Head's notebook closes)
+  function action() { if (S.scene.action && S.scene.action()) return; if (lvl().gun) { gunAction(); return; } if (osbWaiting()) { osbCarryOn(); return; } if (S.phase !== "aim") return; leaveArc(); S.loaded ? fire() : loadSpud(); }
 
   function fire() {
     if (S.phase !== "aim" || !S.loaded) return;
@@ -1782,7 +1794,7 @@ body.lab .stage > :not(canvas) { display: none; }
     (S.shots = S.shots || []).push(S.rec); hideRelive();
     // a bird strike is pure chance, but never two close together: after one, the next few shots are safe
     // (from the round's seed, shot by shot, so a challenge has the same birds)
-    if (!gold) withSeed(seedFor(S.seed, SEED.bird + (SPUDS - S.spudsLeft)), () => {
+    if (!gold && !lvl().boss) withSeed(seedFor(S.seed, SEED.bird + (SPUDS - S.spudsLeft)), () => {
       if (S.birdCool > 0) S.birdCool--;
       else if (Math.random() < BIRD_STRIKE_CHANCE) planStrike();
     });
@@ -2070,6 +2082,7 @@ body.lab .stage > :not(canvas) { display: none; }
     for (const o of movers()) st.push([o, { x: o.x, z: o.z, y0: o.y0, yaw: o.yaw, face: o.face, tilt: o.tilt, age: o.age, a: o.a, run: o.run, left: o.left, wait: o.wait, trail: o.trail, jump: o.jump, next: o.next }]);
     for (const h of S.scene.houses || []) for (const wn of h.windows || []) st.push([wn, { broken: wn.broken }]);
     st.push([S, { splats: S.splats }]);
+    if (S.scene.keep) st.push(...S.scene.keep()); // (Squash Head: downed, or destroyed)
     return st.map(([obj, v]) => [obj, structuredClone(v)]);
   }
   function applyState(st) { for (const [obj, v] of st) Object.assign(obj, structuredClone(v)); }
@@ -2201,8 +2214,10 @@ body.lab .stage > :not(canvas) { display: none; }
       shotNote(`Bird strike (${kind})! ${lost ? `−${lost}` : "(no points to lose yet)"} · ${shotEl.textContent}`);
       S.struck = false;
     }
-    const allHit = S.rings.every((r) => r.hit);
+    // (Squash Head's lob: won on the stem; all five missed and it gets back up first)
+    const allHit = lvl().boss ? !!S.bossWon : S.rings.every((r) => r.hit);
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
+    if (lvl().boss) { if (allHit) S.timer = 5.5; else if (S.spudsLeft === 0) { S.timer = 4.6; S.scene.rise(); } }
     // the valve stays open and the chamber empty until the next spud is loaded and pumped
     S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
     // (v2.12: every bonus object of the level now hit: the One Shot Bonus comes next, even before the round ends)
@@ -2223,6 +2238,8 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the spud hit something in the place itself
   function landOn(hit, x, z) {
+    // (a place's own: Squash Head's stem and heap)
+    if (S.scene.landOn && S.scene.landOn(hit, x, z)) return;
     const miss = missNote(x, z), then = miss ? ` · ${miss}` : "";
     if (hit.kind === "spinner") {
       // it spins on its axle either way; it scores once
@@ -2275,11 +2292,14 @@ body.lab .stage > :not(canvas) { display: none; }
   // every target scored (Skeetza: a skeetza of each colour)
   // (clearing a level, every colour hit, is worth this too: more than the best single thing, the 25 (v2.11))
   const LEVEL_CLEAR = 30;
-  const cleared = () => lvl().gun ? Object.keys(RINGS).every((t) => S.gun.got.has(t)) : S.rings.every((r) => r.hit);
+  // (Squash Head: destroyed, the lob on its stem)
+  const cleared = () => lvl().boss ? !!S.bossWon : lvl().gun ? Object.keys(RINGS).every((t) => S.gun.got.has(t)) : S.rings.every((r) => r.hit);
 
   function endLevel() {
     // clearing every ring earns +1 for each spud left over (Skeetza: each barrel not fired)
-    const spare = cleared() ? S.spudsLeft : 0;
+    // (Squash Head's round counts no spare spuds or clear bonus: its stem is +300)
+    const boss = !!lvl().boss, br = boss && S.scene.result ? S.scene.result() : null;
+    const spare = cleared() && !boss ? S.spudsLeft : 0;
     // MP levels: clearing also earns +1 for each pull not used (of the 20), so it pays to clear early rather than wait
     // for the perfect pair (v2.17: per pull, not per skeet, so the Reservoir's threes don't count half again as much)
     const unlaunched = lvl().gun && cleared() ? Math.max(0, GUN.pulls - S.gun.pulls) : 0;
@@ -2287,7 +2307,7 @@ body.lab .stage > :not(canvas) { display: none; }
     shrinkRelive(); // (into its corner, clear of the card, to watch that last shot again)
     sfx.done();
     const hits = S.rings.filter((r) => r.hit);
-    const counts = lvl().gun ? Object.keys(RINGS).map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${S.gun.got.has(t) ? 1 : 0}/1</span>`).join("") +
+    const counts = boss ? `<span class="pz">🎃 ${br.hits} hit${br.hits === 1 ? "" : "s"} · ${S.bossWon ? "destroyed" : `${br.hp}% left`}</span><span class="pz">squash shot down ${br.downed}</span><span class="pz">Riley ${br.riley}%</span>` : lvl().gun ? Object.keys(RINGS).map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${S.gun.got.has(t) ? 1 : 0}/1</span>`).join("") +
       `<span class="pz">${lvl().icon || "🍕"} ${S.gun.hits} hit of ${S.gun.launched} launched</span>` +
       // (UP mode's points, with its own picture, when there was an UP)
       (S.upScore ? `<span class="pz">${UP_ICON} UP +${S.upScore}</span>` : "") : Object.keys(RINGS).map((t) => {
@@ -2295,14 +2315,15 @@ body.lab .stage > :not(canvas) { display: none; }
       return `<span style="color:${RINGS[t].edge}"><i></i>${got}/${all}</span>`;
     }).join("");
     const allHit = cleared(), L = lvl(), next = (S.level + 1) % LEVELS.length;
-    const title = allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
+    const title = boss ? (allHit ? "The terror is over." : br.why === "lob" ? "Squash Head rose again." : br.why === "out" ? "Out of MP 15s." : "Riley is down.")
+      : allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
     // each level keeps its own best (the level total, with bonuses and spare spuds), since levels can be played in any order
     // (times the difficulty's multiplier: meh ×1, yup ×2, gnarly ×3)
     // (v2.11: clearing the level, every colour hit, is worth LEVEL_CLEAR (+30) too, before the multiplier)
-    const clearB = allHit ? LEVEL_CLEAR : 0;
+    const clearB = allHit && !boss ? LEVEL_CLEAR : 0;
     const raw = S.score + S.bonus + spare + unlaunched + clearB, mult = dif().mult, tot = Math.round(raw * mult), prev = getBest(L), isBest = prev == null || tot > prev;
     if (isBest) setBest(L, tot);
-    const body = isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`;
+    const body = (boss && !allHit ? "Riley is overwhelmed. Play the level again. " : "") + (isBest ? (prev == null ? `First go at ${L.name}: ${tot}.` : `New best for ${L.name}!`) : `Your best here: ${prev}.`);
     if (S.challenge) {
       // a challenge: both scores, and send yours back on the same round (no Replay: it was one try)
       const c = S.challenge;
@@ -2326,7 +2347,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
     const forceTip = /[?&]aimhelp\b/.test(location.search);
-    if (L.gun && !S.challenge && (forceTip || (S.gun.hits <= 2 && matchMedia("(pointer: coarse)").matches && !aimHelpOff()))) $("aimHelp").hidden = false;
+    if (L.gun && !boss && !S.challenge && (forceTip || (S.gun.hits <= 2 && matchMedia("(pointer: coarse)").matches && !aimHelpOff()))) $("aimHelp").hidden = false;
   }
   const aimHelpOff = () => { try { return localStorage.getItem("pneuman-aimhelp-off") === "1"; } catch (e) { return false; } };
   $("aimHelpGo").onclick = () => {
@@ -2394,7 +2415,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} stars)</small></span><b id="tO">+0</b></div>` : "") +
       (clearB ? `<div class="trow bonus"><span>Level cleared</span><b id="tC">+0</b></div>` : "");
     const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>${lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>${lvl().boss ? "Squash Head hits" : lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -2433,6 +2454,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (v2.09: no eyebrow or rules line any more, for room: How to play has them)
     showCard("", "Pneuman", "",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
+      LEVELS[sel].boss ? `<span class="pz">🎃 head 5 · kneecap or limb 2 · body 1 · the stem, lobbed, +${BOSS.stemPts}</span>` :
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
@@ -2468,7 +2490,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // the levels of a run: the same order every run, so scores compare. A warm-up of the two gentlest (Pasture, no wind;
   // Cul de sac), then Cart Launcher and MP levels taking turns, Harvest's long shots just before the finale, and the
   // Reservoir (the most satisfying) last (v2.19). A new level slots in here once it's built
-  const CAMP_ORDER = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir"].filter((id) => LEVELS.some((L) => L.id === id));
+  // (v2.25: Squash Head, the finale, after the Reservoir; Downtown goes in before it once it's built)
+  const CAMP_ORDER = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir", "squashhead"].filter((id) => LEVELS.some((L) => L.id === id));
   // a run, kept on the device after every level: { diff, order, best: {id: the best clear's level total},
   // tries: {id: rounds played}, cleared: {id: true}, started }. A level part-played isn't kept
   const CAMP_KEY = "pneuman-camp", campTopKey = (d) => `pneuman-camp-top-${d}`;
@@ -2559,7 +2582,7 @@ body.lab .stage > :not(canvas) { display: none; }
       go = () => campPlay(r);
     } else {
       title = "Not cleared yet";
-      body = `Hit every numbered (coloured) target to clear ${L.name} and move on. Replay as often as you like: your best clear counts.`;
+      body = L.boss ? `Knock Squash Head down, then land a lob on its stem from above, to clear it. Replay as often as you like: your best clear counts.` : `Hit every numbered (coloured) target to clear ${L.name} and move on. Replay as often as you like: your best clear counts.`;
       btns = `<button id="ovGo" type="button">Try again</button>`;
       go = () => startLevel(S.level);
     }
@@ -2603,7 +2626,7 @@ body.lab .stage > :not(canvas) { display: none; }
   hintEl.addEventListener("click", () => { if (hintFor) hintFor.scrollBy({ top: hintFor.clientHeight * 0.7, behavior: "smooth" }); });
   // has a shot been fired in this round (so changing level or difficulty would lose it)? Not on the start card or the
   // end-of-level card
-  const roundStarted = () => S.phase !== "title" && S.phase !== "levelEnd" && S.spudsLeft != null && S.spudsLeft < (lvl().gun ? GUN.cases * gunBarrels() : SPUDS);
+  const roundStarted = () => S.phase !== "title" && S.phase !== "levelEnd" && S.spudsLeft != null && (S.bossCart || S.spudsLeft < spudTotal());
   // do it now, or once a shot's been fired, ask first ("Start over?"): yes does it, no calls cancel
   function askRestart(what, go, cancel) {
     if (!roundStarted()) { go(); return; }
@@ -2648,9 +2671,11 @@ body.lab .stage > :not(canvas) { display: none; }
     // (v2.15: on the Cart Launcher levels the score is the rings' points out of the rings' total; the One Shot Bonus's
     // points show on their own after the bonus, "+10 · OSB +60", rather than counted against the rings)
     const osbPts = !lvl().gun ? S.osbScore || 0 : 0;
-    $("scoreOut").textContent = lvl().gun ? `${S.score}` : `${Math.max(0, S.score - osbPts)} / ${maxScore()}`;
+    $("scoreOut").textContent = lvl().gun || lvl().boss ? `${S.score}` : `${Math.max(0, S.score - osbPts)} / ${maxScore()}`;
     $("bonusOut").textContent = `+${S.bonus || 0}${osbPts ? ` · OSB +${osbPts}` : ""}`; $("bonusOut").hidden = $("bonusK").hidden = !(S.bonus || osbPts);
-    $("spudsOut").innerHTML = Array.from({ length: lvl().gun ? GUN.cases * gunBarrels() : SPUDS }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("") +
+    // (more than fifteen, Squash Head's thirty: one spud and a count)
+    const nSpuds = spudTotal();
+    $("spudsOut").innerHTML = (nSpuds > 15 ? `<span class="spud"></span> ${S.spudsLeft}/${nSpuds}` : Array.from({ length: nSpuds }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("")) +
       // (the One Shot Bonus's golden spud, an extra, while it's waiting to be launched)
       (S.osb && S.osb.state === "ready" ? `<span class="spud gold" title="the golden spud"></span>` : "");
     // after a shot, the last pressure stays on show as a guide until the next one is fired
@@ -2670,12 +2695,14 @@ body.lab .stage > :not(canvas) { display: none; }
     $("pump").classList.toggle("idle", !S.loaded && S.phase !== "loading");
     rotIn.disabled = !adj;
     psiIn.disabled = $("bleed").disabled = !adj || valveOpen();
-    const mode = lvl().gun ? gunButton() : S.loaded ? "fire" : "load";
+    // (Squash Head's notebook up: FIRE closes it)
+    const book = !!(S.scene && S.scene.bookOpen && S.scene.bookOpen());
+    const mode = book ? "book" : lvl().gun ? gunButton() : S.loaded ? "fire" : "load";
     for (const fb of [$("fire"), $("fire2")]) {
-      fb.disabled = lvl().gun ? !gunCanAct() : S.phase !== "aim";
+      fb.disabled = book ? false : lvl().gun ? !gunCanAct() : S.phase !== "aim";
       if (fb.dataset.mode !== mode) {
         fb.dataset.mode = mode; fb.classList.toggle("load", mode === "load");
-        fb.innerHTML = mode === "fire" ? "FIRE<small>open the valve</small>" : mode === "trigger" ? "FIRE<small>pull the trigger</small>" : mode === "pick" ? `GRAB<small>a loaded ${gunName()}</small>` : "LOAD<small>close valve and tamp spud</small>";
+        fb.innerHTML = mode === "book" ? "CLOSE<small>the notebook</small>" : mode === "fire" ? "FIRE<small>open the valve</small>" : mode === "trigger" ? "FIRE<small>pull the trigger</small>" : mode === "pick" ? `GRAB<small>a loaded ${gunName()}</small>` : "LOAD<small>close valve and tamp spud</small>";
         if (mode === "pick") fb.classList.add("load");
       }
     }
@@ -2839,7 +2866,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // distance numbers down the left side of the field
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     let lastY = Infinity;
-    for (let z = 10; z <= 120 && !S.scene.indoor && !S.scene.gun; z += 10) {
+    for (let z = 10; z <= 120 && !S.scene.indoor && !S.scene.gun && !S.scene.noDist; z += 10) {
       const q = P(-z * 0.42 - 4, 0, z);
       if (q.behind || q.x < 24 || lastY - q.y < 26) continue;
       lastY = q.y;
@@ -2956,6 +2983,8 @@ body.lab .stage > :not(canvas) { display: none; }
       lap("minimap");
     }
     lap("gun");
+    // (a place's own, over everything: Squash Head's health bars, the step buttons, Riley's notebook)
+    if (S.scene.over) S.scene.over();
     if (S.loadMsg > 0) drawLoadFirst();
     // win confetti: most of it behind the end card, and the rest on its own canvas over the card
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawConfetti(ctx, false);
@@ -3990,7 +4019,7 @@ body.lab .stage > :not(canvas) { display: none; }
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
-  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory(), mill: () => buildMill(), reservoir: () => buildReservoir() };
+  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory(), mill: () => buildMill(), reservoir: () => buildReservoir(), boss: () => buildBoss() };
   const sceneFor = (L) => built[L.scene] || (built[L.scene] = SCENE_BUILD[L.scene]());
 
   // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
@@ -7635,6 +7664,11 @@ body.lab .stage > :not(canvas) { display: none; }
       $("xMinus").innerHTML = `<small class="xmore">rowers, coaches' launches, the gull, the duck, the hydro worker, powerhouse windows</small>`;
       return;
     }
+    if (L.boss) {
+      $("xPlus").innerHTML = `<small class="xmore">squash shot down (+${BOSS.squashPts}, the barrel back)</small>`;
+      $("xMinus").innerHTML = `<small class="xmore">a squash that reaches Riley (${BOSS.rileyHit}% of Riley's health): shoot it down, or step aside (A / D, ◀ ▶)</small>`;
+      return;
+    }
     if (L.scene === "mill") {
       $("xPlus").innerHTML = `<small class="xmore">weather vane, Live Edge Charcuterie sign (+10 each)</small>`;
       $("xMinus").innerHTML = `<small class="xmore">workers, windows, the deer, the terrier, birds</small>`;
@@ -8087,7 +8121,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (g.shots >= gunBarrels() || S.spudsLeft <= 0) lowerGun(); else { g.phase = "ready"; g.timer = UP_CARD.hold + UP_CARD.fly; }
     hud();
   }
-  function startGun() { S.phase = "gun"; S.gun.phase = "table"; hud(); }
+  // (holdTable: the cabinets wait for the place to bring them up: Squash Head's entrance)
+  function startGun() { S.phase = "gun"; S.gun.phase = S.scene.gp && S.scene.gp.holdTable ? "wait" : "table"; hud(); }
   const gunButton = () => (S.gun && S.gun.phase === "table" ? "pick" : "trigger");
   const gunCanAct = () => {
     const g = S.gun;
@@ -8383,6 +8418,8 @@ body.lab .stage > :not(canvas) { display: none; }
     shotNote(text);
     // (here the shots come quickly, so what a shot did fades after 5 s)
     clearTimeout(shotDone.fade); shotDone.fade = setTimeout(() => { if (lvl().gun && shotEl.textContent === text) shotNote(""); }, 5000);
+    // (noRelive: Squash Head's shots aren't played again; its lob is, on the cart)
+    if (S.scene.gp && S.scene.gp.noRelive) return;
     // Re-live it: in its corner straight away (a big button in the middle would be in the way of the next shot)
     shot.rec.dur = S.gun.t - shot.rec.t0 + 0.5; S.gunRec = shot.rec;
     showRelive(); shrinkRelive(); shareBtn.hidden = true;
@@ -8590,20 +8627,27 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!busy && (g.clearT = (g.clearT || 0) + dt) > 1.2) { g.phase = "over"; S.phase = "settle"; S.timer = 0.6; S.after = endLevel; }
     }
     else if (g.phase === "raise" && g.up >= 1) { g.phase = "ready"; g.timer = 0.9; hud(); }
-    else if (g.phase === "ready" && (g.timer -= dt) <= 0) { pull(); g.phase = "live"; g.timer = 0; }
+    // (noPulls: a place that sends up its own targets, Squash Head's squash: no pulls, the gun just stays up till its
+    // barrels are fired)
+    else if (g.phase === "ready" && (g.timer -= dt) <= 0) { if (!(S.scene.gp && S.scene.gp.noPulls)) pull(); g.phase = "live"; g.timer = 0; }
     else if (g.phase === "live") {
       // both barrels fired: down it goes. A barrel left but nothing left to shoot at: a moment for the drone, then
       // the next pair (the barrel's kept for it), unless that was the last of the 20
       if (g.shots >= gunBarrels() && !busy) { if ((g.timer += dt) > 0.5) lowerGun(); }
-      else if (!flying && !busy) {
+      else if (!flying && !busy && !(S.scene.gp && S.scene.gp.noPulls)) {
         if ((g.timer += dt) > 1.8) {
           if (g.pulls >= GUN.pulls) { note(`That's all ${GUN.pulls} ${pullWord()}s!`, 2000); lowerGun(); } else { g.phase = "ready"; g.timer = 0.6; }
         }
       } else g.timer = 0;
     } else if (g.phase === "lower" && g.up <= 0) {
-      if (S.spudsLeft > 0 && g.pulls < GUN.pulls) { g.phase = "table"; hud(); }
+      // (every cabinet used and a rack still to come (Squash Head's two): the old rack scrolls off, the fresh one in)
+      const fresh = !g.guns.some((x) => x.ready) && (g.rack || 0) + 1 < (lvl().racks || 1);
+      if (S.spudsLeft > 0 && g.pulls < GUN.pulls && fresh) {
+        g.rack = (g.rack || 0) + 1; g.oldGuns = g.guns; g.guns = Array.from({ length: GUN.cases }, () => ({ ready: true })); g.scroll = 0; g.phase = "scroll";
+        note(`A fresh rack of ${gunName()}s`, 1800); hud();
+      } else if (S.spudsLeft > 0 && g.pulls < GUN.pulls && g.guns.some((x) => x.ready)) { g.phase = "table"; hud(); }
       else if (!flying && !busy) { g.phase = "over"; S.phase = "settle"; S.timer = 1.2; S.after = endLevel; }
-    }
+    } else if (g.phase === "scroll" && (g.scroll += dt / 1.2) >= 1) { g.scroll = 1; g.oldGuns = null; g.phase = "table"; hud(); }
     // the skeetzas, the mini spuds, the drone, the workers
     for (const p of g.pizzas) {
       if (p.done) continue;
@@ -9141,8 +9185,9 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // (Re-live it shows the gun only from over the shoulder)
     if (S.gunReplay && S.gunReplay.pass > 0) return;
-    const c = crossAt(), up = g.up;
-    if (up < 1) drawGunTable(1 - up);
+    // (hide: a place can keep the cabinets away: Squash Head's, till its entrance is over and once it's down)
+    const c = crossAt(), up = g.up, tk = (1 - up) * (1 - (g.hide || 0));
+    if (up < 1 && tk > 0.002) drawGunTable(tk);
     if (up > 0) {
       // (seen as you'd hold it, looking along the top of it: see drawMP10Pov. It slides along the bottom to stay
       // right under the crosshair, leaning a touch toward whichever side that is. Only when the crosshair comes
@@ -9252,9 +9297,12 @@ body.lab .stage > :not(canvas) { display: none; }
   function drawGunTable(k) {
     const g = S.gun, L = caseLayout(), dy = (1 - k) * L.off, mp15 = gunBarrels() === 3;
     g.slots = [];
-    L.xs.forEach((x, i) => {
-      const gn = g.guns[i], cy = L.cy + dy;
-      g.slots[i] = { x0: x - L.cw / 2, x1: x + L.cw / 2, y0: cy - 44 * L.sc, y1: cy + 48 * L.sc };
+    // (a fresh rack scrolling in (Squash Head's second): the used one slides off to the left as it comes in from the right)
+    const sk = g.phase === "scroll" && g.oldGuns ? ease(clamp(g.scroll || 0, 0, 1)) : 1;
+    const racks = sk < 1 ? [[g.oldGuns, -sk * W], [g.guns, (1 - sk) * W]] : [[g.guns, 0]];
+    for (const [guns, ox] of racks) L.xs.forEach((x0, i) => {
+      const x = x0 + ox, gn = guns[i], cy = L.cy + dy;
+      if (!ox) g.slots[i] = { x0: x - L.cw / 2, x1: x + L.cw / 2, y0: cy - 44 * L.sc, y1: cy + 48 * L.sc };
       ctx.save(); ctx.translate(x, cy); ctx.scale(L.sc, L.sc);
       // the box: its frame, then the inside (top, sides and floor in depth, the back wall), and the clips
       const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([px, py], j) => (j ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath(); ctx.fill(); };
@@ -9311,6 +9359,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const g = S.gun;
     if (!g) return;
     const held = g.phase === "raise" || g.phase === "ready" || g.phase === "live" || g.phase === "upmode";
+    // (a place's own readout: Squash Head's health and Riley's)
+    if (S.scene.gp && S.scene.gp.hud) { const lb = document.querySelector(".ctl-gun .lbl"); if (lb) lb.textContent = `${gunName()} · 120 PSI`; S.scene.gp.hud(g, held); return; }
     // (the skeetzas hit, as a round pizza and a count, beside the pair: the row below then has room to spare)
     $("gunOut").innerHTML = `<span class="pz">${S.scene.gp ? lvl().icon + " " : PIZZA_ICON}${g.hits}</span><span class="sep"> · </span>${pullWord()} ${Math.max(1, g.pulls)}/${GUN.pulls}`;
     const lb = document.querySelector(".ctl-gun .lbl"); if (lb) lb.textContent = g.upm ? `${gunName()} · UNLIMITED!` : `${gunName()} · 120 PSI`;
@@ -9336,6 +9386,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const gunOn = () => !!lvl().gun && S.phase === "gun" && $("overlay").hidden;
   let gunTouch = null;
   cv.addEventListener("pointerdown", (e) => {
+    // (a place's own buttons first, on either kind of level: Squash Head's step-aside buttons and notebook)
+    if (S.scene && S.scene.press && $("overlay").hidden && !HOWTO.on && S.scene.press(local(e), e)) { e.stopImmediatePropagation(); audio(); return; }
     if (!gunOn()) return;
     e.stopImmediatePropagation(); audio();
     const g = S.gun, p = local(e);
@@ -9362,6 +9414,7 @@ body.lab .stage > :not(canvas) { display: none; }
     gunTouch.x = p.x; gunTouch.y = p.y;
   }, true);
   const gunPointerUp = (e) => {
+    if (S.scene && S.scene.release) S.scene.release(e);
     if (e.pointerType === "mouse" || (gunTouch && gunTouch.id === e.pointerId)) TRIG.on = false;
     if (!gunTouch || gunTouch.id !== e.pointerId) { if (gunOn()) e.stopImmediatePropagation(); return; }
     e.stopImmediatePropagation();
@@ -11926,6 +11979,1496 @@ body.lab .stage > :not(canvas) { display: none; }
       update(dt) { if (dt) { updateGun(dt); gp.tick(dt); } },
       reset: resetGun, free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {} };
   }
+  // ================= Squash Head, the finale (v2.25): the night street Downtown =================
+  // The game's first level that changes mid-round. It plays as an MP 15 level (the real cabinets, the gun, its three
+  // barrels and mini spuds) until Squash Head is knocked down to 5%; then it's a Cart Launcher level (the cart levels'
+  // own camera, tray, peg and turn, rolling, the corner map, LOAD / pump / FIRE, Re-live it) for the lob onto its stem.
+  // L.gun is a getter on its level (true until S.bossCart), so everything that asks lvl().gun or S.scene.gun follows
+  // the switch. Brought over from the test page (boss_test.html, Nov 9 2026): the street, Squash Head (its drawing,
+  // poses, walks, throws, the roar and fire, hit areas and damage marks), the squash it throws, its sounds, the
+  // knock-down and Riley's notebook. (Decided: see DESIGN.md, the boss notes)
+  // - It enters side on, stomping, then turns and roars; the cabinets come up only then.
+  // - 5 MP 15 cabinets on show; when they're used up one fresh rack of 5 scrolls in (30 spuds). Out of them before
+  //   it's down loses the round.
+  // - Squash: a squash shot down gives its barrel back (it doesn't count against the 30) and +3. One that reaches
+  //   Riley takes 20% of Riley's health (five and Riley's down: the round's lost). A / D or the ◀ ▶ buttons step aside.
+  // - Hits score what they take off (head 5, kneecap or limb 2, body 1); the stem lob +300; then the multiplier.
+  // - Difficulty changes only the squash's pace.
+  const BOSS = { squashPts: 3, stemPts: 300, rileyHit: 20, step: 6.5, stepMax: 4.2, lobs: 5 };
+  function buildBoss() {
+    // ---- the test page's helpers, kept to this place
+    const lerp = (a, b, t) => a + (b - a) * t, easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2), easeIn = (t) => t * t;
+    const rand = rnd, lp = (A, B2, t) => ({ x: lerp(A.x, B2.x, t), y: lerp(A.y, B2.y, t) });
+    function rng(s) { return () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+    const shadeRGB = (hex, k) => { const n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`; };
+    let T = 0;
+
+    // ---- the street (the same every round: the test page's own seed)
+    const R = rng(20261109);
+    const PAL = ["#2a1b18", "#241e22", "#1e2128", "#2b2219", "#22191b", "#1b1f1c"];
+    const blds = [];
+    for (const side of [-1, 1]) {
+      let z = 2;
+      while (z < 120) {
+        const w = 6 + R() * 9, h = 9 + R() * 12, z2 = Math.min(z + w, 120);
+        const b = { side, z1: z, z2, h, col: PAL[Math.floor(R() * PAL.length)], wins: [], shopLit: R() < 0.3 };
+        const rows = Math.max(1, Math.floor((h - 4.6) / 3.3)), cols = Math.max(1, Math.floor((z2 - z - 1) / 2.3));
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) b.wins.push({ y: 4.4 + r * 3.3, z: z + 0.8 + c * ((z2 - z - 1.6) / cols), lit: R() < 0.14, warm: R(), fl: R() < 0.08, ph: R() * 9 });
+        blds.push(b); z = z2;
+      }
+    }
+    const endWins = [];
+    for (let x = -28; x < 28; x += 2.6) for (let y = 4.4; y < 21; y += 3.3) endWins.push({ x, y, lit: R() < 0.1, warm: R() });
+    const lights = [];
+    for (const z of [14, 30, 46, 62, 78, 94, 110]) for (const side of [-1, 1]) lights.push({ x: side * 6.7, z: z + (side > 0 ? 8 : 0), dip: 0, bad: R() < 0.15, ph: R() * 9 });
+    const CARC = ["#2a2f36", "#3a2222", "#24302a", "#33302a", "#1f2430", "#3b3b40"];
+    const cars = [];
+    for (const side of [-1, 1]) { let z = 9 + R() * 5; while (z < 100) { if (R() < 0.72) cars.push({ side, z, col: CARC[Math.floor(R() * CARC.length)] }); z += 6.5 + R() * 6; } }
+    // (the night sky by direction, so it holds still as the view changes: stars, the moon, slow dark clouds)
+    const stars = [...Array(90)].map(() => ({ az: (R() - 0.5) * 2.2, el: 0.03 + R() * 0.6, a: 0.3 + R() * 0.6 }));
+    const clouds = [...Array(7)].map(() => ({ az: (R() - 0.5) * 2.4, el: 0.06 + R() * 0.22, w: 0.16 + R() * 0.22, h: 0.022 + R() * 0.026, v: 0.004 + R() * 0.006 }));
+
+    // ---- sound: the test page's synthesised stomps, roars, creaks and splats, through the game's audio (silent when
+    // muted: audio() gives nothing then), with its own reverb for the street
+    let ac = null, master = null, verb = null, nbuf = null, ambG = null, amb = null;
+    function A() {
+      const a = audio();
+      if (!a) return (ac = null);
+      if (a !== ac || !master) {
+        ac = a; master = a.createGain(); master.gain.value = 0.85;
+        const comp = a.createDynamicsCompressor(); master.connect(comp).connect(a.destination);
+        nbuf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate);
+        const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        verb = a.createConvolver(); verb.buffer = makeIR(2.8);
+        const vg = a.createGain(); vg.gain.value = 0.5; verb.connect(vg).connect(master);
+      }
+      return ac;
+    }
+    function play(name, { gain = 1, rate = 1, delay = 0, wet = 0.25, pan = 0, max = 0 } = {}) {
+      if (!A() || !buffers[name]) return false;
+      const t = ac.currentTime + delay, s = ac.createBufferSource(), g = ac.createGain();
+      s.buffer = buffers[name]; s.playbackRate.value = rate; g.gain.value = gain; s.connect(g); out(g, wet, pan);
+      if (max) { g.gain.setValueAtTime(gain, t + max - 0.12); g.gain.linearRampToValueAtTime(0, t + max); s.start(t, 0, max); } else s.start(t);
+      return true;
+    }
+    // the street's hum under it all: a low beating drone, wind down the street, the streetlights' buzz. Kept with the
+    // game's engines, so it stops when the level changes or the sound goes off
+    function startAmbient() {
+      if (amb || !A()) return;
+      const t = ac.currentTime, nodes = [];
+      ambG = ac.createGain(); ambG.gain.setValueAtTime(0, t); ambG.gain.linearRampToValueAtTime(1, t + 3); out(ambG, 0.15);
+      for (const [f, g] of [[41.2, 0.05], [43.7, 0.04], [61.7, 0.015]]) { const o = ac.createOscillator(); o.type = "sine"; o.frequency.value = f; const gg = ac.createGain(); gg.gain.value = g; o.connect(gg).connect(ambG); o.start(); nodes.push(o); }
+      const n = ac.createBufferSource(); n.buffer = nbuf; n.loop = true;
+      const lpf = ac.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 380;
+      const wg = ac.createGain(); wg.gain.value = 0.035;
+      const lfo = ac.createOscillator(); lfo.frequency.value = 0.09; const lg = ac.createGain(); lg.gain.value = 0.02; lfo.connect(lg).connect(wg.gain);
+      n.connect(lpf).connect(wg).connect(ambG); n.start(); lfo.start(); nodes.push(n, lfo);
+      const bz = ac.createOscillator(); bz.type = "sawtooth"; bz.frequency.value = 120;
+      const bf = ac.createBiquadFilter(); bf.type = "bandpass"; bf.frequency.value = 240; bf.Q.value = 6;
+      const bg = ac.createGain(); bg.gain.value = 0.004; bz.connect(bf).connect(bg).connect(ambG); bz.start(); nodes.push(bz);
+      const g0 = ambG, a0 = ac;
+      amb = { cut(f = 0.25) { const t2 = a0.currentTime; g0.gain.cancelScheduledValues(t2); g0.gain.setValueAtTime(g0.gain.value, t2); g0.gain.linearRampToValueAtTime(0, t2 + f); for (const x of nodes) try { x.stop(t2 + f + 0.05); } catch (e) {} ENGINES.delete(amb); amb = null; ambG = null; } };
+      ENGINES.add(amb);
+    }
+
+    // ---- where Squash Head stands at each stage, as on the test page (its 960 × 600 view, 640 px focal, eye 1.6 m up,
+    // horizon 68% down): far down the street, then a few stomps closer at 75%, 50% and 25%
+    const FR = [0.3, 0.2, 0.11, 0.035], Z = FR.map((f) => ((20.45 - 1.6) * 640) / (600 * 0.68 - f * 600)), TH = [75, 50, 25];
+    const HEADSX = 0.86; // the head's width squeeze, so it reads as a squash
+    const RAD = { pumpkin: 0.55, acorn: 0.42, gourd: 0.4, butternut: 0.45 }, TYPES = ["pumpkin", "pumpkin", "acorn", "gourd", "butternut"];
+    const VEGC = { pumpkin: ["217,120,40", "200,95,30", "232,170,80"], acorn: ["40,70,35", "230,160,70", "200,120,40"], gourd: ["225,190,70", "200,160,50", "240,220,140"], butternut: ["210,165,100", "232,140,50", "240,200,140"] };
+    let shake = 0, shx = 0, shy = 0, flash = 0, hurt = 0, deadT = 0, cartT = -1;
+    let B, riley, projs, parts, splats, floats, msg, book, cart, stepHold = 0, stepId = null;
+    // (result: why the round ended, for the end card; hits and squash down, for its counts)
+    const result = { why: null, hits: 0, downed: 0 };
+    // (the squash's pace: the difficulty's, yup as 1, a quarter quicker than the test page, and quicker at each stage)
+    const pace = () => (dif().pace / DIFF.yup.pace) * 1.25 * (1 + 0.12 * B.stage);
+    function resetBoss() {
+      // (on the start card it stands at the end of the street, facing you; the round starts it off the side)
+      B = { x: 0, z: Z[0], stage: 0, hp: 100, state: "preview", t: 0, walkPh: 0, walking: false, lift: [0, 0], prevLift: [0, 0], throw: null, nextThrow: 2,
+        lean: 0, headR: 0, twitchT: 0, twitchA: 0, nextTwitch: 7, flinch: 0, flinchDir: 1, flare: 0, roarGlow: 0, roarCD: 0, k: 0, gutter: 0, cand: 0.8,
+        headHoles: [], bodyHoles: [], divots: [], kneeHits: [], fire: [], fireT: 0, pflare: 0, roarT: 0, roarSide: 1, bigWalk: false, side: false, z0: 0, z1: 0, advDur: 3, faceRoar: false, from: null, thudKnees: false, pose: null };
+      B.pose = standPose();
+      riley = { hp: 100, x: 0 }; projs = []; parts = []; splats = []; floats = []; msg = { text: "", t: 0 }; book = null; cart = null;
+      shake = flash = hurt = deadT = 0; cartT = -1; stepHold = 0; stepId = null; T = 0;
+      Object.assign(result, { why: null, hits: 0, downed: 0 });
+    }
+    function msgSet(text, t) { msg.text = text; msg.t = t; }
+    const fighting = () => ["fight", "advance", "face"].includes(B.state);
+    const knocked = () => ["crumple", "downed", "dead", "rise", "gloat"].includes(B.state);
+    // the round's own: the gun phase is on (and Riley's up)
+    const live = () => S.phase === "gun" && riley.hp > 0 && !result.why;
+    // ---- (from the test page, lines 120-128)
+    function makeIR(sec) { const n = Math.floor(ac.sampleRate * sec), b = ac.createBuffer(2, n, ac.sampleRate); for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); } return b; }
+    function out(node, wet = 0.25, pan = 0) {
+      let n = node;
+      if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); node.connect(p); n = p; }
+      n.connect(master);
+      if (wet > 0) { const g = ac.createGain(); g.gain.value = wet; n.connect(g).connect(verb); }
+    }
+    function env(g, t, peak, a, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+    function noiseSrc(t, dur) { const s = ac.createBufferSource(); s.buffer = nbuf; s.loop = true; s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05); return s; }
+    // ---- (from the test page, lines 152-153)
+    // the tense silence while it holds the squash back: the drone drops away, then comes back after the throw
+    function duck(on) { if (!ambG) return; const t = ac.currentTime; ambG.gain.cancelScheduledValues(t); ambG.gain.setValueAtTime(ambG.gain.value, t); ambG.gain.linearRampToValueAtTime(on ? 0.1 : 1, t + (on ? 0.25 : 0.9)); }
+    // ---- (from the test page, lines 155-220)
+    function sStomp(vol = 1, pan = 0) {
+      if (!A()) return; const t = ac.currentTime;
+      const o = ac.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(75, t); o.frequency.exponentialRampToValueAtTime(26, t + 0.55);
+      const g = ac.createGain(); env(g, t, 0.9 * vol, 0.01, 0.7); o.connect(g); out(g, 0.45, pan); o.start(t); o.stop(t + 0.8);
+      const n = noiseSrc(t, 0.4), f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 160;
+      const g2 = ac.createGain(); env(g2, t, 0.7 * vol, 0.005, 0.3); n.connect(f).connect(g2); out(g2, 0.5, pan);
+      // the wet give of a gourd foot
+      const t2 = t + 0.03, n2 = noiseSrc(t2, 0.3), f2 = ac.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 2.5;
+      f2.frequency.setValueAtTime(900, t2); f2.frequency.exponentialRampToValueAtTime(220, t2 + 0.27);
+      const g3 = ac.createGain(); env(g3, t2, 0.22 * vol, 0.01, 0.22); n2.connect(f2).connect(g3); out(g3, 0.3, pan);
+    }
+    function distCurve() { if (distCurve.c) return distCurve.c; const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 3); } return (distCurve.c = c); }
+    // a deep, breathy roar through a hollow gourd: detuned saws, growl, two resonances, long street echo
+    function sRoar(vol = 1, pan = 0, pitch = 1, dur = 2.4) {
+      if (!A()) return; const t = ac.currentTime;
+      const mix = ac.createGain(); mix.gain.value = 0.22;
+      const shp = ac.createWaveShaper(); shp.curve = distCurve();
+      const lpf = ac.createBiquadFilter(); lpf.type = "lowpass";
+      lpf.frequency.setValueAtTime(500, t); lpf.frequency.linearRampToValueAtTime(1500, t + 0.5); lpf.frequency.linearRampToValueAtTime(600, t + dur);
+      const bp1 = ac.createBiquadFilter(); bp1.type = "bandpass"; bp1.frequency.value = 380 * pitch; bp1.Q.value = 2.2;
+      const bp2 = ac.createBiquadFilter(); bp2.type = "bandpass"; bp2.frequency.value = 950 * pitch; bp2.Q.value = 5;
+      const sum = ac.createGain(), dry = ac.createGain(); dry.gain.value = 0.35;
+      const am = ac.createGain(); am.gain.value = 0.65;
+      const lfo = ac.createOscillator(); lfo.frequency.value = 27; const lg = ac.createGain(); lg.gain.value = 0.35; lfo.connect(lg).connect(am.gain); lfo.start(t); lfo.stop(t + dur + 0.1);
+      const og = ac.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(vol, t + 0.45); og.gain.setValueAtTime(vol, t + dur * 0.55); og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      mix.connect(shp).connect(lpf); lpf.connect(bp1); lpf.connect(bp2); lpf.connect(dry); bp1.connect(sum); bp2.connect(sum); dry.connect(sum); sum.connect(am).connect(og); out(og, 0.7, pan);
+      for (const [f, ty] of [[58, "sawtooth"], [59.3, "sawtooth"], [87, "sawtooth"], [116.5, "square"]]) {
+        const o = ac.createOscillator(); o.type = ty; const fp = f * pitch;
+        o.frequency.setValueAtTime(fp * 0.8, t); o.frequency.exponentialRampToValueAtTime(fp * 1.06, t + 0.4); o.frequency.exponentialRampToValueAtTime(fp * 0.72, t + dur);
+        o.connect(mix); o.start(t); o.stop(t + dur + 0.05);
+      }
+      const n = noiseSrc(t, dur), nf = ac.createBiquadFilter(); nf.type = "bandpass"; nf.frequency.value = 650 * pitch; nf.Q.value = 0.7;
+      const ng = ac.createGain(); ng.gain.value = 0.5; n.connect(nf).connect(ng).connect(am);
+    }
+    // celery stalks straining: fibrous crackles over a low groan
+    function sCreak(vol = 1, pan = 0, dur = 0.75) {
+      if (!A()) return; const t = ac.currentTime, k = 10 + Math.floor(Math.random() * 8);
+      for (let i = 0; i < k; i++) {
+        const tt = t + Math.pow(Math.random(), 0.8) * dur, n = noiseSrc(tt, 0.06), f = ac.createBiquadFilter();
+        f.type = "bandpass"; f.frequency.value = rand(1300, 3600); f.Q.value = 9;
+        const g = ac.createGain(); env(g, tt, rand(0.15, 0.4) * vol, 0.002, rand(0.015, 0.05)); n.connect(f).connect(g); out(g, 0.3, pan);
+      }
+      const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(150, t); o.frequency.linearRampToValueAtTime(105, t + dur);
+      const f = ac.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 700; f.Q.value = 12;
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05 * vol, t + dur * 0.6); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+      o.connect(f).connect(g); out(g, 0.3, pan); o.start(t); o.stop(t + dur + 0.05);
+    }
+    function sWhoosh(vol = 0.5, pan = 0, dur = 0.3, f0 = 300, f1 = 1800) {
+      if (!A()) return; const t = ac.currentTime, n = noiseSrc(t, dur), f = ac.createBiquadFilter();
+      f.type = "bandpass"; f.Q.value = 1.4; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      n.connect(f).connect(g); out(g, 0.2, pan);
+    }
+    function sThud(vol = 1, pan = 0) {
+      if (!A()) return; const t = ac.currentTime;
+      const o = ac.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(34, t + 0.4);
+      const g = ac.createGain(); env(g, t, 0.8 * vol, 0.008, 0.45); o.connect(g); out(g, 0.4, pan); o.start(t); o.stop(t + 0.5);
+      const n = noiseSrc(t, 0.25), f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 260;
+      const g2 = ac.createGain(); env(g2, t, 0.5 * vol, 0.005, 0.2); n.connect(f).connect(g2); out(g2, 0.3, pan);
+    }
+    function sSplat(vol = 0.8, rate = 1, pan = 0) {
+      if (play("pumpkin", { gain: vol, rate, pan, wet: 0.3 })) return;
+      if (!A()) return; const t = ac.currentTime, n = noiseSrc(t, 0.35), f = ac.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 1.2;
+      f.frequency.setValueAtTime(650 * rate, t); f.frequency.exponentialRampToValueAtTime(140, t + 0.3);
+      const g = ac.createGain(); env(g, t, 0.6 * vol, 0.005, 0.3); n.connect(f).connect(g); out(g, 0.3, pan);
+    }
+    // ---- (from the test page, lines 222-244)
+    function sLaunch(pan = 0) {
+      if (play("launch", { gain: 1, max: 1.5, wet: 0.45, pan })) return;
+      if (!A()) return; const t = ac.currentTime, o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(520, t + 0.28);
+      const g = ac.createGain(); env(g, t, 0.15, 0.01, 0.3); o.connect(g); out(g, 0.3, pan); o.start(t); o.stop(t + 0.35);
+    }
+    function sHitHead() {
+      if (!A()) return; play("pumpkin", { gain: 0.5, rate: rand(1.25, 1.45), max: 0.5, wet: 0.35 });
+      const t = ac.currentTime, o = ac.createOscillator(); o.type = "triangle"; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
+      const g = ac.createGain(); env(g, t, 0.35, 0.003, 0.1); o.connect(g); out(g, 0.3); o.start(t); o.stop(t + 0.15);
+    }
+    function sHitBody() { sThud(0.55); }
+    function sHitLimb() {
+      if (!A()) return; const t = ac.currentTime;
+      for (let i = 0; i < 4; i++) { const tt = t + i * rand(0.01, 0.025), n = noiseSrc(tt, 0.04), f = ac.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = rand(2000, 4200); f.Q.value = 6; const g = ac.createGain(); env(g, tt, 0.35, 0.002, 0.03); n.connect(f).connect(g); out(g, 0.2); }
+      play("pumpkin", { gain: 0.25, rate: 1.7, max: 0.3, wet: 0.2 });
+    }
+    function sDeath() {
+      if (!A()) return; play("pumpkin", { gain: 1.3, rate: 0.55, wet: 0.6 }); play("pumpkin", { gain: 0.9, rate: 0.8, wet: 0.5, delay: 0.08 });
+      const t = ac.currentTime, o = ac.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(58, t); o.frequency.exponentialRampToValueAtTime(20, t + 1.8);
+      const g = ac.createGain(); env(g, t, 1, 0.01, 1.8); o.connect(g); out(g, 0.6); o.start(t); o.stop(t + 2);
+      const n = noiseSrc(t, 1.2), f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(120, t + 1.1);
+      const g2 = ac.createGain(); env(g2, t, 0.8, 0.005, 1.1); n.connect(f).connect(g2); out(g2, 0.6);
+    }
+    // ---- (from the test page, lines 246-265)
+    // ---------------------------------------------------------------- the boss's face (head-local metres, y up)
+    const FACE = (() => {
+      const r = rng(13);
+      const eyeR = [[0.28, 0.34], [1.22, 0.8], [1.12, 0.1], [0.62, 0.0], [0.4, 0.05]].map(([x, y]) => [x * 0.85, y - 0.08]);
+      const eyeL = eyeR.map(([x, y]) => [-x, y]);
+      const nose = [[-0.2, -0.28], [0.0, 0.12], [0.2, -0.28], [0.04, -0.2]];
+      const N = 12, top = [], bot = [];
+      for (let i = 0; i <= N; i++) { const x = -1.38 + (2.76 * i) / N, q = (x / 1.38) ** 2; let y = -0.42 + 0.3 * q; if (i % 2) y -= 0.16 + r() * 0.12; top.push([x, y]); }
+      for (let i = N; i >= 0; i--) { const x = -1.38 + (2.76 * i) / N, q = (x / 1.38) ** 2; let y = -0.68 - 0.72 * (1 - q); if (i % 2 && i > 0 && i < N) y += 0.14 + r() * 0.1; bot.push([x, y]); }
+      return { eyes: [eyeL, eyeR], nose, mouth: top.concat(bot) };
+    })();
+    function addPoly(c, pts, k, ox, oy) {
+      let cx = 0, cy = 0; for (const p of pts) { cx += p[0]; cy += p[1]; } cx /= pts.length; cy /= pts.length;
+      pts.forEach((p, i) => { const x = cx + (p[0] - cx) * k + ox, y = cy + (p[1] - cy) * k + oy; i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath();
+    }
+    function poly(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); }
+    function polyIn(c, pts, k, ox, oy) {
+      let cx = 0, cy = 0; for (const p of pts) { cx += p[0]; cy += p[1]; } cx /= pts.length; cy /= pts.length;
+      c.beginPath(); pts.forEach((p, i) => { const x = cx + (p[0] - cx) * k + ox, y = cy + (p[1] - cy) * k + oy; i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath();
+    }
+    // ---- (from the test page, lines 285-308)
+    // an angry roar breathes fire: the candle inside blasts out through the carved mouth
+    // (it throws its head back and to one side as it roars, so the fire goes up in a long column)
+    function roar(v, pan = 0) { if (B.roarCD > 0) return; B.roarCD = 2.6; sRoar(v, pan); B.roarGlow = 1; B.roarT = 2.2; B.roarSide = Math.random() < 0.5 ? -1 : 1; if (v >= 0.7) B.fireT = 2.0; }
+    function roarTilt() { if (B.roarT <= 0) return 0; return Math.min(1, (2.2 - B.roarT) / 0.35) * Math.min(1, B.roarT / 0.5); }
+    function updFire(dt) {
+      B.roarT = Math.max(0, B.roarT - dt);
+      if (B.fireT > 0) {
+        B.fireT -= dt;
+        const h = B.pose && B.pose.head;
+        if (h && B.fireT < 1.75 && B.fireT > 0.15) {
+          // from the mouth, along the tilted head's "up", a narrow jet that rises, writhes and swells: dragon fire
+          // from the side-on mouth, out to that side and rising (in head terms: forward and a little up)
+          const ca = Math.cos(h.r), sa = Math.sin(h.r), sy = h.sy || 1, pf = h.prof || B.roarSide, hx0 = pf * 1.05 * HEADSX, hy0 = -0.85 * sy;
+          const mx = h.x + hx0 * ca - hy0 * sa, my = h.y + hx0 * sa + hy0 * ca;
+          const fx = pf * 0.99, fy = 0.1, dx = fx * ca - fy * sa, dy = fx * sa + fy * ca, n = Math.floor(dt * 150 + Math.random());
+          for (let i = 0; i < n; i++) {
+            const sp = rand(7, 11), sd = rand(-0.9, 0.9), life = rand(0.6, 1.05);
+            B.fire.push({ x: mx, y: my + rand(-0.15, 0.15), vx: dx * sp - dy * sd, vy: dy * sp + dx * sd, life, max: life, size: rand(0.3, 0.5), seed: rand(0, 9) });
+          }
+        }
+      }
+      for (const f of B.fire) { f.x += (f.vx + Math.sin(T * 13 + f.seed) * 1.6) * dt; f.y += f.vy * dt; f.vy += 1.0 * dt; f.vx *= 0.99; f.vy *= 0.995; f.size += 1.5 * dt; f.life -= dt; }
+      B.fire = B.fire.filter((f) => f.life > 0);
+    }
+    // ---- (from the test page, lines 310-367)
+    // ---------------------------------------------------------------- poses (boss-local metres: x across, y up, feet at 0)
+    function dirv(side, deg) { const a = (deg * Math.PI) / 180; return { x: side * Math.sin(a), y: -Math.cos(a) }; }
+    const K = { reach: [-24, -64, 1, 1], drawn: [146, 174, 1, 1], follow: [-26, -38, 0, 1.08] };
+    function mixA(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), t < 0.5 ? a[2] : b[2], lerp(a[3], b[3], t)]; }
+    function armAngles(s, i) {
+      const base = [14 + Math.sin(T * 0.8 + i) * 3, 6 + Math.sin(T * 1.05 + i * 2) * 4, 0, 1];
+      if (B.walking) { const sw = Math.sin(B.walkPh + (i ? 0 : Math.PI)) * (B.bigWalk ? 22 : 14); base[0] += sw; base[1] += sw * 1.2; }
+      if (B.flare > 0) { base[0] += B.flare * (70 + Math.sin(T * 31 + i) * 4); base[1] += B.flare * (95 + Math.sin(T * 27 + i) * 6); }
+      const th = B.throw;
+      if (!th || th.side !== s) return base;
+      const p = th.p;
+      switch (th.ph) {
+        case "reach": return mixA(base, K.reach, easeIO(p));
+        case "pull": return mixA(K.reach, K.drawn, easeIO(p));
+        case "hold": return [K.drawn[0] + Math.sin(T * 47) * 1.4, K.drawn[1] + Math.sin(T * 39) * 2, 1, 1];
+        case "whip": { const r = mixA(K.drawn, K.follow, Math.pow(p, 1.5)); r[2] = p < 0.2 ? 1 : 0; r[3] = 1 + Math.sin(p * Math.PI) * 0.35; return r; }
+        case "follow": return K.follow.slice();
+        case "ret": return mixA(K.follow, base, easeIO(p));
+      }
+      return base;
+    }
+    function standPose() {
+      const big = B.bigWalk && B.walking, lm = big ? 1.6 : 1;
+      const br = Math.sin(T * 1.25) * 0.07, cr = B.walking ? Math.abs(Math.sin(B.walkPh)) * (big ? 0.4 : 0.25) : 0;
+      const sway = big ? Math.sin(B.walkPh) * 0.35 : 0, bx = B.lean * 1.2 + sway, tilt = roarTilt();
+      // (legs 50% longer than at first: hips at 7.95 m, everything above raised to match)
+      const body = { x: bx, y: 11.55 + br - cr, r: -B.lean * 0.6 - sway * 0.05 };
+      // roaring, the head turns side on (prof) and tips back, so the fire goes up and away to the side, not at the player
+      const head = { x: bx * 1.4 - sway * 0.3 + B.flinch * 0.25 * B.flinchDir, y: 16.8 + br * 1.3 - cr + tilt * 0.2, r: B.headR + B.flinch * 0.12 * B.flinchDir + tilt * 0.28 * B.roarSide, sy: 1 - tilt * 0.06, prof: tilt > 0.3 ? B.roarSide : 0 };
+      const hips = [], knees = [], ankles = [], arms = [];
+      for (const [i, s] of [[0, -1], [1, 1]]) {
+        const l = B.lift[i];
+        const hip = { x: s * 1.0 + bx * 0.6, y: 7.95 + br - cr };
+        const ank = { x: s * 1.2 + (B.walking ? Math.cos(B.walkPh + (i ? Math.PI : 0)) * 0.2 : 0), y: 0.85 + l * 1.15 * lm };
+        hips.push(hip); ankles.push(ank); knees.push({ x: s * 1.3 + s * l * 0.3 * lm, y: ank.y + (hip.y - ank.y) * 0.42 + l * 0.9 * lm });
+      }
+      for (const [i, s] of [[0, -1], [1, 1]]) {
+        const sh = { x: s * 1.55 + bx, y: 14.4 + br - cr };
+        const [a1, a2, behind, hs] = armAngles(s, i), d1 = dirv(s, a1), d2 = dirv(s, a2);
+        const el = { x: sh.x + d1.x * 3.1, y: sh.y + d1.y * 3.1 }, hd = { x: el.x + d2.x * 3.0 * hs, y: el.y + d2.y * 3.0 * hs };
+        arms.push({ sh, el, hd, behind: !!behind, hs });
+      }
+      return { body, head, hips, knees, ankles, arms };
+    }
+    // crumpled: the eggplant tipped over, the limbs splayed on the street, the head sitting up on top, stem up
+    function heapPose() {
+      const br = Math.sin(T * 0.9) * 0.05;
+      return { body: { x: 0.5, y: 2.4, r: 1.38 }, head: { x: -0.7, y: 6.3 + br, r: -0.1, sy: 1 },
+        hips: [{ x: -1.5, y: 1.3 }, { x: 1.7, y: 1.2 }], knees: [{ x: -3.5, y: 0.85 }, { x: 3.7, y: 0.8 }], ankles: [{ x: -5.1, y: 0.6 }, { x: 5.3, y: 0.55 }],
+        arms: [{ sh: { x: -1.8, y: 3.4 }, el: { x: -4.3, y: 1.0 }, hd: { x: -6.6, y: 0.45 }, behind: false, hs: 1 }, { sh: { x: 2.6, y: 3.9 }, el: { x: 5.0, y: 1.4 }, hd: { x: 7.0, y: 0.4 }, behind: false, hs: 1 }] };
+    }
+    function lerpPose(a, b, t) {
+      const L = (p, q) => lp(p, q, t);
+      return { body: { x: lerp(a.body.x, b.body.x, t), y: lerp(a.body.y, b.body.y, t), r: lerp(a.body.r, b.body.r, t) },
+        head: { x: lerp(a.head.x, b.head.x, t), y: lerp(a.head.y, b.head.y, t), r: lerp(a.head.r, b.head.r, t), sy: lerp(a.head.sy || 1, 1, t) },
+        hips: a.hips.map((p, i) => L(p, b.hips[i])), knees: a.knees.map((p, i) => L(p, b.knees[i])), ankles: a.ankles.map((p, i) => L(p, b.ankles[i])),
+        arms: a.arms.map((ar, i) => ({ sh: L(ar.sh, b.arms[i].sh), el: L(ar.el, b.arms[i].el), hd: L(ar.hd, b.arms[i].hd), behind: false, hs: lerp(ar.hs, 1, t) })) };
+    }
+    // ---- (from the test page, lines 369-506)
+    // ---------------------------------------------------------------- the boss's behaviour
+    // (Nov 9: 20% more squash a minute than at first, the wind-up and the gaps both shorter)
+    const THROW_PACE = 1 / 1.2;
+    const PH = [["reach", 0.65], ["pull", 0.7], ["hold", 0.55], ["whip", 0.24], ["follow", 0.22], ["ret", 0.7]];
+    function startThrow() {
+      const s = Math.random() < 0.62 ? 1 : -1;
+      B.throw = { side: s, i: 0, ph: "reach", p: 0, released: false, holding: false, type: pick(TYPES) };
+      if (Math.random() < 0.22 + B.stage * 0.16) roar(0.75);
+    }
+    function updThrow(dt) {
+      const th = B.throw;
+      if (!th) { B.lean = lerp(B.lean, 0, 0.05); return; }
+      const sp = 1 - B.stage * 0.07;
+      th.p += dt * pace() / (PH[th.i][1] * sp * THROW_PACE);
+      if (th.ph === "pull" || th.ph === "hold") B.lean = lerp(B.lean, -0.05 * th.side, 0.1);
+      else if (th.ph === "whip") B.lean = lerp(B.lean, 0.07 * th.side, 0.3);
+      else B.lean = lerp(B.lean, 0, 0.05);
+      if (th.ph === "whip" && !th.released && th.p >= 0.42) { th.released = true; th.holding = false; release(th); }
+      if (th.p >= 1) {
+        th.i++;
+        if (th.i >= PH.length) { B.throw = null; B.nextThrow = (rand(2.4, 4.2) - B.stage * 0.45) * THROW_PACE / pace(); return; }
+        th.ph = PH[th.i][0]; th.p = 0;
+        if (th.ph === "pull") { th.holding = true; sCreak(0.9, th.side * 0.2); }
+        if (th.ph === "hold") duck(true);
+        if (th.ph === "whip") sWhoosh(0.55, 0, 0.3, 140, 900);
+      }
+    }
+    function release(th) {
+      const a = B.pose.arms[th.side > 0 ? 1 : 0], type = th.type;
+      const x0 = B.x + a.hd.x, y0 = a.hd.y, z0 = B.z - 1.2;
+      // (at Riley as it lets go; quicker than the test page's, and a flatter arc, so it stays in view more of the way)
+      projs.push({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: (0.45 + B.z * 0.026) / pace(), h: 1.2 + B.z * 0.04,
+        rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false });
+      sLaunch(clamp(a.hd.x / 10, -0.6, 0.6)); duck(false);
+    }
+    // a foot's height through its swing (q 0..1): a slow rise over two-thirds of it, then a stomp down in the last
+    // third, twice as fast and speeding up into the ground
+    function swingLift(q) { return q < 2 / 3 ? 1 - Math.pow(1 - q * 1.5, 2) : 1 - Math.pow((q - 2 / 3) * 3, 2); }
+    function updWalk(dt, on, period = 1.5) {
+      B.walking = on;
+      if (!on) { B.lift[0] = lerp(B.lift[0], 0, 0.2); B.lift[1] = lerp(B.lift[1], 0, 0.2); B.prevLift = [0, 0]; return; }
+      B.walkPh += (dt * 2 * Math.PI) / period;
+      for (let i = 0; i < 2; i++) {
+        // every landing is a stomp (when the swing half of the cycle ends); the foot's height follows swingLift
+        // (the landing is the moment the cycle crosses its halfway point, so no frame can slip past it)
+        const ph = B.walkPh + (i ? Math.PI : 0), u = (((ph / (2 * Math.PI)) % 1) + 1) % 1, pu = B.prevLift[i];
+        if (pu > 0 && pu < 0.5 && u >= 0.5) stomp(i);
+        B.prevLift[i] = u > 0 ? u : 1e-6; B.lift[i] = u < 0.5 ? swingLift(u * 2) : 0;
+      }
+    }
+    function dimLights(range) { for (const L of lights) if (Math.abs(L.z - B.z) < range && Math.random() < 0.7) L.dip = Math.max(L.dip, rand(0.4, 1)); }
+    let onStomp = null;
+    function stomp(i) {
+      if (onStomp) onStomp(i);
+      const near = clamp(1.15 - (B.z - 26) / 40, 0.45, 1.1);
+      sStomp(near, clamp(B.x / 14, -0.9, 0.9)); shake = Math.max(shake, 5 + near * 9); dimLights(26);
+      const ax = B.x + (i ? 1.8 : -1.8);
+      for (let k = 0; k < 14; k++) parts.push({ kind: "dust", x: ax + rand(-1.5, 1.5), y: rand(0, 0.4), z: B.z + rand(-1, 1), vx: rand(-1.5, 1.5), vy: rand(0.3, 1.2), vz: rand(-1, 1), life: rand(1.2, 2.2), max: 2.2, size: rand(0.6, 1.4), col: "120,112,100", g: 0 });
+    }
+    function startAdvance() {
+      B.state = "advance"; B.bigWalk = true; B.t = 0; B.z0 = B.z; B.z1 = Z[B.stage + 1]; B.advDur = 5.6; B.throw = null; duck(false); B.walkPh = 0; B.prevLift = [0, 0];
+      B.roarCD = 0; roar(1);
+    }
+    function startCrumple() {
+      B.hp = 5; B.throw = null; duck(false); B.from = standPose(); B.state = "crumple"; B.t = 0; B.k = 0; B.thudKnees = false;
+      sRoar(1, 0, 0.72, 3.2); B.roarGlow = 1; msgSet("", 0);
+      // (the MP 15 goes down and the cabinets away; squash still in the air go wide)
+      if (S.gun) { S.gun.phase = "down"; TRIG.on = false; }
+      for (const q of projs) q.wide = true;
+      note("It's down!", 2400); hud();
+    }
+    function checkStage() {
+      if (["crumple", "downed", "dead"].includes(B.state)) return;
+      if (B.hp <= 5) { startCrumple(); return; }
+      if (B.state === "fight" && B.stage < 3 && B.hp <= TH[B.stage]) startAdvance();
+    }
+    function candle() {
+      let c = 0.8 + 0.1 * Math.sin(T * 5.3) + 0.06 * Math.sin(T * 11.9 + 1.3) + 0.04 * Math.sin(T * 23.7 + 0.7) + (Math.random() - 0.5) * 0.05;
+      c *= 1 - B.gutter; c += B.roarGlow * 0.35;
+      if (B.state === "downed") c *= 0.45 + 0.12 * Math.sin(T * 1.6);
+      return clamp(c, 0.15, 1.3);
+    }
+    function updBoss(dt) {
+      B.t += dt; B.flinch = Math.max(0, B.flinch - dt * 3); B.roarGlow = Math.max(0, B.roarGlow - dt * 0.6); B.roarCD -= dt;
+      B.gutter = Math.max(0, B.gutter - dt * 1.5); if (Math.random() < dt * 0.2) B.gutter = rand(0.25, 0.55);
+      B.cand = candle();
+      switch (B.state) {
+        case "intro": { // heard before it's seen: footsteps and a roar off to the left
+          for (const [tt, v] of [[0.5, 0.35], [1.25, 0.45], [2.0, 0.6], [2.75, 0.75]]) if (B.t - dt < tt && B.t >= tt) { sStomp(v, -0.85); shake = Math.max(shake, 3 + v * 6); dimLights(40); }
+          if (B.t - dt < 1.6 && B.t >= 1.6) { sRoar(0.7, -0.8); B.roarGlow = 1; }
+          updWalk(dt, false);
+          if (B.t >= 3.2) { B.state = "enter"; B.t = 0; B.walkPh = 0; }
+          break;
+        }
+        case "enter": updWalk(dt, true, 2.6); B.x += dt * 5.2; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
+        case "face": // it stops dead, stands too still, then turns on you
+          updWalk(dt, false);
+          if (B.t > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
+          B.flare = B.t > 0.9 ? Math.min(1, (B.t - 0.9) * 3) * (B.t < 2.4 ? 1 : Math.max(0, 1 - (B.t - 2.4) * 2)) : 0;
+          if (B.t > 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot it down, or step aside.", 3); openCabinets(); }
+          break;
+        case "fight":
+          updWalk(dt, false);
+          if (!B.throw) { // the uncanny twitch: a sharp head jerk, frozen, then a slow return
+            B.nextTwitch -= dt;
+            if (B.nextTwitch <= 0) { B.twitchT = 0.9; B.twitchA = rand(0.08, 0.14) * (Math.random() < 0.5 ? -1 : 1); B.nextTwitch = rand(5, 11); }
+          }
+          B.twitchT -= dt;
+          B.headR = B.twitchT > 0 ? lerp(B.headR, B.twitchA, 0.6) : lerp(B.headR, 0, 0.03);
+          if (live() && !B.throw) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
+          updThrow(dt);
+          break;
+        case "advance": {
+          updWalk(dt, true, 2.8);
+          const k = clamp(B.t / B.advDur, 0, 1); B.z = lerp(B.z0, B.z1, k);
+          B.flare = B.t < 1.3 ? Math.sin(Math.min(1, B.t / 1.3) * Math.PI) * 0.9 : 0;
+          B.headR = lerp(B.headR, 0, 0.1); B.lean = lerp(B.lean, 0, 0.1);
+          if (k >= 1) { B.stage++; B.state = "fight"; B.bigWalk = false; B.flare = 0; B.nextThrow = 1.4; checkStage(); }
+          break;
+        }
+        case "rise": // all five lobs missed: it hauls itself back up
+          updWalk(dt, false);
+          if (B.t >= 2.4) { B.state = "gloat"; B.t = 0; B.roarCD = 0; roar(1); }
+          break;
+        case "gloat": updWalk(dt, false); B.flare = Math.min(1, B.t * 3) * (B.t < 2.2 ? 1 : Math.max(0, 1 - (B.t - 2.2) * 2)); break;
+        case "crumple": {
+          updWalk(dt, false); B.k = clamp(B.t / 2.3, 0, 1);
+          if (!B.thudKnees && B.k > 0.5) { B.thudKnees = true; sThud(0.9); shake = Math.max(shake, 10); }
+          if (B.k >= 1) {
+            B.state = "downed"; sStomp(1.2); sThud(1); shake = 24; dimLights(40);
+            for (let k2 = 0; k2 < 40; k2++) parts.push({ kind: "dust", x: B.x + rand(-6, 6), y: rand(0, 0.6), z: B.z + rand(-2, 2), vx: rand(-2.5, 2.5), vy: rand(0.3, 1.6), vz: rand(-1.5, 1.5), life: rand(1.5, 3), max: 3, size: rand(0.8, 2), col: "120,112,100", g: 0 });
+            cartT = 1.2; // (the cart rolls in a moment after it hits the street)
+          }
+          break;
+        }
+      }
+      // the head holes weep
+      if (B.state !== "dead") for (const h of B.headHoles) if (Math.random() < dt * 0.35) {
+        const p = B.pose.head, ca = Math.cos(p.r), sa = Math.sin(p.r);
+        const hx = h.x * HEADSX, lx = p.x + hx * ca - h.y * sa, ly = p.y + hx * sa + h.y * ca;
+        parts.push({ kind: "drip", x: B.x + lx, y: ly - 0.1, z: B.z - 0.5, vx: 0, vy: -0.3, vz: 0, life: 2.5, max: 2.5, size: 0.09, col: "230,150,60", g: 6 });
+      }
+    }
+    // ---- (from the test page, lines 508-588)
+    // ---------------------------------------------------------------- shooting
+    function spray(w, cols, n) { for (let i = 0; i < n; i++) parts.push({ kind: i % 4 === 0 ? "seed" : "chunk", x: w.x, y: w.y, z: w.z, vx: rand(-4, 4), vy: rand(-1, 5), vz: rand(-3, 2), life: rand(0.8, 1.6), max: 1.6, size: rand(0.08, 0.25), col: pick(cols), g: 9.8, rot: rand(0, 6), vr: rand(-8, 8) }); }
+    function segInfo(x, y, A, Bq) {
+      const dx = Bq.x - A.x, dy = Bq.y - A.y, L2 = dx * dx + dy * dy || 1e-6;
+      const t = clamp(((x - A.x) * dx + (y - A.y) * dy) / L2, 0, 1), qx = A.x + dx * t, qy = A.y + dy * t, L = Math.sqrt(L2);
+      return { d: Math.hypot(x - qx, y - qy), t, e: (x - qx) * (-dy / L) + (y - qy) * (dx / L) >= 0 ? 1 : -1 };
+    }
+    // (lx, ly: where a mini spud crosses its plane, in its own metres: across from its middle, up from the street)
+    function hitBoss(lx, ly) {
+      const p = B.pose;
+      const tryArm = (i) => {
+        const a = p.arms[i];
+        for (const [A, Bq, r, k] of [[a.el, a.hd, 0.55 * a.hs, 1], [a.sh, a.el, 0.62 * a.hs, 0]]) { const d = segInfo(lx, ly, A, Bq); if (d.d < r) return { part: "limb", key: "a" + i + k, t: d.t, e: d.e, lx, ly }; }
+        return null;
+      };
+      for (const i of [0, 1]) if (!p.arms[i].behind) { const h = tryArm(i); if (h) return h; }
+      for (const i of [0, 1]) { const sh = p.arms[i].sh; if (Math.hypot(lx - sh.x, ly - sh.y) < 1.25) return { part: "carrot", lx, ly }; }
+      {
+        const h = p.head, dx = lx - h.x, dy = ly - h.y, ca = Math.cos(h.r), sa = Math.sin(h.r), hx = (dx * ca + dy * sa) / HEADSX, hy = (-dx * sa + dy * ca) / (h.sy || 1);
+        if ((hx / 1.85) ** 2 + ((hy + 0.4) / 1.4) ** 2 <= 1 || (Math.abs(hx) < 0.8 && hy > 0.4 && hy < 3.0) || Math.hypot(hx - 0.05, hy - 3.3) < 0.35) return { part: "head", hx, hy, lx, ly };
+      }
+      {
+        const b = p.body, dx = lx - b.x, dy = ly - b.y, ca = Math.cos(b.r), sa = Math.sin(b.r), bx = dx * ca + dy * sa, by = -dx * sa + dy * ca;
+        if ((bx / 2.2) ** 2 + ((by + 1.6) / 3.2) ** 2 <= 1 || (Math.abs(bx) < 1.15 && by > -1 && by < 3.7)) return { part: "body", bx, by, lx, ly };
+      }
+      for (const i of [0, 1]) { const kn = p.knees[i]; if (Math.hypot(lx - kn.x, ly - kn.y) < 0.62) return { part: "tomato", i, ang: Math.atan2(ly - kn.y, lx - kn.x), lx, ly }; }
+      for (const i of [0, 1]) {
+        for (const [A, Bq, r, k] of [[p.hips[i], p.knees[i], 0.72, 0], [p.knees[i], p.ankles[i], 0.6, 1]]) { const d = segInfo(lx, ly, A, Bq); if (d.d < r) return { part: "limb", key: "l" + i + k, t: d.t, e: d.e, lx, ly }; }
+        const an = p.ankles[i]; if (Math.hypot(lx - an.x - (i ? 0.9 : -0.9), ly - an.y + 0.2) < 1.2) return { part: "foot", lx, ly };
+      }
+      for (const i of [0, 1]) if (p.arms[i].behind) { const h = tryArm(i); if (h) return h; }
+      return null;
+    }
+    // (a hit scores what it takes off: head 5, a kneecap or limb 2, the body 1; never below its last 5%)
+    const PART_NAME = { head: "Head", body: "Body", carrot: "Shoulder", limb: "Limb", foot: "Foot", tomato: "Kneecap" };
+    function damage(h, shot) {
+      const amt = { head: 5, body: 1, carrot: 1, limb: 2, foot: 2, tomato: 2 }[h.part], was = B.hp;
+      B.hp = Math.max(5, B.hp - amt);
+      const took = Math.round(was - B.hp);
+      S.score += took; result.hits++;
+      if (shot) { shot.items.push(`${PART_NAME[h.part]}! +${took}`); shot.scores++; shot.at = shot.at || [B.x + h.lx, h.ly, B.z]; }
+      const q = P(B.x + h.lx, h.ly, B.z - 0.6);
+      floats.push({ x: q.x, y: q.y - 10, txt: "−" + amt, life: 1.1, col: h.part === "head" ? "#ffcf70" : "#e8dcc4" });
+      const w = { x: B.x + h.lx, y: h.ly, z: B.z - 0.6 };
+      hud();
+      if (h.part === "head") {
+        if (B.headHoles.length < 40) { B.headHoles.push({ x: h.hx, y: h.hy, seed: rand(1, 1e6) }); if (Math.random() < 0.35) B.headHoles.push({ x: h.hx + rand(-0.4, 0.4), y: h.hy + rand(-0.4, 0.4), seed: rand(1, 1e6) }); }
+        sHitHead(); spray(w, ["217,140,60", "235,200,120", "200,110,40"], 16); B.flinch = 1; B.flinchDir = h.hx > 0 ? -1 : 1;
+        if (Math.random() < 0.18) roar(0.7);
+      } else if (h.part === "body") { B.bodyHoles.push({ x: h.bx, y: h.by, seed: rand(1, 1e6) }); sHitBody(); spray(w, ["60,25,70", "210,215,180"], 10); B.flinch = Math.max(B.flinch, 0.35); }
+      else if (h.part === "limb") { B.divots.push({ key: h.key, t: h.t, e: h.e, o: h.e * rand(0, 0.6), seed: rand(1, 1e6) }); sHitLimb(); spray(w, ["120,150,70", "190,210,140"], 10); }
+      else if (h.part === "tomato") { if (B.kneeHits.length < 12) B.kneeHits.push({ i: h.i, ang: h.ang, seed: rand(1, 1e6) }); sSplat(0.5, 1.4); spray(w, ["200,40,25", "150,20,12", "232,210,122"], 14); }
+      else { sHitLimb(); spray(w, ["196,100,30", "90,120,50"], 8); }
+      checkStage();
+    }
+    function burstProj(q) {
+      q.dead = true; const cols = VEGC[q.type];
+      for (let i = 0; i < 26; i++) parts.push({ kind: i % 3 === 0 ? "seed" : "chunk", x: q.x, y: q.y, z: q.z, vx: rand(-5, 5) + q.vx * 0.3, vy: rand(-1, 6) + q.vy * 0.2, vz: rand(-4, 4) + q.vz * 0.3, life: rand(0.9, 1.8), max: 1.8, size: rand(0.06, 0.22) * (q.r / 0.5), col: pick(cols), g: 9.8, rot: rand(0, 6), vr: rand(-8, 8) });
+      sSplat(0.75, rand(0.9, 1.12), clamp((q.x - riley.x) / 6, -0.8, 0.8));
+    }
+    // (a squash that reaches Riley: 20% of Riley's health; none left and Riley's down, and the round's lost)
+    function hitPlayer(q) {
+      q.dead = true; riley.hp = Math.max(0, riley.hp - BOSS.rileyHit); hurt = 1; shake = Math.max(shake, 14);
+      splatScreen(Math.floor(rand(5, 9)), 2.6, VEGC[q.type]);
+      sSplat(1.1, 0.75); sThud(0.6);
+      floats.push({ x: W / 2, y: H * 0.55, txt: `−${BOSS.rileyHit}%`, life: 1.2, col: "#ff8a6a" });
+      shotNote(riley.hp > 0 ? `Splat! Riley's hit: ${riley.hp}% left. Shoot them down, or step aside.` : "Riley is down.");
+      if (riley.hp <= 0) { B.throw = null; msgSet("", 0); endRound("down", 2.4); }
+      hud();
+    }
+    function splatScreen(n, life, cols) {
+      for (let i = 0; i < n; i++) {
+        const r = cols === null ? rand(25, 95) : rand(18, 55), y = rand(-20, H * 0.85);
+        splats.push({ x: rand(0, W), y, y0: y, r, col: pick(cols || ["217,120,40", "95,40,105", "120,150,70", "230,190,120", "190,80,20"]), v: rand(8, 30), a: rand(4, 18), life, max: life,
+          dots: [...Array(5)].map(() => [rand(-1.6, 1.6), rand(-1.6, 1.6), rand(0.12, 0.3)]) });
+      }
+    }
+    function explode() {
+      B.state = "dead"; deadT = 0; flash = 1; shake = 26; msgSet("", 0);
+      const p = B.pose, hw = { x: B.x + p.head.x, y: p.head.y, z: B.z - 0.4 }, bw = { x: B.x + p.body.x, y: p.body.y, z: B.z - 0.4 };
+      for (let i = 0; i < 170; i++) {
+        const fromHead = i < 90, c = fromHead ? hw : bw;
+        parts.push({ kind: i % 5 === 0 ? "seed" : "chunk", x: c.x + rand(-1, 1), y: c.y + rand(-1, 1), z: c.z + rand(-1, 1), vx: rand(-13, 13), vy: rand(1, 15), vz: rand(-30, 5),
+          life: rand(1.5, 3), max: 3, size: rand(0.15, 0.6), col: pick(fromHead ? ["217,140,60", "200,110,40", "180,130,70", "235,200,120"] : ["70,30,80", "120,150,70", "196,100,30", "90,120,50"]), g: 9.8, rot: rand(0, 6), vr: rand(-8, 8) });
+      }
+      sDeath(); setTimeout(() => splatScreen(34, 5, null), 280);
+      floats.push({ x: W / 2, y: H * 0.4, txt: "+300", life: 3, col: "#f0c060", big: true });
+    }
+    // ---- (from the test page, lines 857-860)
+    function stemWorld() {
+      const h = B.pose.head, ca = Math.cos(h.r), sa = Math.sin(h.r), hx = 0.05 * HEADSX, hy = 3.3 * (h.sy || 1);
+      return { x: B.x + h.x + hx * ca - hy * sa, y: h.y + hx * sa + hy * ca, z: B.z };
+    }
+    // ---- (from the test page, lines 998-1088)
+    // ---- Riley's notebook: up in the lower part of the screen, held in both hands; it opens, a page turns, and stays
+    // until the player closes it (nothing else happens till then); then it shuts and slides down out of the way
+    const BOOK_T = { rise: 0.6, open: 0.7, flip: 0.55, read: Infinity, close: 0.5, drop: 0.55 };
+    function updBook(dt) {
+      if (!book) return;
+      book.t += dt;
+      if (book.t < BOOK_T[book.phase]) return;
+      const nx = { rise: "open", open: "flip", flip: "read", close: "drop", drop: null }[book.phase];
+      book.t = 0;
+      if (nx) book.phase = nx;
+      else { book = null; bookDone(); }
+      if (book && book.phase === "read") hud(); // (FIRE becomes CLOSE)
+    }
+    function closeBook() { if (book && book.phase === "read") { book.phase = "close"; book.t = 0; sfx.click(); hud(); } }
+    const HAND = '600 18px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+    // (drawn at the test page's size, shrunk about the bottom middle on a small field; sc kept for tapping its button)
+    function drawBook() {
+      if (!book) return;
+      const sc = (book.sc = Math.min(1, H / 470, W / 440));
+      ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate((W / 2) * (1 - sc), H * (1 - sc)); ctx.scale(sc, sc);
+      try { drawBookIn(); } finally { ctx.restore(); }
+    }
+    // (in the book's own frame: the page's bottom middle at W / 2, H)
+    function drawBookIn() {
+      const bw = 205, bh = 262, ph = book.phase, k = book.t / (BOOK_T[ph] === Infinity ? 1 : BOOK_T[ph]);
+      const yOff = ph === "rise" ? (1 - easeIO(Math.min(1, k))) * (bh + 90) : ph === "drop" ? easeIO(Math.min(1, k)) * (bh + 90) : 0;
+      const open = ph === "open" ? easeIO(Math.min(1, k)) : ph === "flip" || ph === "read" ? 1 : ph === "close" ? 1 - easeIO(Math.min(1, k)) : 0;
+      const dim = ph === "rise" ? k : ph === "drop" ? 1 - k : 1;
+      ctx.fillStyle = `rgba(0,0,0,${0.3 * clamp(dim, 0, 1)})`; ctx.fillRect(-W * 2, -H * 2, W * 5, H * 5);
+      const spine = W / 2 - (bw / 2) * (1 - open), top = H - bh - 34 + yOff;
+      const paper = (x0, w, content) => {
+        ctx.fillStyle = "#efe4c6"; ctx.fillRect(x0, top + 6, w, bh - 12);
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, top + 6, w, bh - 12); ctx.clip();
+        ctx.strokeStyle = "rgba(90,120,170,0.22)"; ctx.lineWidth = 1; for (let y = top + 40; y < top + bh - 10; y += 20) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y); ctx.stroke(); }
+        ctx.strokeStyle = "rgba(190,70,60,0.3)"; ctx.beginPath(); ctx.moveTo(x0 + 26, top + 6); ctx.lineTo(x0 + 26, top + bh - 6); ctx.stroke();
+        if (content) content(x0, w);
+        ctx.restore();
+      };
+      const scribble = (x0, w) => {
+        ctx.strokeStyle = "rgba(40,40,70,0.55)"; ctx.lineWidth = 1.3; const r = rng(5);
+        for (let y = top + 36; y < top + bh - 30; y += 20) { ctx.beginPath(); let x = x0 + 32; ctx.moveTo(x, y); const end = x0 + w - 14 - r() * 50; while (x < end) { x += 4; ctx.lineTo(x, y + Math.sin(x * 0.7 + y) * 2.4 - 1); } ctx.stroke(); }
+      };
+      const target = (x0, w) => {
+        ctx.save(); ctx.translate(x0 + 32, top + 46); ctx.rotate(-0.03); ctx.fillStyle = "#23233a"; ctx.font = HAND; ctx.textAlign = "left";
+        ctx.fillText("Stem from above,", 0, 0); ctx.fillText("only a lobbed", 0, 32); ctx.fillText("shot will work!!!", 0, 64);
+        ctx.strokeStyle = "#23233a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 72); ctx.quadraticCurveTo(80, 76, 160, 70); ctx.stroke();
+        // a sketch: the squash head with its stem, a dotted arc dropping onto the stem, a flat shot crossed out
+        const sx = 104, sy = 150;
+        ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(sx, sy - 34); ctx.bezierCurveTo(sx + 9, sy - 34, sx + 10, sy - 16, sx + 18, sy - 8); ctx.bezierCurveTo(sx + 30, sy + 4, sx + 22, sy + 26, sx, sy + 26);
+        ctx.bezierCurveTo(sx - 22, sy + 26, sx - 30, sy + 4, sx - 18, sy - 8); ctx.bezierCurveTo(sx - 10, sy - 16, sx - 9, sy - 34, sx, sy - 34); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx, sy - 34); ctx.lineTo(sx + 2, sy - 42); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx - 9, sy + 2); ctx.lineTo(sx - 3, sy - 2); ctx.moveTo(sx + 9, sy + 2); ctx.lineTo(sx + 3, sy - 2); ctx.moveTo(sx - 10, sy + 13); ctx.lineTo(sx + 10, sy + 13); ctx.stroke();
+        ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(sx - 95, sy + 30); ctx.quadraticCurveTo(sx - 40, sy - 120, sx + 1, sy - 48); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(sx + 1, sy - 48); ctx.lineTo(sx - 6, sy - 58); ctx.moveTo(sx + 1, sy - 48); ctx.lineTo(sx + 7, sy - 57); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx - 90, sy + 6); ctx.lineTo(sx - 32, sy + 6); ctx.lineTo(sx - 40, sy + 1); ctx.moveTo(sx - 32, sy + 6); ctx.lineTo(sx - 40, sy + 11); ctx.stroke();
+        ctx.strokeStyle = "#b03028"; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(sx - 70, sy - 4); ctx.lineTo(sx - 54, sy + 16); ctx.moveTo(sx - 54, sy - 4); ctx.lineTo(sx - 70, sy + 16); ctx.stroke();
+        ctx.restore();
+      };
+      // the right-hand page (under the cover when shut): last week's notes until the page turns, then the one that matters
+      const showTarget = ph === "read" || ph === "close" || ph === "drop" || (ph === "flip" && k > 0.5);
+      paper(spine, bw, showTarget ? target : scribble);
+      // the turning page: a leaf swinging over from the right onto the left
+      if (ph === "flip") {
+        const cw = bw * Math.cos(k * Math.PI);
+        if (cw > 0) { ctx.save(); ctx.translate(spine, 0); ctx.scale(cw / bw, 1); paper(0, bw, scribble); ctx.restore(); }
+        else { ctx.save(); ctx.translate(spine, 0); ctx.scale(cw / bw, 1); paper(0, bw, null); ctx.restore(); }
+        ctx.fillStyle = `rgba(0,0,0,${0.18 * Math.sin(k * Math.PI)})`; ctx.fillRect(spine, top + 6, bw, bh - 12);
+      }
+      // the cover: closed it lies over the right page; it swings round the spine to the left, its inside a page of notes
+      const cw = bw * Math.cos(open * Math.PI);
+      ctx.save(); ctx.translate(spine, 0); ctx.scale(cw / bw || 0.001, 1);
+      if (cw >= 0) {
+        const g = ctx.createLinearGradient(0, top, bw, top + bh); g.addColorStop(0, "#7a4a28"); g.addColorStop(0.5, "#6a3d20"); g.addColorStop(1, "#4e2c16");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(0, top, bw, bh, [2, 10, 10, 2]) : ctx.rect(0, top, bw, bh); ctx.fill();
+        ctx.strokeStyle = "rgba(230,200,150,0.5)"; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2; ctx.strokeRect(9, top + 9, bw - 18, bh - 18); ctx.setLineDash([]);
+        ctx.fillStyle = "#151515"; ctx.fillRect(bw - 30, top, 7, bh);
+        ctx.save(); ctx.translate(bw / 2 - 6, top + 70); ctx.rotate(-0.06); ctx.fillStyle = "#e3d6a8"; ctx.fillRect(-48, -16, 96, 32); ctx.fillStyle = "#151515"; ctx.font = '700 18px "Segoe Print", "Comic Sans MS", cursive'; ctx.textAlign = "center"; ctx.fillText("for Riley", 0, 6); ctx.restore();
+      } else paper(0, bw, scribble);
+      ctx.restore();
+      if (open > 0) { ctx.fillStyle = "#3a2010"; ctx.fillRect(spine - 3, top + 2, 6, bh - 4); }
+      // a red ribbon bookmark hanging out of the bottom
+      ctx.fillStyle = "#a02420"; ctx.fillRect(spine + bw * 0.6, top + bh - 8, 7, 34);
+      // Riley's hands at the bottom corners, thumbs over the pages
+      const left = spine - bw * Math.max(0, -Math.cos(open * Math.PI)), right = spine + bw;
+      for (const [hx, side] of [[left + 26, -1], [right - 26, 1]]) {
+        const hy = top + bh - 18;
+        ctx.fillStyle = "#3d4733"; ctx.beginPath(); ctx.moveTo(hx - 40, H + 20); ctx.lineTo(hx + side * 4 - 26, hy + 40); ctx.lineTo(hx + side * 4 + 30, hy + 44); ctx.lineTo(hx + 46, H + 20); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#c8916c"; ctx.beginPath(); ctx.ellipse(hx, hy + 22, 30, 22, 0, 0, 7); ctx.fill();
+        ctx.save(); ctx.translate(hx - side * 6, hy + 4); ctx.rotate(side * 0.5); ctx.fillStyle = "#cf9a75"; ctx.strokeStyle = "#8a5c40"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(0, -10, 10, 22, 0, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#e9c5ae"; ctx.beginPath(); ctx.ellipse(0, -24, 6, 7, 0, 0, 7); ctx.fill(); ctx.restore();
+      }
+      if (ph === "read") {
+        const bx = W / 2 - 80, by = top - 46;
+        book.btn = { x0: bx, y0: by, x1: bx + 160, y1: by + 32 };
+        ctx.fillStyle = "rgba(20,18,16,0.85)"; ctx.strokeStyle = "#d9822b"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, 160, 32, 8) : ctx.rect(bx, by, 160, 32); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#eadfc8"; ctx.font = "600 14px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.fillText("Close the notebook", W / 2, by + 21);
+      } else book.btn = null;
+    }
+    // ---- (from the test page, lines 1204-1615)
+    // ---------------------------------------------------------------- drawing: the boss (boss-local metres, y up)
+    const STALK = ["#7d9a4c", "#86a456", "#6f8c43", "#7a9550", "#8aa85c"];
+    function celery(c, A, Bp, wA, wB, key, claw) {
+      const dx = Bp.x - A.x, dy = Bp.y - A.y, L = Math.hypot(dx, dy) || 1e-3, ux = dx / L, uy = dy / L, px = -uy, py = ux, n = claw ? 4 : 3;
+      // fewer, fatter stalks: three to a limb (four on the forearms, which splay into the claws), outer ones first
+      for (const i of claw ? [0, 3, 1, 2] : [0, 2, 1]) {
+        const f = i / (n - 1) - 0.5, sw = (wA / n) * (claw ? 1.3 : 1.25), sw2 = (wB / n) * (claw ? 0.6 : 1.25);
+        const ax = A.x + px * f * wA * 0.85 - ux * 0.15, ay = A.y + py * f * wA * 0.85 - uy * 0.15;
+        const spread = claw ? f * 1.1 : 0, ext = claw ? 0.55 + 0.3 * (1 - Math.abs(f) * 2) : 0.12;
+        let ex = ux + px * spread, ey = uy + py * spread; const el = Math.hypot(ex, ey); ex /= el; ey /= el;
+        const bx = Bp.x + px * f * wB * 0.85 + ex * ext, by = Bp.y + py * f * wB * 0.85 + ey * ext;
+        const bow = 0.1 * Math.sin(i * 2.1 + key.length), mx = (ax + bx) / 2 + px * bow, my = (ay + by) / 2 + py * bow, hw = (sw + sw2) / 4;
+        c.beginPath(); c.moveTo(ax + (px * sw) / 2, ay + (py * sw) / 2); c.quadraticCurveTo(mx + px * hw, my + py * hw, bx + (px * sw2) / 2, by + (py * sw2) / 2);
+        if (claw) c.lineTo(bx + ex * 0.35, by + ey * 0.35);
+        c.lineTo(bx - (px * sw2) / 2, by - (py * sw2) / 2); c.quadraticCurveTo(mx - px * hw, my - py * hw, ax - (px * sw) / 2, ay - (py * sw) / 2); c.closePath();
+        c.fillStyle = STALK[i]; c.fill(); c.lineWidth = 0.045; c.strokeStyle = "#2c3a1c"; c.stroke();
+        c.lineWidth = 0.025; c.strokeStyle = "rgba(40,55,25,0.7)";
+        for (const r of claw ? [-0.22, 0.22] : [-0.32, -0.1, 0.12, 0.32]) { c.beginPath(); c.moveTo(ax + px * sw * r, ay + py * sw * r); c.quadraticCurveTo(mx + px * hw * r * 2, my + py * hw * r * 2, bx + px * sw2 * r, by + py * sw2 * r); c.stroke(); }
+        c.strokeStyle = "rgba(200,225,150,0.22)"; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo(mx, my, bx, by); c.stroke();
+      }
+      for (const d of B.divots) if (d.key === key) {
+        const hwid = (lerp(wA, wB, d.t) / 2) * 0.9, o = d.o !== undefined ? d.o : d.e * 0.4;
+        celeryHole(c, A.x + dx * d.t + px * o * hwid, A.y + dy * d.t + py * o * hwid, d.seed);
+      }
+    }
+    function tuft(c, p, dir, seed) {
+      c.fillStyle = "#3b5626"; c.strokeStyle = "#1e2e12"; c.lineWidth = 0.03;
+      for (let i = 0; i < 5; i++) {
+        const a = dir + (i - 2) * 0.45 + Math.sin(seed + i) * 0.2, l = 0.7 + 0.25 * Math.sin(seed * 3 + i), tx = p.x + Math.cos(a) * l, ty = p.y + Math.sin(a) * l;
+        c.beginPath(); c.moveTo(p.x, p.y); c.quadraticCurveTo(p.x + Math.cos(a + 0.5) * l * 0.6, p.y + Math.sin(a + 0.5) * l * 0.6, tx, ty);
+        c.quadraticCurveTo(p.x + Math.cos(a - 0.5) * l * 0.6, p.y + Math.sin(a - 0.5) * l * 0.6, p.x, p.y); c.fill(); c.stroke();
+      }
+    }
+    // ---- feet: warty yellow crookneck gourds, after the reference photos. Head on, each is seen end-on: an egg shape,
+    // wider at the bottom, the curled neck tip low at the front with the dry stem reaching down to the ground like a
+    // toe; the two point straight ahead, side by side like boots. Side on: a heavy round heel bulb, the body tapering
+    // forward into a neck that curls up at the tip, the stem arching back over the top like a handle. One seamless shape
+    // each; the celery shin goes down into a socket in the top of the round part (the foot is drawn whole with the dark
+    // hole, then the shin, then the gourd's front lip over the shin's end)
+    function footFrontPath(c) {
+      c.beginPath(); c.moveTo(0, 0.45);
+      c.bezierCurveTo(0.55, 0.47, 0.84, 0.0, 0.88, -0.55); c.bezierCurveTo(0.92, -1.15, 0.62, -1.47, 0, -1.47);
+      c.bezierCurveTo(-0.62, -1.47, -0.92, -1.15, -0.88, -0.55); c.bezierCurveTo(-0.84, 0.0, -0.55, 0.47, 0, 0.45); c.closePath();
+    }
+    function footSidePath(c) {
+      c.beginPath(); c.moveTo(-0.25, 0.95);
+      c.bezierCurveTo(0.45, 0.95, 0.75, 0.55, 1.25, 0.35); c.bezierCurveTo(1.75, 0.18, 2.1, 0.25, 2.3, 0.5);
+      c.bezierCurveTo(2.4, 0.62, 2.62, 0.66, 2.66, 0.5); c.bezierCurveTo(2.7, 0.2, 2.45, -0.3, 1.9, -0.5);
+      c.bezierCurveTo(1.3, -0.72, 0.6, -0.78, -0.2, -0.78); c.bezierCurveTo(-0.95, -0.78, -1.15, -0.3, -1.1, 0.15);
+      c.bezierCurveTo(-1.05, 0.6, -0.75, 0.95, -0.25, 0.95); c.closePath();
+    }
+    const SOCK = { front: { x: 0, y: 0.3, rx: 0.45, ry: 0.13 }, side: { x: -0.3, y: 0.78, rx: 0.42, ry: 0.13 } };
+    // the warts: lots of small knobbly bumps, fixed per view so they don't crawl
+    const WARTS = (() => {
+      const r = rng(77), mk = (n, x0, x1, y0, y1) => [...Array(n)].map(() => [lerp(x0, x1, r()), lerp(y0, y1, r()), 0.045 + r() * 0.07]);
+      return { front: mk(85, -0.9, 0.9, -1.5, 0.45), side: mk(120, -1.15, 2.7, -0.8, 0.95) };
+    })();
+    function gourdFoot(c, an, s, part, side, pitch = 0) {
+      c.save(); c.translate(an.x, an.y - 0.2); if (side) c.rotate(pitch);
+      const k = SOCK[side ? "side" : "front"], path = () => (side ? footSidePath(c) : footFrontPath(c));
+      const g = side ? c.createRadialGradient(-0.4, 0.45, 0.1, 0.4, -0.1, 2.6) : c.createRadialGradient(-0.3, -0.2, 0.08, 0, -0.6, 1.4);
+      g.addColorStop(0, "#f2c42e"); g.addColorStop(0.55, "#c99012"); g.addColorStop(1, "#6e4806");
+      if (part === "lip") { c.beginPath(); c.rect(-4, -4, 8, 4 + k.y); c.clip(); }
+      path(); c.fillStyle = g; c.fill();
+      // warts, clipped to the gourd: a lit top-left, a shadowed rim
+      c.save(); path(); c.clip();
+      for (const [x, y, r] of WARTS[side ? "side" : "front"]) {
+        c.fillStyle = "rgba(120,78,8,0.45)"; c.beginPath(); c.arc(x + r * 0.25, y - r * 0.25, r, 0, 7); c.fill();
+        c.fillStyle = "rgba(250,214,90,0.75)"; c.beginPath(); c.arc(x, y, r * 0.85, 0, 7); c.fill();
+        c.fillStyle = "rgba(255,240,170,0.5)"; c.beginPath(); c.arc(x - r * 0.3, y + r * 0.3, r * 0.35, 0, 7); c.fill();
+      }
+      c.fillStyle = "rgba(80,100,40,0.18)"; c.beginPath(); c.ellipse(side ? 0.3 : 0.2, side ? 0.4 : -0.1, 0.5, 0.18, 0.3, 0, 7); c.fill();
+      c.restore();
+      path(); c.strokeStyle = "#4a3006"; c.lineWidth = 0.05; c.stroke();
+      if (part === "whole") { c.fillStyle = "#2a1806"; c.beginPath(); c.ellipse(k.x, k.y, k.rx, k.ry, 0, 0, 7); c.fill(); c.restore(); return; }
+      // the dry, ridged stem
+      const stem = (pts, w) => {
+        c.lineCap = "round"; c.strokeStyle = "#5e5440"; c.lineWidth = w + 0.05; c.beginPath(); c.moveTo(pts[0], pts[1]); c.quadraticCurveTo(pts[2], pts[3], pts[4], pts[5]); c.stroke();
+        c.strokeStyle = "#a89a74"; c.lineWidth = w; c.stroke();
+        c.strokeStyle = "rgba(90,80,55,0.7)"; c.lineWidth = 0.02; c.stroke(); c.lineCap = "butt";
+      };
+      if (side) stem([2.55, 0.58, 2.25, 1.4, 1.35, 1.02], 0.13);
+      else {
+        // the curled neck tip, a swirled knob low at the front, the stem curling down from it to touch the ground
+        const tx = s * 0.08, ty = -0.95;
+        c.fillStyle = "#e0ad22"; c.beginPath(); c.arc(tx, ty, 0.24, 0, 7); c.fill(); c.strokeStyle = "rgba(110,70,6,0.7)"; c.lineWidth = 0.03;
+        for (let k2 = 0; k2 < 6; k2++) { const a = (k2 / 6) * 6.28; c.beginPath(); c.moveTo(tx + Math.cos(a) * 0.08, ty + Math.sin(a) * 0.08); c.lineTo(tx + Math.cos(a + 0.4) * 0.23, ty + Math.sin(a + 0.4) * 0.23); c.stroke(); }
+        stem([tx, ty, tx + s * 0.16, ty - 0.35, tx + s * 0.02, ty - 0.62], 0.16);
+      }
+      c.strokeStyle = "rgba(25,14,4,0.9)"; c.lineWidth = 0.06; c.beginPath(); c.ellipse(k.x, k.y, k.rx, k.ry, 0, Math.PI, 2 * Math.PI); c.stroke();
+      c.restore();
+    }
+    // a beefsteak tomato for a kneecap
+    // (side: seen from the side, the stem end faces forward, so the calyx is edge-on at the tomato's front)
+    function tomato(c, p, r, i, side) {
+      if (side) tomatoSide(c, p, r); else tomatoSkin(c, p, r);
+      if (i !== undefined) for (const h of B.kneeHits) if (h.i === i) tomatoCrater(c, p, r, h);
+    }
+    function tomatoSide(c, p, r) {
+      const g = c.createRadialGradient(p.x - r * 0.2, p.y + r * 0.4, r * 0.05, p.x, p.y, r * 1.15);
+      g.addColorStop(0, "#e65a3c"); g.addColorStop(0.55, "#a8231a"); g.addColorStop(1, "#4a0906");
+      c.fillStyle = g; c.strokeStyle = "#2a0503"; c.lineWidth = 0.04;
+      // a beefsteak from the side: squat, a slight dip at the stem end (front, +x)
+      c.beginPath(); c.moveTo(p.x + r * 0.92, p.y + r * 0.12);
+      c.bezierCurveTo(p.x + r * 1.0, p.y + r * 0.95, p.x - r * 1.1, p.y + r * 1.0, p.x - r * 1.05, p.y);
+      c.bezierCurveTo(p.x - r * 1.1, p.y - r * 1.0, p.x + r * 1.0, p.y - r * 0.95, p.x + r * 0.92, p.y - r * 0.12);
+      c.quadraticCurveTo(p.x + r * 0.84, p.y, p.x + r * 0.92, p.y + r * 0.12); c.closePath(); c.fill(); c.stroke();
+      c.strokeStyle = "rgba(60,8,5,0.45)"; c.lineWidth = 0.03;
+      for (const k of [-0.5, 0.5]) { c.beginPath(); c.moveTo(p.x + r * 0.85, p.y + k * r * 0.3); c.quadraticCurveTo(p.x, p.y + k * r * 1.1, p.x - r * 0.95, p.y + k * r * 0.3); c.stroke(); }
+      c.fillStyle = "rgba(255,230,220,0.25)"; c.beginPath(); c.ellipse(p.x - r * 0.1, p.y + r * 0.55, r * 0.35, r * 0.1, 0, 0, 7); c.fill();
+      // the calyx edge-on: sepals curling back over the shoulders, the stem stub pointing forward
+      c.fillStyle = "#3b5a26"; c.strokeStyle = "#1a2a0e"; c.lineWidth = 0.03;
+      for (const [dy, len] of [[0.35, 0.55], [0.15, 0.4], [-0.15, 0.42], [-0.35, 0.5]]) {
+        const bx = p.x + r * 0.88, by = p.y + dy * r * 0.4;
+        c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx - len * r * 0.3, by + Math.sign(dy) * len * r * 0.9, bx - len * r * 0.75, by + Math.sign(dy) * len * r * 1.0); c.quadraticCurveTo(bx - len * r * 0.2, by + Math.sign(dy) * len * r * 0.45, bx, by); c.fill(); c.stroke();
+      }
+      c.strokeStyle = "#3b5a26"; c.lineWidth = 0.09; c.lineCap = "round"; c.beginPath(); c.moveTo(p.x + r * 0.88, p.y); c.lineTo(p.x + r * 1.15, p.y + r * 0.06); c.stroke(); c.lineCap = "butt";
+    }
+    function tomatoSkin(c, p, r) {
+      const g = c.createRadialGradient(p.x - r * 0.35, p.y + r * 0.35, r * 0.05, p.x, p.y, r * 1.15);
+      g.addColorStop(0, "#e65a3c"); g.addColorStop(0.55, "#a8231a"); g.addColorStop(1, "#4a0906");
+      c.fillStyle = g; c.strokeStyle = "#2a0503"; c.lineWidth = 0.04;
+      c.beginPath(); c.ellipse(p.x, p.y, r * 1.08, r * 0.92, 0, 0, 7); c.fill(); c.stroke();
+      c.strokeStyle = "rgba(60,8,5,0.5)"; c.lineWidth = 0.03;
+      for (const k of [-0.45, 0.45]) { c.beginPath(); c.moveTo(p.x + k * r, p.y + r * 0.85); c.quadraticCurveTo(p.x + k * r * 1.5, p.y, p.x + k * r * 0.8, p.y - r * 0.85); c.stroke(); }
+      c.fillStyle = "rgba(255,230,220,0.28)"; c.beginPath(); c.ellipse(p.x - r * 0.38, p.y + r * 0.38, r * 0.22, r * 0.12, -0.6, 0, 7); c.fill();
+      c.fillStyle = "#3b5a26"; c.strokeStyle = "#1a2a0e"; const cx = p.x, cy = p.y + r * 0.42;
+      c.beginPath(); for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + 0.3, rr = k % 2 ? r * 0.1 : r * 0.42; k ? c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.6) : c.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.6); } c.closePath(); c.fill(); c.stroke();
+    }
+    // carrot shoulders: a small, tight bunch of four angled down over the shoulder, thick ends in, points out
+    function carrots(c, sh, s) {
+      for (let k = 0; k < 4; k++) {
+        const ang = ((16 + k * 10) * Math.PI) / 180, dx = s * Math.cos(ang), dy = -Math.sin(ang), len = 2.1 + 0.25 * Math.sin(k * 2.3 + s), w = 0.58;
+        const bx = sh.x - s * 0.45 + s * k * 0.05, by = sh.y + 0.5 - k * 0.24, tx = bx + dx * len, ty = by + dy * len, px = -dy, py = dx;
+        c.beginPath(); c.moveTo(bx + (px * w) / 2, by + (py * w) / 2); c.quadraticCurveTo(bx + dx * len * 0.5 + px * w * 0.35, by + dy * len * 0.5 + py * w * 0.35, tx, ty);
+        c.quadraticCurveTo(bx + dx * len * 0.5 - px * w * 0.35, by + dy * len * 0.5 - py * w * 0.35, bx - (px * w) / 2, by - (py * w) / 2); c.closePath();
+        c.fillStyle = k % 2 ? "#b65a1c" : "#c4651f"; c.fill(); c.strokeStyle = "#5e2a0c"; c.lineWidth = 0.04; c.stroke();
+        c.strokeStyle = "rgba(80,35,10,0.6)"; c.lineWidth = 0.025;
+        for (let j = 1; j < 5; j++) { const f = j / 5.5, cx = bx + dx * len * f, cy = by + dy * len * f, ww = w * (1 - f) * 0.4; c.beginPath(); c.moveTo(cx + px * ww, cy + py * ww); c.lineTo(cx - px * ww * 0.2, cy - py * ww * 0.2); c.stroke(); }
+      }
+    }
+    function eggplant(c, p) {
+      c.save(); c.translate(p.body.x, p.body.y); c.rotate(p.body.r);
+      // a long eggplant: a narrow neck under the cap swelling to a heavy, rounded bottom
+      c.beginPath(); c.moveTo(0, 3.7);
+      c.bezierCurveTo(0.7, 3.7, 0.95, 2.6, 1.15, 1.4); c.bezierCurveTo(1.4, 0, 2.15, -1.0, 2.1, -2.6);
+      c.bezierCurveTo(2.05, -4.2, 1.0, -4.9, -0.1, -4.85); c.bezierCurveTo(-1.3, -4.8, -2.15, -4.0, -2.05, -2.5);
+      c.bezierCurveTo(-1.95, -1.0, -1.3, 0, -1.1, 1.4); c.bezierCurveTo(-0.9, 2.6, -0.7, 3.7, 0, 3.7); c.closePath();
+      const g = c.createRadialGradient(-0.9, -0.8, 0.2, 0, -1.2, 5.2); g.addColorStop(0, "#74417f"); g.addColorStop(0.4, "#3c1747"); g.addColorStop(1, "#130716");
+      c.fillStyle = g; c.fill(); c.strokeStyle = "#0c040e"; c.lineWidth = 0.05; c.stroke();
+      c.save(); c.globalAlpha = 0.17; c.fillStyle = "#ead8f2"; c.beginPath(); c.ellipse(-1.05, -1.2, 0.2, 1.9, 0.12, 0, 7); c.fill();
+      c.globalAlpha = 0.1; c.beginPath(); c.ellipse(-0.45, 2.0, 0.1, 0.9, 0.05, 0, 7); c.fill();
+      c.globalAlpha = 0.07; c.beginPath(); c.ellipse(1.55, -2.4, 0.15, 1.2, -0.12, 0, 7); c.fill(); c.restore();
+      for (const h of B.bodyHoles) eggHole(c, h);
+      c.fillStyle = "#2f4a24"; c.strokeStyle = "#16240e"; c.lineWidth = 0.04;
+      for (let k = 0; k < 7; k++) {
+        const a = -1.2 + k * (2.4 / 6), bx = Math.sin(a) * 0.75, by = 3.75 - Math.abs(Math.sin(a)) * 0.15;
+        c.beginPath(); c.moveTo(bx - 0.3, by + 0.2); c.quadraticCurveTo(bx + Math.sin(a) * 0.45, by - 0.4, bx + Math.sin(a) * 0.55, by - 1.25 - 0.25 * Math.cos(k * 1.7));
+        c.quadraticCurveTo(bx + 0.08, by - 0.3, bx + 0.3, by + 0.2); c.closePath(); c.fill(); c.stroke();
+      }
+      c.beginPath(); c.ellipse(0, 3.85, 0.95, 0.32, 0, 0, 7); c.fill(); c.stroke();
+      c.restore();
+    }
+    // the head: a whole butternut, one smooth bottle shape (no seam), a touch narrow, the face carved low on the bulb
+    function headPath(c) {
+      c.beginPath(); c.moveTo(0, 3.0);
+      c.bezierCurveTo(0.45, 3.02, 0.7, 2.8, 0.72, 2.2); c.bezierCurveTo(0.74, 1.5, 0.9, 1.0, 1.35, 0.55);
+      c.bezierCurveTo(1.95, 0.05, 1.95, -1.05, 1.45, -1.45); c.bezierCurveTo(0.9, -1.85, -0.9, -1.85, -1.45, -1.45);
+      c.bezierCurveTo(-1.95, -1.05, -1.95, 0.05, -1.35, 0.55); c.bezierCurveTo(-0.9, 1.0, -0.74, 1.5, -0.72, 2.2);
+      c.bezierCurveTo(-0.7, 2.8, -0.45, 3.02, 0, 3.0); c.closePath();
+    }
+    const FRONTCUTS = [...FACE.eyes, FACE.nose, FACE.mouth];
+    // side on, only the near eye and the mouth's curve show, squeezed toward the front edge
+    const SIDECUTS = [FACE.eyes[1].map(([x, y]) => [0.5 + x * 0.6, y]), FACE.nose.map(([x, y]) => [1.0 + x * 0.45, y]), FACE.mouth.map(([x, y]) => [0.35 + (x + 1.38) * 0.45, y])];
+    function drawHead(c, h, cuts) {
+      if (h.prof) cuts = SIDECUTS;
+      c.save(); c.translate(h.x, h.y); c.rotate(h.r); c.scale(HEADSX * (h.prof || 1), h.sy || 1);
+      headPath(c);
+      const g = c.createRadialGradient(-0.55, -0.1, 0.15, 0, 0.2, 2.9); g.addColorStop(0, "#dcb67e"); g.addColorStop(0.55, "#b38851"); g.addColorStop(1, "#5e4020");
+      c.fillStyle = g; c.fill(); c.strokeStyle = "#3d2812"; c.lineWidth = 0.05; c.stroke();
+      c.save(); headPath(c); c.clip(); c.strokeStyle = "rgba(80,52,22,0.22)"; c.lineWidth = 0.035;
+      for (const k of [-0.75, -0.4, 0.4, 0.75]) { c.beginPath(); c.moveTo(k * 0.55, 2.95); c.bezierCurveTo(k * 0.85, 1.4, k * 2.2, 0.4, k * 1.9, -1.7); c.stroke(); }
+      c.restore();
+      c.fillStyle = "rgba(60,40,20,0.33)"; for (const [x, y, r] of [[-1.3, -0.95, 0.11], [1.2, -1.0, 0.07], [0.35, 2.0, 0.06], [-0.4, 1.4, 0.05], [1.05, 0.55, 0.05]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+      c.strokeStyle = "rgba(40,25,10,0.5)"; c.lineWidth = 0.03; c.beginPath(); c.moveTo(1.5, -0.2); c.lineTo(1.3, -0.4); c.lineTo(1.38, -0.62); c.lineTo(1.2, -0.8); c.stroke();
+      c.fillStyle = "#6e5c38"; c.strokeStyle = "#33270f"; c.lineWidth = 0.04;
+      c.beginPath(); c.moveTo(-0.2, 2.95); c.quadraticCurveTo(-0.22, 3.3, -0.12, 3.5); c.lineTo(0.22, 3.48); c.quadraticCurveTo(0.24, 3.25, 0.2, 2.95); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = "#9a875c"; c.beginPath(); c.ellipse(0.05, 3.49, 0.18, 0.07, 0.05, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = "#d4893a"; for (const pts of cuts) { poly(c, pts); c.fill(); }
+      c.restore();
+    }
+    function drawArm(c, p, i) { const s = i ? 1 : -1, a = p.arms[i]; celery(c, a.sh, a.el, 1.0 * a.hs, 0.82 * a.hs, "a" + i + "0", false); tuft(c, a.el, s > 0 ? -0.3 : Math.PI + 0.3, i + 4); celery(c, a.el, a.hd, 0.82 * a.hs, 0.62 * a.hs, "a" + i + "1", true); }
+    function drawLeg(c, p, i) {
+      const s = i ? 1 : -1, an = p.ankles[i], end = { x: an.x, y: an.y - 0.25 };
+      celery(c, p.hips[i], p.knees[i], 1.3, 1.05, "l" + i + "0", false);
+      gourdFoot(c, an, s, "whole", false);
+      celery(c, p.knees[i], end, 1.05, 0.9, "l" + i + "1", false);
+      gourdFoot(c, an, s, "lip", false);
+      tomato(c, p.knees[i], 0.58, i);
+    }
+    function renderBody(c, p) {
+      for (const i of [0, 1]) if (p.arms[i].behind) drawArm(c, p, i);
+      for (const i of [0, 1]) drawLeg(c, p, i);
+      eggplant(c, p);
+      drawHead(c, p.head, FRONTCUTS);
+      for (const i of [0, 1]) if (!p.arms[i].behind) drawArm(c, p, i);
+      carrots(c, p.arms[0].sh, -1); carrots(c, p.arms[1].sh, 1);
+    }
+
+    // ---- side on, walking right: big strides (feet planted, then swung high), the burlap sack on its back
+    function sideFoot(i) {
+      const ph = B.walkPh + (i ? Math.PI : 0), u = (((ph / (2 * Math.PI)) % 1) + 1) % 1, S = 3.4, h = 1.7;
+      if (u < 0.5) {
+        // the swing: two-thirds of it lifting slowly up and forward, the last third slamming down twice as fast
+        const q = u * 2, l = swingLift(q), fwd = q < 2 / 3 ? 0.85 * easeIO(q * 1.5) : 0.85 + 0.15 * ((q - 2 / 3) * 3);
+        return { x: -S + 2 * S * fwd, y: 0.85 + h * l, lift: l };
+      }
+      return { x: S - 2 * S * (u - 0.5) * 2, y: 0.85, lift: 0 };
+    }
+    function ik(hip, an, L1, L2) {
+      const dx = an.x - hip.x, dy = an.y - hip.y, d = Math.min(Math.hypot(dx, dy), L1 + L2 - 0.01), a = Math.atan2(dy, dx);
+      const A = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+      return { x: hip.x + Math.cos(a + A) * L1, y: hip.y + Math.sin(a + A) * L1 };
+    }
+    function sidePose() {
+      // the body carries the weight: it drops onto each landing and rises between, rocks forward and back twice a
+      // stride, the head nods a beat behind and the shoulders roll; the legs stay long and calm
+      const ph = B.walkPh, bob = -0.55 * (1 - Math.abs(Math.sin(ph))) + 0.25, rock = Math.sin(2 * ph + 0.8), nod = Math.sin(2 * ph - 0.5);
+      const legs = [0, 1].map((i) => { const hip = { x: i ? 0.3 : -0.3, y: 7.95 + bob }, f = sideFoot(i), an = { x: f.x, y: f.y }; return { hip, kn: ik(hip, an, 4.5, 3.7), an, lift: f.lift }; });
+      const sh = { x: 0.4 + 0.3 * rock, y: 14.4 + bob + 0.12 * Math.sin(2 * ph + 0.3) };
+      const arms = [0, 1].map((i) => {
+        const sw = Math.sin(ph + (i ? 0 : Math.PI)), th = (30 * sw * Math.PI) / 180, t2 = th + 0.35 + 0.3 * Math.max(0, sw), el = { x: sh.x + Math.sin(th) * 3.1, y: sh.y - Math.cos(th) * 3.1 };
+        return { sh, el, hd: { x: el.x + Math.sin(t2) * 3.0, y: el.y - Math.cos(t2) * 3.0 } };
+      });
+      return { side: true, body: { x: 0.15 + 0.25 * rock, y: 11.55 + bob, r: -0.09 - 0.06 * rock }, head: { x: 0.65 + 0.4 * rock, y: 16.8 + bob + 0.12 * nod, r: -0.05 + 0.1 * nod, sy: 1 }, legs, arms, sh, bob };
+    }
+    // the gourd foot keeps its angle to the bottom of the leg while it swings (toes point down when the shin is near
+    // level), and settles flat on the ground for the stance
+    function drawSideLeg(c, L, i) {
+      const th = Math.atan2(L.an.x - L.kn.x, -(L.an.y - L.kn.y)), pitch = th * clamp(L.lift * 2.5, 0, 1), cp = Math.cos(pitch), sp2 = Math.sin(pitch);
+      const sx = SOCK.side.x, sy2 = SOCK.side.y - 0.45, end = { x: L.an.x + sx * cp - sy2 * sp2, y: L.an.y - 0.2 + sx * sp2 + sy2 * cp };
+      celery(c, L.hip, L.kn, 1.25, 1.0, "l" + i + "0", false);
+      gourdFoot(c, L.an, 1, "whole", true, pitch);
+      celery(c, L.kn, end, 1.0, 0.85, "l" + i + "1", false);
+      gourdFoot(c, L.an, 1, "lip", true, pitch);
+      // the kneecap faces the way the knee points (stem end out front), turning as the knee bends
+      const ka = Math.atan2(L.kn.y - (L.hip.y + L.an.y) / 2, L.kn.x - (L.hip.x + L.an.x) / 2 + 0.6);
+      c.save(); c.translate(L.kn.x, L.kn.y); c.rotate(ka); tomato(c, { x: 0.3, y: 0 }, 0.55, i, true); c.restore();
+    }
+    function drawSideArm(c, A, i) { celery(c, A.sh, A.el, 1.0, 0.82, "a" + i + "0", false); tuft(c, A.el, -0.6, i + 4); celery(c, A.el, A.hd, 0.82, 0.62, "a" + i + "1", true); }
+    const SACKVEG = [[-2.65, 0.95, "acorn", 0.8, 0.4], [-1.7, 1.25, "pumpkin", 1.0, 0.2], [-0.75, 1.55, "gourd", 0.7, -0.5], [-1.15, 1.0, "butternut", 0.75, 0.9]];
+    const BULGES = [[-1.2, -1.6, 1.0], [-2.7, -2.6, 1.1], [-1.5, -4.0, 1.05], [-3.0, -5.0, 0.9], [-1.0, -5.9, 0.85], [-2.3, -6.3, 0.8]];
+    function sackPath(c) {
+      c.beginPath();
+      for (let i = 0; i <= 72; i++) {
+        const th = (i / 72) * Math.PI * 2, r = 1 + 0.07 * Math.sin(5 * th + 1) + 0.05 * Math.sin(9 * th + 2) + 0.035 * Math.sin(13 * th);
+        let x = -1.8 + Math.cos(th) * 2.05 * r; const y = -3.3 + Math.sin(th) * 3.75 * r;
+        if (y > 0) { const k = clamp(y / 0.6, 0, 1); x = lerp(x, -1.7 + (x + 1.7) * 0.62, k); }
+        i ? c.lineTo(x, y) : c.moveTo(x, y);
+      }
+      c.closePath();
+    }
+    function drawSack(c, sp) {
+      c.save(); c.translate(-0.9 + sp.body.x, sp.body.y + 3.2); c.rotate(0.04 + 0.09 * Math.sin(B.walkPh * 2 - 1.0));
+      for (const [x, y, t, r, rot] of SACKVEG) { c.save(); c.translate(x, y); c.scale(1, -1); drawVeg(c, t, r, rot); c.restore(); }
+      sackPath(c);
+      const g = c.createRadialGradient(-2.4, -2.0, 0.3, -1.8, -3.3, 4.6); g.addColorStop(0, "#a5844f"); g.addColorStop(0.6, "#7a5c33"); g.addColorStop(1, "#3e2d16");
+      c.fillStyle = g; c.fill();
+      c.save(); sackPath(c); c.clip();
+      // the gourds and pumpkins inside pressing out through the burlap
+      for (const [x, y, r] of BULGES) { const b = c.createRadialGradient(x - r * 0.3, y + r * 0.3, 0.05, x, y, r); b.addColorStop(0, "rgba(255,230,180,0.24)"); b.addColorStop(0.65, "rgba(0,0,0,0)"); b.addColorStop(1, "rgba(20,10,0,0.32)"); c.fillStyle = b; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+      c.strokeStyle = "rgba(40,25,8,0.22)"; c.lineWidth = 0.03;
+      for (let x = -4.5; x < 0.6; x += 0.2) { c.beginPath(); c.moveTo(x, -7.6); c.lineTo(x + 0.15, 1); c.stroke(); }
+      for (let y = -7.6; y < 1; y += 0.2) { c.beginPath(); c.moveTo(-4.5, y); c.lineTo(0.6, y + 0.1); c.stroke(); }
+      c.restore();
+      sackPath(c); c.strokeStyle = "#2a1c0a"; c.lineWidth = 0.06; c.stroke();
+      c.fillStyle = "#6e5230"; c.beginPath(); c.ellipse(-1.7, 0.42, 1.3, 0.32, 0, 0, 7); c.fill(); c.stroke();
+      c.strokeStyle = "#4a3418"; c.lineWidth = 0.16; c.beginPath(); c.moveTo(-2.9, 0.25); c.quadraticCurveTo(-1.7, 0.05, -0.5, 0.25); c.stroke();
+      c.restore();
+    }
+    function strap(c, sp) {
+      c.strokeStyle = "#5a4224"; c.lineWidth = 0.26; c.lineCap = "round";
+      const bx = sp.body.x, by = sp.body.y - 9.2;
+      c.beginPath(); c.moveTo(-0.7 + bx, 12.8 + by); c.quadraticCurveTo(0.6 + bx, 13.1 + by, 1.15 + bx, 11.6 + by); c.quadraticCurveTo(1.45 + bx, 10.3 + by, 1.3 + bx, 8.9 + by); c.stroke();
+      c.strokeStyle = "rgba(20,12,4,0.45)"; c.lineWidth = 0.05; c.stroke(); c.lineCap = "butt";
+    }
+    function renderSide(c, sp) {
+      c.save(); c.filter = "brightness(0.5)"; drawSideArm(c, sp.arms[0], 0); drawSideLeg(c, sp.legs[0], 0); c.restore();
+      drawSack(c, sp);
+      eggplant(c, sp);
+      drawHead(c, sp.head, SIDECUTS);
+      strap(c, sp);
+      carrots(c, sp.sh, 1); carrots(c, { x: sp.sh.x + 0.5, y: sp.sh.y }, -1);
+      drawSideLeg(c, sp.legs[1], 1); drawSideArm(c, sp.arms[1], 1);
+    }
+
+    // ---- what glows: the candle seen through the carved holes, the spud holes, the fire breath
+    function faceGlow(c, h, cuts, holes, cx = 0) {
+      const a = clamp(B.cand, 0, 1.3);
+      if (h.prof) { cuts = SIDECUTS; holes = []; cx = 0.25; }
+      c.save(); c.translate(h.x, h.y); c.rotate(h.r); c.scale(HEADSX * (h.prof || 1), h.sy || 1);
+      c.save(); c.beginPath(); for (const pts of cuts) addPoly(c, pts, 0.86, 0, -0.06); c.clip(); c.translate(cx, 0);
+      const fy = -1.1, len = (1.25 + 0.3 * Math.sin(T * 8.7) + 0.12 * Math.sin(T * 21.3)) * Math.min(1.1, a) * (1 + B.roarGlow * 0.5), sway = Math.sin(T * 3.1) * 0.09 + Math.sin(T * 7.7) * 0.04;
+      let g = c.createRadialGradient(sway * 0.5, fy + len * 0.45, 0.1, 0, fy + 0.4, 2.3);
+      g.addColorStop(0, `rgba(255,200,110,${Math.min(1, 0.95 * a)})`); g.addColorStop(0.45, `rgba(205,95,28,${Math.min(1, 0.95 * a)})`); g.addColorStop(1, "rgba(60,18,4,0.97)");
+      c.fillStyle = g; c.fillRect(-2.6, -2.2, 5.2, 4.6);
+      g = c.createLinearGradient(-0.3, 0, 0.3, 0); g.addColorStop(0, "#9c8e70"); g.addColorStop(0.4, "#f1e6c8"); g.addColorStop(1, "#8a7c5e");
+      c.fillStyle = g; c.fillRect(-0.3, fy - 0.9, 0.6, 0.9);
+      c.fillStyle = "#f6edd2"; c.beginPath(); c.ellipse(0, fy, 0.3, 0.07, 0, 0, 7); c.fill();
+      c.beginPath(); c.moveTo(-0.3, fy); c.quadraticCurveTo(-0.33, fy - 0.25, -0.27, fy - 0.38); c.lineTo(-0.22, fy - 0.05); c.fill();
+      c.beginPath(); c.moveTo(0.18, fy); c.quadraticCurveTo(0.2, fy - 0.3, 0.14, fy - 0.45); c.lineTo(0.1, fy); c.fill();
+      c.strokeStyle = "#1a1008"; c.lineWidth = 0.035; c.beginPath(); c.moveTo(0, fy); c.lineTo(sway * 0.15, fy + 0.14); c.stroke();
+      c.globalCompositeOperation = "lighter";
+      g = c.createRadialGradient(sway * 0.4, fy + len * 0.4, 0, sway * 0.4, fy + len * 0.4, len * 1.3);
+      g.addColorStop(0, `rgba(255,170,70,${0.45 * a})`); g.addColorStop(1, "rgba(255,120,30,0)"); c.fillStyle = g; c.fillRect(-2.6, -2.2, 5.2, 4.6);
+      c.beginPath(); c.moveTo(0, fy + 0.05); c.bezierCurveTo(0.34, fy + 0.15, 0.28, fy + len * 0.6, sway, fy + len); c.bezierCurveTo(-0.28, fy + len * 0.6, -0.34, fy + 0.15, 0, fy + 0.05);
+      g = c.createRadialGradient(0, fy + len * 0.22, 0.02, 0, fy + len * 0.35, len * 0.75);
+      g.addColorStop(0, `rgba(255,255,235,${a})`); g.addColorStop(0.3, `rgba(255,225,120,${a})`); g.addColorStop(0.7, `rgba(255,140,40,${0.85 * a})`); g.addColorStop(1, "rgba(220,70,10,0)");
+      c.fillStyle = g; c.fill();
+      c.restore();
+      for (const hh of holes) headHole(c, hh, Math.min(1, 0.95 * a));
+      c.restore();
+    }
+    // ---- spud damage, after the reference photos: a clean round hole through the squash (thick orange wall, stringy
+    // fibres, the candle-lit inside showing), torn star-shaped holes in the eggplant, ragged holes through the celery,
+    // split craters in the tomatoes
+    function jagged(c, x, y, r, j, rr, n = 16, sy = 1) {
+      c.beginPath();
+      for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, q = r * (1 + (rr() - 0.5) * 2 * j); const px = x + Math.cos(a) * q, py = y + Math.sin(a) * q * sy; i ? c.lineTo(px, py) : c.moveTo(px, py); }
+      c.closePath();
+    }
+    function headHole(c, h, a) {
+      const r = 0.3, rr = rng(h.seed || 1);
+      c.fillStyle = "#d98a36"; jagged(c, h.x, h.y, r, 0.07, rr); c.fill();
+      c.strokeStyle = "rgba(90,50,15,0.6)"; c.lineWidth = 0.025; c.stroke();
+      const g = c.createRadialGradient(h.x, h.y - 0.04, 0.02, h.x, h.y, r * 0.75);
+      g.addColorStop(0, `rgba(255,220,130,${a})`); g.addColorStop(1, `rgba(205,95,28,${a})`);
+      c.fillStyle = g; c.beginPath(); c.ellipse(h.x + 0.03, h.y - 0.04, r * 0.7, r * 0.68, 0, 0, 7); c.fill();
+      c.strokeStyle = "rgba(160,75,18,0.9)"; c.lineWidth = 0.018;
+      for (let k = 0; k < 4; k++) {
+        const a1 = rr() * 6.28, a2 = a1 + 2 + rr() * 2.2, x1 = h.x + Math.cos(a1) * r * 0.68, y1 = h.y + Math.sin(a1) * r * 0.66, x2 = h.x + Math.cos(a2) * r * 0.68, y2 = h.y + Math.sin(a2) * r * 0.66;
+        c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo((x1 + x2) / 2, Math.min(y1, y2) - 0.1, x2, y2); c.stroke();
+      }
+    }
+    function eggHole(c, h) {
+      const rr = rng(h.seed || 7), n = 9;
+      c.beginPath();
+      for (let i = 0; i < n * 2; i++) { const a = (i / (n * 2)) * Math.PI * 2 + (rr() - 0.5) * 0.25, q = (i % 2 ? 0.2 : 0.44) * (0.75 + rr() * 0.5); const x = h.x + Math.cos(a) * q, y = h.y + Math.sin(a) * q; i ? c.lineTo(x, y) : c.moveTo(x, y); }
+      c.closePath(); c.fillStyle = "#cbb486"; c.fill(); c.strokeStyle = "#26102a"; c.lineWidth = 0.035; c.stroke();
+      const g = c.createRadialGradient(h.x, h.y, 0.02, h.x, h.y, 0.24); g.addColorStop(0, "#5a4a2c"); g.addColorStop(1, "rgba(220,205,160,0)");
+      c.fillStyle = g; c.beginPath(); c.arc(h.x, h.y, 0.24, 0, 7); c.fill();
+      c.fillStyle = "#120a05"; jagged(c, h.x, h.y, 0.13, 0.2, rr, 10); c.fill();
+    }
+    function celeryHole(c, x, y, seed) {
+      const rr = rng(seed || 3);
+      c.fillStyle = "#d3e2a8"; jagged(c, x, y, 0.27, 0.28, rr, 14, 1.25); c.fill();
+      c.strokeStyle = "rgba(205,225,160,0.9)"; c.lineWidth = 0.02;
+      for (let k = 0; k < 7; k++) { const a = rr() * 6.28; c.beginPath(); c.moveTo(x + Math.cos(a) * 0.24, y + Math.sin(a) * 0.3); c.lineTo(x + Math.cos(a) * 0.38, y + Math.sin(a) * 0.45); c.stroke(); }
+      c.fillStyle = "#18200f"; jagged(c, x, y, 0.15, 0.3, rr, 10, 1.3); c.fill();
+    }
+    function tomatoCrater(c, p, r, hit) {
+      const rr = rng(hit.seed || 5), cx = p.x + Math.cos(hit.ang) * r * 0.38, cy = p.y + Math.sin(hit.ang) * r * 0.32;
+      c.fillStyle = "#e0573a"; jagged(c, cx, cy, r * 0.5, 0.35, rr, 12); c.fill();
+      const g = c.createRadialGradient(cx, cy, 0.02, cx, cy, r * 0.42); g.addColorStop(0, "#4a0603"); g.addColorStop(0.6, "#9c1810"); g.addColorStop(1, "#c8301f");
+      c.fillStyle = g; jagged(c, cx, cy, r * 0.4, 0.35, rr, 12); c.fill();
+      c.fillStyle = "#e8d27a"; for (let k = 0; k < 6; k++) { c.beginPath(); c.ellipse(cx + (rr() - 0.5) * r * 0.5, cy + (rr() - 0.5) * r * 0.4, 0.035, 0.055, rr() * 3, 0, 7); c.fill(); }
+    }
+    function drawFire(c) {
+      if (!B.fire.length) return;
+      c.save(); c.globalCompositeOperation = "lighter";
+      for (const f of B.fire) {
+        const t = 1 - f.life / f.max, col = t < 0.2 ? "255,240,190" : t < 0.5 ? "255,160,55" : "210,65,15", al = (1 - t) * 0.5;
+        const g = c.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.size); g.addColorStop(0, `rgba(${col},${al})`); g.addColorStop(1, `rgba(${col},0)`);
+        c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y, f.size, 0, 7); c.fill();
+      }
+      c.restore();
+    }
+    function renderEmissive(c, p) {
+      faceGlow(c, p.head, FRONTCUTS, B.headHoles);
+      drawFire(c);
+      const th = B.throw;
+      if (th && th.holding) { const hd = p.arms[th.side > 0 ? 1 : 0].hd; if (hd.y > 15.1) { c.save(); c.translate(hd.x, hd.y + 0.15); c.scale(1, -1); drawVeg(c, th.type, RAD[th.type], th.ph === "hold" ? Math.sin(T * 40) * 0.03 : 0); c.restore(); } }
+    }
+    // paint the boss into a target canvas: body on the offscreen canvas, night lighting on its pixels only, then what glows
+    // (k: the canvases' pixel scale; ox, oy: the feet on screen; s: pixels per metre)
+    function paintBoss(tc, ocv, oct, k, ox, oy, s, pose, fog) {
+      oct.setTransform(1, 0, 0, 1, 0, 0); oct.clearRect(0, 0, ocv.width, ocv.height);
+      oct.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
+      if (pose.side) renderSide(oct, pose); else renderBody(oct, pose);
+      const hx = ox + pose.head.x * s, hy = oy - pose.head.y * s, rx = ox - 14 * s, ry = oy - 21 * s, rw = 28 * s, rh = 23 * s;
+      oct.setTransform(k, 0, 0, k, 0, 0); oct.globalCompositeOperation = "source-atop";
+      let g = oct.createLinearGradient(0, oy - 17 * s, 0, oy); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(3,3,8,0.55)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
+      g = oct.createRadialGradient(hx, hy, 0, hx, hy, 7.5 * s); g.addColorStop(0, `rgba(255,150,60,${0.3 * B.cand})`); g.addColorStop(1, "rgba(255,150,60,0)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
+      g = oct.createLinearGradient(ox - 6 * s, 0, ox + 6 * s, 0); g.addColorStop(0, "rgba(0,0,0,0.3)"); g.addColorStop(0.6, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(150,170,220,0.1)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
+      if (fog > 0) { oct.fillStyle = `rgba(18,22,34,${fog})`; oct.fillRect(rx, ry, rw, rh); }
+      oct.globalCompositeOperation = "source-over";
+      tc.save(); tc.setTransform(1, 0, 0, 1, 0, 0); tc.drawImage(ocv, 0, 0); tc.restore();
+      tc.save(); tc.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
+      if (pose.side) faceGlow(tc, pose.head, SIDECUTS, [], 0.25); else renderEmissive(tc, pose);
+      tc.restore();
+      tc.save(); tc.setTransform(k, 0, 0, k, 0, 0); tc.globalCompositeOperation = "lighter";
+      const fireGlow = Math.min(1, B.fire.length / 90), gr = (5.5 + fireGlow * 9) * s;
+      g = tc.createRadialGradient(hx, hy, 0, hx, hy, gr); g.addColorStop(0, `rgba(255,140,50,${0.13 * B.cand + 0.3 * fireGlow})`); g.addColorStop(1, "rgba(255,140,50,0)");
+      tc.fillStyle = g; tc.beginPath(); tc.arc(hx, hy, gr, 0, 7); tc.fill(); tc.restore();
+    }
+    // (its body is painted on a canvas of its own the field's size, so the night lighting falls on it alone)
+    const bc = document.createElement("canvas"), bctx = bc.getContext("2d");
+    function drawBoss() {
+      if (bc.width !== cv.width || bc.height !== cv.height) { bc.width = cv.width; bc.height = cv.height; }
+      const o = P(B.x, 0, B.z), s = o.s, ox = o.x + shx, oy = o.y + shy;
+      if (o.behind) return;
+      const a = P(B.x, 0, B.z - 1.5), b = P(B.x, 0, B.z + 1.5), ry = (a.y - b.y) / 2;
+      ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, (B.state === "downed" || B.state === "crumple" ? 7 : 4.5) * s, Math.max(1, ry), 0, 0, 7); ctx.fill();
+      // it comes in side on, the sack on its back, then turns to face you
+      paintBoss(ctx, bc, bctx, dpr, ox, oy, s, B.state === "enter" ? sidePose() : B.pose, clamp((B.z - 24) / 50, 0, 0.4));
+    }
+    // ---- (from the test page, lines 1617-1654)
+    // ---------------------------------------------------------------- drawing: flying things, the launcher, the HUD
+    function drawVeg(c, type, r, rot) {
+      c.save(); c.rotate(rot);
+      if (type === "pumpkin" || type === "acorn") {
+        const dark = type === "acorn", g = c.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r * 1.25);
+        g.addColorStop(0, dark ? "#4d6b3a" : "#e08a35"); g.addColorStop(0.6, dark ? "#22371e" : "#b0521a"); g.addColorStop(1, dark ? "#0c160b" : "#5a2208");
+        c.fillStyle = g; c.strokeStyle = dark ? "rgba(5,10,5,0.7)" : "rgba(70,25,5,0.7)"; c.lineWidth = r * 0.05;
+        const ry = dark ? r : r * 0.86;
+        for (const k of [-0.62, 0.62, -0.32, 0.32, 0]) { c.beginPath(); c.ellipse(k * r, 0, r * (0.48 - Math.abs(k) * 0.16), ry, 0, 0, 7); c.fill(); c.stroke(); }
+        if (dark) { c.fillStyle = "rgba(220,130,40,0.55)"; c.beginPath(); c.ellipse(r * 0.35, r * 0.45, r * 0.22, r * 0.14, 0.4, 0, 7); c.fill(); }
+        c.fillStyle = "#3b3a1e"; c.fillRect(-r * 0.08, -ry - r * 0.18, r * 0.16, r * 0.24);
+      } else if (type === "gourd") {
+        const g = c.createRadialGradient(-r * 0.3, -r * 0.2, r * 0.05, 0, r * 0.2, r * 1.3); g.addColorStop(0, "#e6c24a"); g.addColorStop(1, "#6e5410"); c.fillStyle = g;
+        c.beginPath(); c.moveTo(0, -r * 1.1); c.bezierCurveTo(r * 0.5, -r * 1.1, r * 0.35, -r * 0.2, r * 0.85, r * 0.4); c.bezierCurveTo(r * 1.05, r * 1.1, -r * 1.05, r * 1.1, -r * 0.85, r * 0.4); c.bezierCurveTo(-r * 0.35, -r * 0.2, -r * 0.5, -r * 1.1, 0, -r * 1.1); c.fill();
+        c.fillStyle = "rgba(90,70,15,0.8)"; for (let i = 0; i < 9; i++) { const a = i * 2.4, d = r * 0.55 * ((i % 3) / 3 + 0.3); c.beginPath(); c.arc(Math.cos(a) * d * 0.8, r * 0.35 + Math.sin(a) * d * 0.6, r * 0.07, 0, 7); c.fill(); }
+      } else {
+        const g = c.createLinearGradient(-r, 0, r, 0); g.addColorStop(0, "#7a5530"); g.addColorStop(0.45, "#d0a46a"); g.addColorStop(1, "#6a4826"); c.fillStyle = g;
+        c.beginPath(); c.moveTo(-r * 0.35, -r * 1.15); c.quadraticCurveTo(0, -r * 1.3, r * 0.35, -r * 1.15); c.bezierCurveTo(r * 0.4, -r * 0.3, r * 0.95, 0, r * 0.85, r * 0.6);
+        c.bezierCurveTo(r * 0.7, r * 1.15, -r * 0.7, r * 1.15, -r * 0.85, r * 0.6); c.bezierCurveTo(-r * 0.95, 0, -r * 0.4, -r * 0.3, -r * 0.35, -r * 1.15); c.fill();
+      }
+      c.restore();
+    }
+    function drawFlying() {
+      for (const q of projs) {
+        if (q.z < 0.3) continue; const sp = P(q.x, 0, q.z), rr = q.r * 1.15 * sp.s;
+        ctx.fillStyle = `rgba(0,0,0,${0.45 * clamp(1 - q.y / 22, 0.15, 1)})`; ctx.beginPath(); ctx.ellipse(sp.x, sp.y, rr, rr * 0.3, 0, 0, 7); ctx.fill();
+      }
+      const items = projs.map((q) => ({ z: q.z, q })).concat(parts.map((p) => ({ z: p.z, p }))).sort((a, b) => b.z - a.z);
+      for (const it of items) {
+        if (it.z < 0.3) continue;
+        if (it.q) { const q = it.q, p = P(q.x, q.y, q.z); ctx.save(); ctx.translate(p.x, p.y); drawVeg(ctx, q.type, q.r * p.s, q.rot); ctx.restore(); continue; }
+        const pt = it.p, p = P(pt.x, pt.y, pt.z), sz = Math.max(1, pt.size * p.s), al = clamp(pt.life / Math.min(0.5, pt.max), 0, 1);
+        if (pt.kind === "dust") { const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, sz); g.addColorStop(0, `rgba(${pt.col},${0.22 * (pt.life / pt.max)})`); g.addColorStop(1, `rgba(${pt.col},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, 7); ctx.fill(); }
+        else if (pt.kind === "drip") { ctx.fillStyle = `rgba(${pt.col},${0.8 * al})`; ctx.beginPath(); ctx.ellipse(p.x, p.y, sz * 0.7, sz * 1.2, 0, 0, 7); ctx.fill(); }
+        else if (pt.kind === "seed") { ctx.fillStyle = `rgba(236,222,180,${al})`; ctx.beginPath(); ctx.ellipse(p.x, p.y, sz * 0.5, sz * 0.8, pt.rot || 0, 0, 7); ctx.fill(); }
+        else { ctx.fillStyle = `rgba(${pt.col},${al})`; ctx.beginPath(); ctx.ellipse(p.x, p.y, sz, sz * 0.7, pt.rot || 0, 0, 7); ctx.fill(); }
+      }
+    }
+    // ---- (from the test page, lines 1665-1674)
+    function drawSplats() {
+      for (const s of splats) {
+        const al = clamp(s.life / (s.max * 0.35), 0, 1) * 0.92;
+        const g = ctx.createLinearGradient(0, s.y0, 0, s.y); g.addColorStop(0, `rgba(${s.col},0)`); g.addColorStop(1, `rgba(${s.col},${al * 0.55})`);
+        ctx.fillStyle = g; ctx.fillRect(s.x - s.r * 0.32, s.y0, s.r * 0.64, s.y - s.y0);
+        ctx.fillStyle = `rgba(${s.col},${al})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.8, 0, 7); ctx.fill();
+        for (const [dx, dy, rr] of s.dots) { ctx.beginPath(); ctx.arc(s.x + dx * s.r * 0.8, s.y + dy * s.r * 0.6, s.r * rr, 0, 7); ctx.fill(); }
+      }
+    }
+    function text(t, x, y, font, col, align = "center") { ctx.font = font; ctx.textAlign = align; ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillText(t, x + 1, y + 1); ctx.fillStyle = col; ctx.fillText(t, x, y); }
+
+    // ---- the street, drawn with the game's camera (the gun's view from the kerb, or the cart's from behind it)
+    const q4 = (a, b, c, d) => { if (a.behind || b.behind || c.behind || d.behind) return false; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath(); return true; };
+    const wq = (pts, fill) => { if (pathClip(pts)) { ctx.fillStyle = fill; ctx.fill(); } };
+    function lightLevel(L) { const f = L.bad ? 0.75 + 0.25 * Math.sin(T * 37 + L.ph) * (Math.sin(T * 0.7 + L.ph) > 0.6 ? 1 : 0.1) : 1; return Math.max(0, f * (1 - L.dip)); }
+    function drawSky() {
+      const hz = Math.max(0, HZ);
+      const g = ctx.createLinearGradient(0, Math.min(0, hz - H), 0, hz + 1); g.addColorStop(0, "#04050a"); g.addColorStop(0.6, "#0b0f1a"); g.addColorStop(1, "#1f1a1c");
+      ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, hz + 41);
+      for (const s of stars) { const q = dirP(s.az, s.el); if (q.behind || q.y > hz || q.x < 0 || q.x > W) continue; ctx.fillStyle = `rgba(220,225,240,${s.a * 0.6})`; ctx.fillRect(q.x, q.y, 1.2, 1.2); }
+      const m = dirP(0.42, 0.22);
+      if (!m.behind && m.y < hz) {
+        const r = Math.max(10, F * 0.03), mg = ctx.createRadialGradient(m.x, m.y, r * 0.5, m.x, m.y, r * 4.7);
+        mg.addColorStop(0, "rgba(200,205,220,0.18)"); mg.addColorStop(1, "rgba(200,205,220,0)"); ctx.fillStyle = mg; ctx.fillRect(m.x - r * 5, m.y - r * 5, r * 10, r * 10);
+        ctx.fillStyle = "#cfcab8"; ctx.beginPath(); ctx.arc(m.x, m.y, r, 0, 7); ctx.fill();
+      }
+      for (const c of clouds) {
+        const q = dirP(c.az, c.el); if (q.behind) continue;
+        const w = c.w * F, h = c.h * F;
+        ctx.fillStyle = "rgba(13,15,23,0.86)"; ctx.beginPath(); ctx.ellipse(q.x, q.y, w / 2, h / 2, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(q.x + w * 0.2, q.y - h * 0.35, w * 0.3, h * 0.45, 0, 0, 7); ctx.fill();
+      }
+    }
+    function drawGround() {
+      const hz = Math.max(0, HZ), g = ctx.createLinearGradient(0, hz, 0, H + 40); g.addColorStop(0, "#1a1a1d"); g.addColorStop(1, "#0c0c0e"); ctx.fillStyle = g; ctx.fillRect(-40, hz, W + 80, H - hz + 80);
+      // the pavements, the kerbs and the yellow lines down the middle
+      for (const s of [-1, 1]) {
+        wq([[s * 6, 0, -30], [s * 6, 0, 120], [s * 8.5, 0, 120], [s * 8.5, 0, -30]], "#1c1c20");
+        wq([[s * 6, 0, -30], [s * 6, 0, 120], [s * 6.12, 0.15, 120], [s * 6.12, 0.15, -30]], "#2a2a2e");
+      }
+      for (const o of [-0.13, 0.03]) wq([[o, 0, -30], [o, 0, 120], [o + 0.1, 0, 120], [o + 0.1, 0, -30]], "#6d5d22");
+    }
+    function drawEnd() {
+      const z = 120; if (q4(P(-30, 0, z), P(30, 0, z), P(30, 24, z), P(-30, 24, z))) { ctx.fillStyle = "#19171a"; ctx.fill(); }
+      for (const w of endWins) if (q4(P(w.x, w.y, z), P(w.x + 1.2, w.y, z), P(w.x + 1.2, w.y + 1.7, z), P(w.x, w.y + 1.7, z))) { ctx.fillStyle = w.lit ? `rgba(${200 + w.warm * 40},${140 + w.warm * 40},${70 + w.warm * 30},0.8)` : "#0b0d12"; ctx.fill(); }
+    }
+    function drawBuildings(zmin, zmax) {
+      const list = blds.filter((b) => b.z2 > zmin && b.z1 < zmax).sort((a, b) => b.z1 - a.z1);
+      for (const b of list) {
+        const z1 = Math.max(b.z1, zmin), z2 = Math.min(b.z2, zmax), X = b.side * 8.5;
+        if (!q4(P(X, 0, z1), P(X, 0, z2), P(X, b.h, z2), P(X, b.h, z1))) continue;
+        ctx.fillStyle = b.col; ctx.fill();
+        const zm = (z1 + z2) / 2, g = ctx.createLinearGradient(0, P(X, 0, zm).y, 0, P(X, 6, zm).y);
+        g.addColorStop(0, "rgba(255,150,70,0.07)"); g.addColorStop(1, "rgba(255,150,70,0)"); ctx.fillStyle = g; ctx.fill();
+        if (q4(P(X, b.h - 0.6, z1), P(X, b.h - 0.6, z2), P(X, b.h, z2), P(X, b.h, z1))) { ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill(); }
+        if (b.z1 >= zmin) { const a = P(X, 0, b.z1), c = P(X, b.h, b.z1); ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke(); }
+        for (const w of b.wins) {
+          if (w.z < z1 || w.z > z2) continue;
+          if (!q4(P(X, w.y, w.z), P(X, w.y, w.z + 1.1), P(X, w.y + 1.7, w.z + 1.1), P(X, w.y + 1.7, w.z))) continue;
+          if (w.lit) { const f = w.fl ? 0.6 + 0.4 * Math.sin(T * 9 + w.ph) : 1; ctx.fillStyle = `rgba(${200 + w.warm * 40},${140 + w.warm * 40},${70 + w.warm * 30},${0.8 * f})`; } else ctx.fillStyle = "#0b0d12";
+          ctx.fill();
+        }
+        const sa = Math.max(z1, b.z1 + 0.5), sb = Math.min(z2, b.z2 - 0.5);
+        if (sb > sa && q4(P(X, 0.4, sa), P(X, 0.4, sb), P(X, 3.3, sb), P(X, 3.3, sa))) { ctx.fillStyle = b.shopLit ? "#33251a" : "#0a0c10"; ctx.fill(); }
+      }
+    }
+    function drawPool(L) {
+      const f = lightLevel(L), x = L.x - Math.sign(L.x) * 1.6, c = P(x, 0, L.z), a = P(x, 0, L.z - 3.5), b = P(x, 0, L.z + 3.5);
+      if (c.behind || a.behind) return;
+      const ry = (a.y - b.y) / 2, cy = (a.y + b.y) / 2, rx = 3.6 * c.s; if (rx < 1 || ry <= 0) return;
+      ctx.save(); ctx.translate(c.x, cy); ctx.scale(1, ry / rx);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx); g.addColorStop(0, `rgba(255,170,90,${0.2 * f})`); g.addColorStop(1, "rgba(255,170,90,0)");
+      ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+    }
+    function drawLight(L) {
+      const f = lightLevel(L), base = P(L.x, 0, L.z), top = P(L.x, 5.6, L.z), lamp = P(L.x - Math.sign(L.x) * 1.1, 5.45, L.z);
+      if (base.behind) return;
+      ctx.strokeStyle = "#15171c"; ctx.lineWidth = Math.max(1, 0.18 * base.s); ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.lineTo(lamp.x, lamp.y); ctx.stroke();
+      ctx.fillStyle = "#0e0f12"; ctx.beginPath(); ctx.ellipse(lamp.x, lamp.y, 0.45 * lamp.s, 0.18 * lamp.s, 0, 0, 7); ctx.fill();
+      const r = 3.2 * lamp.s, g = ctx.createRadialGradient(lamp.x, lamp.y + 0.12 * lamp.s, 0, lamp.x, lamp.y, r);
+      g.addColorStop(0, `rgba(255,195,120,${0.6 * f})`); g.addColorStop(0.15, `rgba(255,160,80,${0.18 * f})`); g.addColorStop(1, "rgba(255,140,60,0)");
+      ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(lamp.x, lamp.y, r, 0, 7); ctx.fill(); ctx.globalCompositeOperation = "source-over";
+    }
+    function drawCar(c) {
+      const s = c.side, xi = s * 4.0, xo = s * 5.8, z0 = c.z, z1 = c.z + 4.4;
+      const f = (pts, col) => { if (q4(...pts.map((p) => P(...p)))) { ctx.fillStyle = col; ctx.fill(); } };
+      f([[xi, 0.32, z0], [xi, 0.32, z1], [xi, 1.0, z1], [xi, 1.0, z0]], c.col);
+      f([[xi, 0.32, z0], [xo, 0.32, z0], [xo, 1.0, z0], [xi, 1.0, z0]], shadeRGB(c.col, 0.7));
+      f([[xi, 1.0, z0], [xo, 1.0, z0], [xo, 1.0, z1], [xi, 1.0, z1]], shadeRGB(c.col, 1.25));
+      const ci = xi + s * 0.15, co = xo - s * 0.15, c0 = z0 + 1.1, c1 = z0 + 3.2;
+      f([[ci, 1.0, c0], [ci, 1.0, c1], [ci, 1.45, c1], [ci, 1.45, c0]], "#0d1016");
+      f([[ci, 1.0, c0], [co, 1.0, c0], [co, 1.45, c0], [ci, 1.45, c0]], "#11151c");
+      f([[ci, 1.45, c0], [co, 1.45, c0], [co, 1.45, c1], [ci, 1.45, c1]], shadeRGB(c.col, 1.1));
+      for (const wz of [z0 + 0.8, z1 - 0.8]) { const w = P(xi, 0.33, wz); if (w.behind) continue; ctx.fillStyle = "#07080a"; ctx.beginPath(); ctx.ellipse(w.x, w.y, Math.max(1, 0.12 * w.s), 0.33 * w.s, 0, 0, 7); ctx.fill(); }
+      for (const tx of [xi + s * 0.15, xo - s * 0.35]) f([[tx, 0.8, z0], [tx + s * 0.2, 0.8, z0], [tx + s * 0.2, 0.92, z0], [tx, 0.92, z0]], "rgba(120,20,15,0.8)");
+    }
+    // everything of the street and Squash Head, far to near, shaken by its stomps
+    function street() {
+      shx = shake ? (Math.random() - 0.5) * 2 * shake : 0; shy = shake ? (Math.random() - 0.5) * 2 * shake : 0;
+      ctx.save(); ctx.translate(shx, shy);
+      drawSky(); drawGround(); drawEnd();
+      for (const L of lights) drawPool(L);
+      ctx.globalCompositeOperation = "source-over";
+      const bz = B.z;
+      drawBuildings(bz, 200);
+      const objs = cars.map((c) => ({ z: c.z, f: () => drawCar(c) })).concat(lights.map((l) => ({ z: l.z, f: () => drawLight(l) }))).sort((a, b) => b.z - a.z);
+      for (const o of objs) if (o.z > bz) o.f();
+      ctx.restore();
+      if (B.state !== "dead") { try { drawBoss(); } finally { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); } }
+      ctx.save(); ctx.translate(shx, shy);
+      drawBuildings(-30, bz);
+      for (const o of objs) if (o.z <= bz) o.f();
+      ctx.restore();
+    }
+
+    // ---- the round, frame by frame
+    // the cabinets come up once its entrance is over (and go for good when it's down)
+    function openCabinets() {
+      const g = S.gun;
+      if (g && g.phase === "wait" && S.phase === "gun") { g.phase = "table"; note("Grab an MP 15!", 2400); hud(); }
+    }
+    // the round's over, lost: Riley down (or out of MP 15s, or the lob missed): the end card after a moment
+    function endRound(why, wait) {
+      if (result.why) return;
+      result.why = why; B.throw = null; duck(false); TRIG.on = false;
+      if (S.gun && !S.bossCart) S.gun.phase = "over";
+      S.phase = "settle"; S.timer = wait; S.after = endLevel;
+    }
+    // knocked down: the MP 15 and the cabinets go, the Cart Launcher rolls in from the left, the notebook comes up
+    function toCart() {
+      S.bossCart = true; document.body.classList.remove("gunmode");
+      hideRelive(); shotNote(""); calm();
+      S.spudsLeft = BOSS.lobs; S.loaded = false; S.psi = 0; S.lastPsi = 0; S.valveTarget = 1; S.valve = 1; S.hole = 6; S.yaw = 0; S.angDisp = ang();
+      S.arc = null; S.curArc = []; S.splats = []; S.arcView = null; S.view = null; S.potato = null;
+      S.phase = "wait"; S.lx = -9; S.camHoldX = 0; camHome(); CAM.x = 0;
+      MAP.zoom = 1; MAP.ox = MAP.oz = 0; MAP.pin = null;
+      rollWind(); cart = { t: 0 }; hud();
+    }
+    function bookDone() {
+      S.phase = "aim"; hud();
+      note("LOAD, pump, then FIRE: come down on the stem, from above.", 4000);
+    }
+    // all five lobs missed: it hauls itself back up and roars over Riley
+    function rise() { B.from = heapPose(); B.state = "rise"; B.t = 0; sRoar(1, 0, 0.85, 2.6); B.roarGlow = 1; result.why = "lob"; }
+    function win() {
+      S.bossWon = true; explode();
+      S.bonus += BOSS.stemPts; (S.bonusItems = S.bonusItems || []).push("the stem");
+      shotNote(`Right on the stem! Squash Head is destroyed. +${BOSS.stemPts}`);
+    }
+    function tick(dt) {
+      T += dt;
+      // the round's begun: it's heard before it's seen, off to the left
+      if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -22; }
+      if (B.state !== "preview" && S.phase !== "title" && !S.muted && actx && !amb) startAmbient();
+      // stepping aside: A / D (the cart levels' roll keys) or the ◀ ▶ buttons, while the fight's on
+      const mv = clamp((S.roll || 0) + stepHold, -1, 1);
+      if (live() && !S.bossCart && mv) riley.x = clamp(riley.x + mv * BOSS.step * dt, -BOSS.stepMax, BOSS.stepMax);
+      if (S.phase !== "title") updBoss(dt);
+      B.pose = B.state === "crumple" ? lerpPose(B.from, heapPose(), easeIn(B.k)) : B.state === "rise" ? lerpPose(B.from, standPose(), easeIO(clamp(B.t / 2.4, 0, 1))) : B.state === "downed" || B.state === "dead" ? heapPose() : standPose();
+      updFire(dt);
+      // the cabinets: away until the entrance is over, and once it's down
+      const g = S.gun;
+      if (g) { const want = g.phase === "wait" || knocked() || S.bossCart ? 1 : 0; g.hide = (g.hide == null ? 1 : g.hide) + (want - (g.hide == null ? 1 : g.hide)) * Math.min(1, dt * 4); }
+      // out of MP 15s before it's down
+      if (g && !S.bossCart && g.phase === "over" && !result.why && !knocked()) { result.why = "out"; B.throw = null; duck(false); }
+      // the squash in the air
+      for (const q of projs) {
+        if (q.dead) continue;
+        const px = q.x, py = q.y, pz = q.z;
+        if (q.phase === "fly") {
+          q.t += dt / q.dur; const t = Math.min(q.t, 1);
+          q.x = lerp(q.x0, q.x1, t); q.z = lerp(q.z0, q.z1, t); q.y = lerp(q.y0, q.y1, t) + q.h * 4 * t * (1 - t);
+          if (dt > 0) { q.vx = (q.x - px) / dt; q.vy = (q.y - py) / dt; q.vz = (q.z - pz) / dt; }
+          if (q.t >= 1) {
+            if (!q.wide && live() && !knocked() && Math.abs(q.x1 - riley.x) < 0.85) hitPlayer(q);
+            else { q.phase = "past"; sWhoosh(0.5, clamp((q.x1 - riley.x) / 2, -1, 1), 0.35, 900, 300); }
+          }
+        } else {
+          q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+          if (q.z < 0.25) { q.dead = true; sSplat(0.45, 0.85, clamp((q.x - riley.x) / 2, -1, 1)); }
+        }
+        q.rot += q.spin * dt;
+      }
+      projs = projs.filter((q) => !q.dead);
+      for (const p of parts) {
+        p.vy -= p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt;
+        if (p.rot !== undefined) p.rot += p.vr * dt;
+        if (p.kind !== "dust" && p.y < 0) { p.y = 0; p.vy *= -0.25; p.vx *= 0.5; p.vz *= 0.5; }
+      }
+      parts = parts.filter((p) => p.life > 0 && p.z > 0.2);
+      for (const s of splats) { s.v += s.a * dt; s.y += s.v * dt; s.life -= dt; } splats = splats.filter((s) => s.life > 0);
+      for (const f of floats) { f.y -= 30 * dt; f.life -= dt; } floats = floats.filter((f) => f.life > 0);
+      for (const L of lights) L.dip = Math.max(0, L.dip - dt * 2.5);
+      shake *= Math.exp(-dt * 5); if (shake < 0.2) shake = 0;
+      flash = Math.max(0, flash - dt * 1.2); hurt = Math.max(0, hurt - dt * 1.6);
+      if (msg.t < 900) msg.t -= dt;
+      if (B.state === "dead") deadT += dt;
+      // down on the street: then the cart
+      if (cartT > 0 && (cartT -= dt) <= 0 && !S.bossCart) toCart();
+      if (cart && S.phase === "wait") {
+        cart.t += dt;
+        const k = Math.min(1, cart.t / 2.4);
+        S.lx = lerp(-9, 0, 1 - Math.pow(1 - k, 3));
+        if (k >= 1 && !book) { S.lx = 0; S.camHoldX = null; cart = null; book = { phase: "rise", t: 0 }; }
+      }
+      updBook(dt);
+    }
+
+    // ---- on the screen, over the place: the squash flying at you, the bits, Squash Head's health and Riley's
+    function hudBar(x, y, w, k, back, fill, label) {
+      ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(x - 2, y - 2, w + 4, 12); ctx.fillStyle = back; ctx.fillRect(x, y, w, 8);
+      ctx.fillStyle = fill; ctx.fillRect(x, y, w * clamp(k, 0, 1), 8);
+      if (label) text(label, x + w / 2, y - 5, "600 10px system-ui, sans-serif", "#d8cbb4");
+    }
+    // the step-aside buttons, either side of the field, halfway down (only while the fight's on)
+    const stepBtns = () => { const s = clamp(Math.min(W, H) * 0.09, 34, 52), y = H * 0.5 - s / 2; return [{ d: -1, x: 8, y, s }, { d: 1, x: W - 8 - s, y, s }]; };
+    const showSteps = () => !S.bossCart && S.phase === "gun" && fighting() && riley.hp > 0;
+    function over() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, "rgba(120,10,0,0)"); g.addColorStop(1, `rgba(120,10,0,${0.55 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+      drawSplats();
+      if (flash > 0) { ctx.fillStyle = `rgba(255,220,170,${0.8 * flash * flash})`; ctx.fillRect(0, 0, W, H); }
+      if (S.phase !== "title" && B.state !== "intro" && B.state !== "enter" && B.state !== "preview" && B.state !== "dead") {
+        const w = Math.min(W * 0.6, 420), x = W / 2 - w / 2;
+        hudBar(x, 16, w, B.hp / 100, "#3a0d08", "#9c2414", "S Q U A S H   H E A D");
+        ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [75, 50, 25, 5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
+      }
+      if (S.phase !== "title" && !S.bossCart) {
+        const w = Math.min(150, W * 0.3);
+        hudBar(12, 44, w, riley.hp / 100, "#24301c", "#7a9a4a", "");
+        text(`RILEY ${riley.hp}%`, 12, 38, "600 10px system-ui, sans-serif", "#d8cbb4", "left");
+      }
+      if (showSteps()) for (const b of stepBtns()) {
+        const on = stepHold === b.d || (S.roll || 0) === b.d;
+        ctx.fillStyle = on ? "rgba(217,130,43,.55)" : "rgba(20,22,28,.6)"; ctx.strokeStyle = "rgba(234,223,200,.7)"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.s, b.s, 10) : ctx.rect(b.x, b.y, b.s, b.s); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#eadfc8"; ctx.beginPath(); const cx = b.x + b.s / 2, cy = b.y + b.s / 2, r = b.s * 0.22;
+        ctx.moveTo(cx - b.d * r, cy); ctx.lineTo(cx + b.d * r * 0.8, cy - r); ctx.lineTo(cx + b.d * r * 0.8, cy + r); ctx.closePath(); ctx.fill();
+      }
+      if (msg.text && msg.t > 0) { ctx.globalAlpha = clamp(msg.t, 0, 1); text(msg.text, W / 2, H * 0.2, "italic 17px Georgia, serif", "#eadfc8"); ctx.globalAlpha = 1; }
+      for (const f of floats) { ctx.globalAlpha = clamp(f.life, 0, 1); text(f.txt, f.x, f.y, f.big ? "700 44px Georgia, serif" : "700 16px system-ui, sans-serif", f.col); ctx.globalAlpha = 1; }
+      drawBook();
+    }
+    // a tap: the step buttons (held), or the notebook's Close button
+    function press(p, e) {
+      if (book && book.phase === "read" && book.btn) {
+        const sc = book.sc || 1, vx = (p.x - (W / 2) * (1 - sc)) / sc, vy = (p.y - H * (1 - sc)) / sc, b = book.btn;
+        if (vx >= b.x0 - 6 && vx <= b.x1 + 6 && vy >= b.y0 - 6 && vy <= b.y1 + 6) { closeBook(); return true; }
+        return true; // (nothing else till it's closed)
+      }
+      if (book || (cart && S.phase === "wait")) return true;
+      if (showSteps()) for (const b of stepBtns()) if (p.x >= b.x - 4 && p.x <= b.x + b.s + 4 && p.y >= b.y - 4 && p.y <= b.y + b.s + 4) { stepHold = b.d; stepId = e.pointerId; return true; }
+      return false;
+    }
+    function releaseStep(e) { if (stepId === e.pointerId) { stepHold = 0; stepId = null; } }
+
+    // ---- the MP 15 phase: the hooks the gun's code asks a place for (gp, as the Reservoir's)
+    const gp = {
+      // (no pulls of targets: it throws its own; no Re-live it for these shots; the cabinets wait for the entrance)
+      noFollow: true, noPulls: true, noRelive: true, holdTable: true, minPitch: 0.25,
+      reset() {},
+      drift() {}, floor: () => 0,
+      // a mini spud: does it stop here? A squash it meets bursts (the barrel back, +3, once a shot); Squash Head's
+      // plane: the first of a shot to hit it counts, the rest just spray
+      pellet(pl, hits) {
+        if (S.bossCart) return "stop";
+        for (const q of projs) if (!q.dead && q.z > 0.4 && Math.hypot(pl.x - q.x, pl.y - q.y, pl.z - q.z) < q.r + 0.15) {
+          burstProj(q); result.downed++;
+          S.bonus += BOSS.squashPts; (S.bonusItems = S.bonusItems || []).push("squash");
+          const shot = pl.shot, g = S.gun;
+          shot.items.push(`Squash shot down! +${BOSS.squashPts}${shot.refund ? "" : ", barrel back"}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
+          if (!shot.refund && g && g.shots > 0) { shot.refund = true; g.shots--; S.spudsLeft++; }
+          hud();
+          return "hit";
+        }
+        if (!pl.passed && pl.z >= B.z - 0.6) {
+          pl.passed = true;
+          if (fighting()) {
+            const hh = hitBoss(pl.x - B.x, pl.y);
+            if (hh) { if (!pl.shot.bossHit) { pl.shot.bossHit = true; damage(hh, pl.shot); } else spray({ x: pl.x, y: pl.y, z: B.z - 0.6 }, ["217,140,60", "120,150,70"], 4); return "hit"; }
+          }
+        }
+        if (pl.y <= 0 || Math.abs(pl.x) > 8.5 || pl.z > Math.min(119, B.z + 4)) return "stop";
+        return null;
+      },
+      // the MP 15's box under the field: Squash Head's health, Riley's, the barrels and the cabinets left
+      hud(g, held) {
+        const left = g.guns.filter((x) => x.ready).length + Math.max(0, (lvl().racks || 1) - 1 - (g.rack || 0)) * GUN.cases;
+        $("gunOut").innerHTML = `<span class="pz">🎃 ${Math.ceil(B.hp)}%</span><span class="sep"> · </span>Riley ${riley.hp}%`;
+        $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span>`;
+      },
+    };
+
+    // ---- the lob: the cart's spud against the heap. Only coming down on the stem, from above, counts; the side of
+    // the head (or its neck) glances it off; into the heap it just thumps in
+    function collide(p) {
+      if (!S.bossCart || B.state !== "downed" || p.bonk || p.gold) return null;
+      const st = stemWorld(), hd = B.pose.head, dxs = (p.x - st.x) / 0.6, dzs = (p.z - st.z) / 1.0;
+      if (p.vy < 0 && dxs * dxs + dzs * dzs < 1 && p.y < st.y + 0.35 && p.y > st.y - 0.55) return { kind: "stem", land: [p.x, p.y, p.z], at: [st.x, st.y, st.z] };
+      const hx = (p.x - B.x - hd.x) / (1.75 * HEADSX), hy = (p.y - hd.y + 0.4) / 1.5, hz = (p.z - B.z) / 1.6;
+      const neck = Math.abs(p.x - B.x - hd.x) < 0.75 * HEADSX && p.y > hd.y + 0.4 && p.y < hd.y + 2.95 && Math.abs(p.z - B.z) < 0.8;
+      if (hx * hx + hy * hy + hz * hz < 1 || neck) {
+        p.bonk = true; p.vx = -p.vx * 0.3 + Math.sign(p.x - B.x - hd.x || 1) * 2; p.vz = -p.vz * 0.25; p.vy = Math.abs(p.vy) * 0.3 + 1.5;
+        sThud(0.6); spray({ x: p.x, y: p.y, z: p.z }, ["210,165,100", "232,140,50"], 8);
+        addPre("It glanced off the side of its head (the stem, from above!)");
+        return null;
+      }
+      if (p.y < 4.2 && Math.abs(p.x - B.x) < 7 && Math.abs(p.z - B.z) < 2.5) return { kind: "heap", land: [p.x, p.y, p.z], at: [p.x, p.y, p.z] };
+      return null;
+    }
+    const spudsLeftNote = () => (S.spudsLeft > 0 ? ` · ${S.spudsLeft} spud${S.spudsLeft === 1 ? "" : "s"} left in the cart` : "");
+    function landOn(hit) {
+      if (hit.kind === "stem") { win(); return true; }
+      if (hit.kind === "heap") { sThud(0.4); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "THUMP!", t: 0 }); shotNote(`Thump! Into the heap. The stem, from above${spudsLeftNote()}`); return true; }
+      return false;
+    }
+    // "Missed the stem: 3.2 m short, 1.5 m left"
+    function missNote(x, z) {
+      if (!S.bossCart) return "";
+      const st = stemWorld(), dz = z - st.z, dx = x - st.x, out = [];
+      if (Math.abs(dz) >= 0.1) out.push(`${Math.abs(dz).toFixed(1)} m ${dz < 0 ? "short" : "long"}`);
+      if (Math.abs(dx) >= 0.1) out.push(`${Math.abs(dx).toFixed(1)} m ${dx < 0 ? "left" : "right"}`);
+      return `Missed the stem${out.length ? `: ${out.join(", ")}` : ""}${spudsLeftNote()}`;
+    }
+    // the corner map: the street from above, the heap, and the stem to land on
+    function map(MX, MY, sc) {
+      ctx.fillStyle = "#3a3a40"; ctx.fillRect(MX(-8.5), MY(140), (17) * sc, MY(-30) - MY(140));
+      ctx.fillStyle = "#26262b"; ctx.fillRect(MX(-6), MY(140), 12 * sc, MY(-30) - MY(140));
+      ctx.fillStyle = "#6d5d22"; ctx.fillRect(MX(-0.05) - 0.5, MY(140), Math.max(1, 0.1 * sc), MY(-30) - MY(140));
+      ctx.fillStyle = "#2a1b18"; ctx.fillRect(MX(-30), MY(140), MX(-8.5) - MX(-30), MY(-30) - MY(140)); ctx.fillRect(MX(8.5), MY(140), MX(30) - MX(8.5), MY(-30) - MY(140));
+      if (B.state === "dead") return;
+      ctx.fillStyle = "#c98a3c"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(MX(B.x), MY(B.z), Math.max(4, 6 * sc), Math.max(2.5, 2 * sc), 0, 0, 7); ctx.fill(); ctx.stroke();
+      if (S.bossCart) { const st = stemWorld(); ctx.fillStyle = "#39ff14"; ctx.beginPath(); ctx.arc(MX(st.x), MY(st.z), 3.5, 0, 7); ctx.fill(); ctx.stroke(); }
+    }
+
+    resetBoss();
+    return { ...FLAT,
+      // (where Riley stands: on the street, a step to either side when stepping aside; looking up the street at it)
+      get eye() { return [riley.x, 1.6, 0]; },
+      get look() { return -Math.atan(0.18 * H / this.focal()); },
+      focal: () => (W < H ? W * 1.1 : Math.min(W * 0.67, H * 1.07)),
+      // (an MP 15 level till it's knocked down, then a Cart Launcher level)
+      get gun() { return !S.bossCart; },
+      gp, launchers: [], skyline: "#111114", ownSky: true, noDist: true,
+      // (the cart's view a little wider than a field's, so the heap and its stem are in it from behind the cart)
+      view: 0.72,
+      wheels: { range: [-4, 4], stop: "That's the kerb" },
+      standing: [], dyn: () => [],
+      back: street,
+      front() { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.save(); ctx.translate(shx, shy); drawFlying(); ctx.restore(); },
+      over, press, release: releaseStep, collide, landOn, missNote, rise, map,
+      // (Re-live it puts it as it was before the lob, and after)
+      keep: () => [[B, { state: B.state }]],
+      // (FIRE closes the notebook while it's open)
+      bookOpen: () => !!(book && book.phase === "read"),
+      action() { if (book) { closeBook(); return true; } return !!(cart && S.phase === "wait"); },
+      // (for the end card)
+      result: () => ({ ...result, hp: Math.ceil(B.hp), riley: riley.hp }),
+      update(dt) { if (!dt) return; if (!S.bossCart) updateGun(dt); tick(dt); },
+      reset() { resetGun(); },
+      free: () => true, spots: () => null, roofTargets: () => [],
+      // (for testing from the console)
+      peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld() }),
+      test: { hitBoss, damage, startThrow, release, toCart, closeBook, win, explode, checkStage, startCrumple },
+    };
+  }
+
   // the place on its own, from where the MP 10 will stand (?scene=mill): sky, ground, everything standing far to
   // near, then the smoke
   function drawPlaceOnly() {
