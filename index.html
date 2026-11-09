@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.27</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.28</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -12142,7 +12142,10 @@ body.lab .stage > :not(canvas) { display: none; }
 
     // ---- where Squash Head stands at each stage, as on the test page (its 960 × 600 view, 640 px focal, eye 1.6 m up,
     // horizon 68% down): far down the street, then a few stomps closer at 75%, 50% and 25%
-    const FR = [0.3, 0.2, 0.11, 0.035], Z = FR.map((f) => ((20.45 - 1.6) * 640) / (600 * 0.68 - f * 600)), TH = [75, 50, 25];
+    // (v2.28: three places, not four: far back at the crossroads (90 m), halfway (58 m), and up close (36 m). It moves up
+    // by how much of its sack it has thrown, not by damage: 60% of the squash from far back, 30% halfway, the last 10%
+    // up close (STAGE_AT: the share thrown before each step forward), so the early fight is mostly skeet)
+    const Z = [90, 58, 36], STAGE_AT = [0.6, 0.9];
     const HEADSX = 0.86; // the head's width squeeze, so it reads as a squash
     const RAD = { pumpkin: 0.55, acorn: 0.42, gourd: 0.4, butternut: 0.45 }, TYPES = ["pumpkin", "pumpkin", "acorn", "gourd", "butternut"];
     const VEGC = { pumpkin: ["217,120,40", "200,95,30", "232,170,80"], acorn: ["40,70,35", "230,160,70", "200,120,40"], gourd: ["225,190,70", "200,160,50", "240,220,140"], butternut: ["210,165,100", "232,140,50", "240,200,140"] };
@@ -12157,7 +12160,7 @@ body.lab .stage > :not(canvas) { display: none; }
       B = { x: 0, z: Z[0], stage: 0, hp: 100, state: "preview", t: 0, walkPh: 0, walking: false, lift: [0, 0], prevLift: [0, 0], throw: null, nextThrow: 2,
         lean: 0, headR: 0, twitchT: 0, twitchA: 0, nextTwitch: 7, flinch: 0, flinchDir: 1, flare: 0, roarGlow: 0, roarCD: 0, k: 0, gutter: 0, cand: 0.8,
         headHoles: [], bodyHoles: [], divots: [], kneeHits: [], fire: [], fireT: 0, pflare: 0, roarT: 0, roarSide: 1, bigWalk: false, side: false, z0: 0, z1: 0, advDur: 3, faceRoar: false, from: null, thudKnees: false, pose: null };
-      B.pose = standPose(); B.sack = BOSS.sack[S.diff] || BOSS.sack.yup; B.head = null;
+      B.pose = standPose(); B.sack = B.sack0 = BOSS.sack[S.diff] || BOSS.sack.yup; B.head = null;
       riley = { hp: 100, x: 0 }; projs = []; parts = []; splats = []; floats = []; msg = { text: "", t: 0 }; book = null; cart = null;
       shake = flash = hurt = deadT = 0; cartT = -1; T = 0;
       Object.assign(result, { why: null, hits: 0, downed: 0 });
@@ -12452,19 +12455,32 @@ body.lab .stage > :not(canvas) { display: none; }
         if (th.ph === "whip") sWhoosh(0.55, 0, 0.3, 140, 900);
       }
     }
+    // (v2.28: a squash's arc kept in view: if any of its path would go up past the top of the view (from where Riley
+    // stands), it's thrown flatter until it doesn't. And never in under 1.05 s: there's always a moment to shoot)
+    const flightTime = (k = 1) => Math.max(1.05, ((0.45 + B.z * 0.026) / pace()) * k);
+    function fitArc(q) {
+      const e = [riley.x, 1.6, 0], top = H * 0.1;
+      for (let n = 0; n < 10; n++) {
+        let hi = Infinity;
+        for (let t = 0.05; t < 0.96; t += 0.05) { const y = lerp(q.y0, q.y1, t) + q.h * 4 * t * (1 - t), z = lerp(q.z0, q.z1, t); if (z < 3) break; const p = P(lerp(q.x0, q.x1, t), y, z); if (!p.behind) hi = Math.min(hi, p.y); }
+        if (hi >= top || q.h < 0.2) break;
+        q.h *= 0.75;
+      }
+      return q;
+    }
     function release(th) {
       const a = B.pose.arms[th.side > 0 ? 1 : 0], type = th.type;
       const x0 = B.x + a.hd.x, y0 = a.hd.y, z0 = B.z - 1.2;
       // (at Riley as it lets go; quicker than the test page's, and a flatter arc, so it stays in view more of the way)
-      projs.push({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: (0.45 + B.z * 0.026) / pace(), h: 1.2 + B.z * 0.04,
-        rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false });
+      projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(), h: 1.2 + B.z * 0.04,
+        rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false }));
       sLaunch(clamp(a.hd.x / 10, -0.6, 0.6)); duck(false);
       // (from its second stomp closer on, sometimes a second one with it, a little higher and slower, so they come one
       // after the other: two barrels to stop them both)
-      if (B.stage >= 2 && B.sack >= 2 && Math.random() < BOSS.double) {
+      if (B.stage >= 1 && B.sack >= 2 && Math.random() < BOSS.double) {
         const t2 = pick(TYPES); B.sack--;
-        projs.push({ type: t2, r: RAD[t2], x0: x0 - th.side * 1.2, y0: y0 + 0.4, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: (0.45 + B.z * 0.026) / pace() * 1.3, h: 1.6 + B.z * 0.05,
-          rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false });
+        projs.push(fitArc({ type: t2, r: RAD[t2], x0: x0 - th.side * 1.2, y0: y0 + 0.4, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(1.3), h: 1.6 + B.z * 0.05,
+          rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false }));
       }
       // (one fewer in the sack; the last one gone, it throws no more)
       if (--B.sack <= 0) { B.sack = 0; msgSet("The sack's empty.", 2.5); } hud();
@@ -12508,8 +12524,9 @@ body.lab .stage > :not(canvas) { display: none; }
     function checkStage() {
       if (["crumple", "downed", "dead"].includes(B.state)) return;
       if (B.hp <= 5) { startCrumple(); return; }
-      if (B.state === "fight" && B.stage < 3 && B.hp <= TH[B.stage]) startAdvance();
     }
+    // (time to step forward: the share of the sack thrown from here; only between throws, with nothing in the air)
+    const dueToAdvance = () => B.stage < Z.length - 1 && B.sack0 - B.sack >= Math.round(STAGE_AT[B.stage] * B.sack0) && !B.throw && !projs.some((q) => q.phase === "fly");
     function candle() {
       let c = 0.8 + 0.1 * Math.sin(T * 5.3) + 0.06 * Math.sin(T * 11.9 + 1.3) + 0.04 * Math.sin(T * 23.7 + 0.7) + (Math.random() - 0.5) * 0.05;
       c *= 1 - B.gutter; c += B.roarGlow * 0.35;
@@ -12528,7 +12545,9 @@ body.lab .stage > :not(canvas) { display: none; }
           if (B.t >= 3.2) { B.state = "enter"; B.t = 0; B.walkPh = 0; }
           break;
         }
-        case "enter": updWalk(dt, true, 2.6); B.x += dt * 5.2; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
+        // (v2.28: it comes along the cross street from far off to the left, its head above the rooftops before it's in
+        // the open, to the crossroads at the end of the main street)
+        case "enter": updWalk(dt, true, 1.7); B.x += dt * 14; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
         case "face": // it stops dead, stands too still, then turns on you
           updWalk(dt, false);
           if (B.t > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
@@ -12543,6 +12562,7 @@ body.lab .stage > :not(canvas) { display: none; }
           }
           B.twitchT -= dt;
           B.headR = B.twitchT > 0 ? lerp(B.headR, B.twitchA, 0.6) : lerp(B.headR, 0, 0.03);
+          if (live() && dueToAdvance()) { startAdvance(); break; }
           if (live() && !B.throw && B.sack > 0) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
           updThrow(dt);
           break;
@@ -12720,9 +12740,17 @@ body.lab .stage > :not(canvas) { display: none; }
       const k = B.t, a = clamp(k / LOOM.pop, 0, 1), surge = easeIO(clamp((k - LOOM.fire) / 0.5, 0, 1)), breathe = 1 + Math.sin(k * 3.2) * 0.015;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = `rgba(0,0,0,${0.65 * a})`; ctx.fillRect(0, 0, W, H);
-      const sz = lerp(H * 0.95, H * 1.35, surge) * lerp(1.15, 1, a) * breathe, s = sz / 4.8, jx = Math.sin(T * 23) * sz * 0.004, cx = W / 2 + jx, cy = H * 0.46, r = Math.sin(k * 1.3) * 0.03;
+      const sz = lerp(H * 0.7, H * 1.1, surge) * lerp(1.12, 1, a) * breathe, s = sz / 4.8, jx = Math.sin(T * 23) * sz * 0.004, cx = W / 2 + jx, cy = H * 0.38, r = Math.sin(k * 1.3) * 0.03;
       if (bc.width !== cv.width || bc.height !== cv.height) { bc.width = cv.width; bc.height = cv.height; }
-      try { paintBoss(ctx, bc, bctx, dpr, cx, cy, s, { head: { x: 0, y: 0, r, sy: 1 }, headOnly: true }, 0); } finally { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+      // (v2.28: its whole body, bent down toward Riley: further back, so smaller, its shoulders hidden behind its face,
+      // the long arms hanging either side, the legs and gourd feet planted on the street below. Then its face, near)
+      const sb = s * 0.36, q = Math.sin(T * 19) * 0.04, bend = { body: { x: 0, y: 10.2, r: q * 0.3 }, head: { x: 0, y: 14.5, r: 0, sy: 1 }, noHead: true,
+        hips: [{ x: -1.0, y: 7.95 }, { x: 1.0, y: 7.95 }], knees: [{ x: -1.45 + q, y: 4.4 }, { x: 1.45 - q, y: 4.4 }], ankles: [{ x: -1.3, y: 0.85 }, { x: 1.3, y: 0.85 }],
+        arms: [-1, 1].map((sd) => ({ sh: { x: sd * 1.7, y: 10.9 }, el: { x: sd * (2.9 + q), y: 7.8 }, hd: { x: sd * (3.3 + q * 2), y: 4.6 + Math.sin(T * 2 + sd) * 0.15 }, behind: false, hs: 1 })) };
+      try {
+        paintBoss(ctx, bc, bctx, dpr, cx, cy + 10.9 * sb, sb, bend, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        paintBoss(ctx, bc, bctx, dpr, cx, cy, s, { head: { x: 0, y: 0, r, sy: 1 }, headOnly: true }, 0);
+      } finally { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
       if (k > LOOM.fire) {
         const f = clamp((k - LOOM.fire) / 0.9, 0, 1), mx = cx - 0.75 * s * Math.sin(r), my = cy + 0.75 * s * Math.cos(r), M = Math.max(W, H);
         ctx.globalCompositeOperation = "lighter";
@@ -13182,6 +13210,35 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, q = r * (1 + (rr() - 0.5) * 2 * j); const px = x + Math.cos(a) * q, py = y + Math.sin(a) * q * sy; i ? c.lineTo(px, py) : c.moveTo(px, py); }
       c.closePath();
     }
+    // (v2.28: the spud holes go right through the head: whatever's behind it shows through each one, framed by the
+    // thick wall of squash flesh, stringy fibres, its inside edge warm from the candle. Cut out of Squash Head's own
+    // picture before it's laid on the street; see paintBoss)
+    function cutHoles(c, h) {
+      if (!B.headHoles.length || !h || h.prof) return;
+      c.save(); c.translate(h.x, h.y); c.rotate(h.r); c.scale(HEADSX, h.sy || 1);
+      headPath(c); c.clip();
+      // (a carved squash is hollow: two walls. Through the front wall's hole you see into the hollow, its back wall lit
+      // by the candle, and in that back wall the spud's way out, a smaller hole, a little off to the side as you look in
+      // at an angle; only through that one does the street show)
+      const exitAt = (hh) => ({ x: hh.x + hh.x * 0.12, y: hh.y + (hh.y + 0.4) * 0.1 });
+      for (const hh of B.headHoles) {
+        const rr = rng(hh.seed || 1), ex = exitAt(hh);
+        // the front wall: its thick cut edge, fibres
+        c.fillStyle = "#c97a2c"; jagged(c, hh.x, hh.y, 0.36, 0.09, rr); c.fill(); c.strokeStyle = "rgba(70,38,10,0.75)"; c.lineWidth = 0.03; c.stroke();
+        c.fillStyle = "#eaa456"; jagged(c, hh.x + 0.015, hh.y - 0.02, 0.3, 0.1, rr); c.fill();
+        // into the hollow: the inside of the back wall, warm from the candle, darker toward the rim
+        const g = c.createRadialGradient(hh.x, hh.y - 0.05, 0.02, hh.x, hh.y, 0.25);
+        g.addColorStop(0, `rgba(255,190,100,${0.95 * clamp(B.cand, 0.3, 1)})`); g.addColorStop(0.7, "#b8591c"); g.addColorStop(1, "#5a2408");
+        c.fillStyle = g; jagged(c, hh.x, hh.y, 0.24, 0.12, rng((hh.seed || 1) + 3), 14); c.fill();
+        c.strokeStyle = "rgba(250,205,130,0.9)"; c.lineWidth = 0.02;
+        for (let k = 0; k < 7; k++) { const a = rr() * 6.28, r0 = 0.22 + rr() * 0.03, r1 = 0.32 + rr() * 0.04; c.beginPath(); c.moveTo(hh.x + Math.cos(a) * r0, hh.y + Math.sin(a) * r0); c.quadraticCurveTo(hh.x + Math.cos(a + 0.4) * (r0 + r1) / 2, hh.y + Math.sin(a + 0.4) * (r0 + r1) / 2, hh.x + Math.cos(a + 0.2) * r1, hh.y + Math.sin(a + 0.2) * r1); c.stroke(); }
+        // the back wall's hole: a ragged edge of flesh round it, seen from inside
+        c.fillStyle = "#b8661e"; jagged(c, ex.x, ex.y, 0.235, 0.14, rng((hh.seed || 1) + 5), 12); c.fill();
+      }
+      c.globalCompositeOperation = "destination-out"; c.fillStyle = "#000";
+      for (const hh of B.headHoles) { const ex = exitAt(hh); jagged(c, ex.x, ex.y, 0.2, 0.16, rng((hh.seed || 1) + 7), 12); c.fill(); }
+      c.restore();
+    }
     function headHole(c, h, a) {
       const r = 0.3, rr = rng(h.seed || 1);
       c.fillStyle = "#d98a36"; jagged(c, h.x, h.y, r, 0.07, rr); c.fill();
@@ -13229,7 +13286,7 @@ body.lab .stage > :not(canvas) { display: none; }
       c.restore();
     }
     function renderEmissive(c, p) {
-      if (!p.noHead) faceGlow(c, p.head, FRONTCUTS, B.headHoles);
+      if (!p.noHead) faceGlow(c, p.head, FRONTCUTS, []); // (its holes are cut right through: cutHoles)
       if (p.headOnly) return;
       drawFire(c);
       const th = B.throw;
@@ -13241,6 +13298,7 @@ body.lab .stage > :not(canvas) { display: none; }
       oct.setTransform(1, 0, 0, 1, 0, 0); oct.clearRect(0, 0, ocv.width, ocv.height);
       oct.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
       if (pose.side) renderSide(oct, pose); else renderBody(oct, pose);
+      if (!pose.side && !pose.noHead) cutHoles(oct, pose.head);
       const hx = ox + pose.head.x * s, hy = oy - pose.head.y * s, rx = ox - 14 * s, ry = oy - 21 * s, rw = 28 * s, rh = 23 * s;
       oct.setTransform(k, 0, 0, k, 0, 0); oct.globalCompositeOperation = "source-atop";
       let g = oct.createLinearGradient(0, oy - 17 * s, 0, oy); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(3,3,8,0.55)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
@@ -13633,7 +13691,8 @@ body.lab .stage > :not(canvas) { display: none; }
     function tick(dt) {
       T += dt;
       // the round's begun: it's heard before it's seen, off to the left
-      if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -22; }
+      // (from well beyond the left edge of the view, however wide the field: v2.28)
+      if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -((W / 2 / F) * B.z + 14); }
       if (B.state !== "preview" && S.phase !== "title" && !S.muted && actx && !amb) startAmbient();
       if (S.phase !== "title") updBoss(dt);
       if (B.head) B.head.t += dt;
@@ -13719,7 +13778,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (S.phase !== "title" && B.state !== "intro" && B.state !== "enter" && B.state !== "preview" && B.state !== "dead") {
         const w = Math.min(W * 0.6, 420), x = W / 2 - w / 2;
         hudBar(x, 16, w, B.hp / 100, "#3a0d08", "#9c2414", "S Q U A S H   H E A D");
-        ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [75, 50, 25, 5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
+        ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
       }
       if (S.phase !== "title" && !S.bossCart) {
         const w = Math.min(150, W * 0.3);
