@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">FIRE<small>open the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.25</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.26</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2217,7 +2217,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (Squash Head's lob: won on the stem; all five missed and it gets back up first)
     const allHit = lvl().boss ? !!S.bossWon : S.rings.every((r) => r.hit);
     S.phase = "settle"; S.timer = allHit || S.spudsLeft === 0 ? 1.6 : 0.6;
-    if (lvl().boss) { if (allHit) S.timer = 5.5; else if (S.spudsLeft === 0) { S.timer = 4.6; S.scene.rise(); } }
+    if (lvl().boss) { if (allHit) S.timer = 5.5; else if (S.spudsLeft === 0) { S.timer = 6.2; S.scene.rise(); } }
     // the valve stays open and the chamber empty until the next spud is loaded and pumped
     S.after = allHit || S.spudsLeft === 0 ? endLevel : () => { S.phase = "aim"; rollWind(); hud(); };
     // (v2.12: every bonus object of the level now hit: the One Shot Bonus comes next, even before the round ends)
@@ -2415,7 +2415,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} stars)</small></span><b id="tO">+0</b></div>` : "") +
       (clearB ? `<div class="trow bonus"><span>Level cleared</span><b id="tC">+0</b></div>` : "");
     const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
-    el.innerHTML = `<div class="trow in"><span>${lvl().boss ? "Squash Head hits" : lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
+    el.innerHTML = `<div class="trow in"><span>${lvl().boss ? "Hits and squash" : lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
     const count = (node, to, prefix, ms, done) => {
       const t0 = performance.now(); let shown = -1;
       const id = setInterval(() => {
@@ -2454,7 +2454,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (v2.09: no eyebrow or rules line any more, for room: How to play has them)
     showCard("", "Pneuman", "",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
-      LEVELS[sel].boss ? `<span class="pz">🎃 head 5 · kneecap or limb 2 · body 1 · the stem, lobbed, +${BOSS.stemPts}</span>` :
+      LEVELS[sel].boss ? `<span class="pz">🎃 head ${BOSS.head} · kneecap or limb 2 · body 1 · squash +${BOSS.squashPts} · the stem, lobbed, +${BOSS.stemPts}</span>` :
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
@@ -7665,8 +7665,8 @@ body.lab .stage > :not(canvas) { display: none; }
       return;
     }
     if (L.boss) {
-      $("xPlus").innerHTML = `<small class="xmore">squash shot down (+${BOSS.squashPts}, the barrel back)</small>`;
-      $("xMinus").innerHTML = `<small class="xmore">a squash that reaches Riley (${BOSS.rileyHit}% of Riley's health): shoot it down, or step aside (A / D, ◀ ▶)</small>`;
+      $("xPlus").innerHTML = `<small class="xmore">squash shot down, as skeet (+${BOSS.squashPts})</small>`;
+      $("xMinus").innerHTML = `<small class="xmore">a squash that reaches Riley (${BOSS.rileyHit}% of Riley's health)</small>`;
       return;
     }
     if (L.scene === "mill") {
@@ -11990,11 +11990,16 @@ body.lab .stage > :not(canvas) { display: none; }
   // - It enters side on, stomping, then turns and roars; the cabinets come up only then.
   // - 5 MP 15 cabinets on show; when they're used up one fresh rack of 5 scrolls in (30 spuds). Out of them before
   //   it's down loses the round.
-  // - Squash: a squash shot down gives its barrel back (it doesn't count against the 30) and +3. One that reaches
-  //   Riley takes 20% of Riley's health (five and Riley's down: the round's lost). A / D or the ◀ ▶ buttons step aside.
-  // - Hits score what they take off (head 5, kneecap or limb 2, body 1); the stem lob +300; then the multiplier.
-  // - Difficulty changes only the squash's pace.
-  const BOSS = { squashPts: 3, stemPts: 300, rileyHit: 20, step: 6.5, stepMax: 4.2, lobs: 5 };
+  // - Squash (v2.26): skeet. Riley stands still and shoots them down, +10 each; one that gets through takes 10% of
+  //   Riley's health (ten and Riley's down: the round's lost). The sack holds 10 / 11 / 12 (meh / yup / gnarly).
+  // - Hits score what they take off (head 8, kneecap or limb 2, body 1); the stem lob +300; then the multiplier.
+  // - Difficulty: how many squash, and how fast.
+  // - Down, its head comes off and rolls back and to a side, stem up; the heap quivers and the dread builds with each
+  //   lob. Out of spuds (MP 15s or lobs) it gets up and lunges at Riley.
+  // (v2.26: skeet against the squash. Riley stands still, as on the other MP levels, and shoots them down, +10 each,
+  // no barrel back; one that gets through takes 10% of Riley's health. The sack holds 10 / 11 / 12 squash on meh /
+  // yup / gnarly, then it stops throwing. A head shot takes 8 (13 knock it down))
+  const BOSS = { squashPts: 10, stemPts: 300, rileyHit: 10, lobs: 5, sack: { meh: 10, yup: 11, gnarly: 12 }, head: 8 };
   function buildBoss() {
     // ---- the test page's helpers, kept to this place
     const lerp = (a, b, t) => a + (b - a) * t, easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2), easeIn = (t) => t * t;
@@ -12066,8 +12071,13 @@ body.lab .stage > :not(canvas) { display: none; }
       const bz = ac.createOscillator(); bz.type = "sawtooth"; bz.frequency.value = 120;
       const bf = ac.createBiquadFilter(); bf.type = "bandpass"; bf.frequency.value = 240; bf.Q.value = 6;
       const bg = ac.createGain(); bg.gain.value = 0.004; bz.connect(bf).connect(bg).connect(ambG); bz.start(); nodes.push(bz);
+      // (v2.26: the dread under the lob, silent till then: two low detuned saws through a filter that opens, louder
+      // and higher with every spud launched (see tick))
+      const tg = ac.createGain(); tg.gain.value = 0; const tf = ac.createBiquadFilter(); tf.type = "lowpass"; tf.frequency.value = 200; tf.Q.value = 3;
+      const t1 = ac.createOscillator(), t2 = ac.createOscillator(); t1.type = t2.type = "sawtooth"; t1.frequency.value = 55; t2.frequency.value = 55.8;
+      t1.connect(tf); t2.connect(tf); tf.connect(tg).connect(ambG); t1.start(); t2.start(); nodes.push(t1, t2);
       const g0 = ambG, a0 = ac;
-      amb = { cut(f = 0.25) { const t2 = a0.currentTime; g0.gain.cancelScheduledValues(t2); g0.gain.setValueAtTime(g0.gain.value, t2); g0.gain.linearRampToValueAtTime(0, t2 + f); for (const x of nodes) try { x.stop(t2 + f + 0.05); } catch (e) {} ENGINES.delete(amb); amb = null; ambG = null; } };
+      amb = { tense: { g: tg, f: tf, o: [t1, t2] }, cut(f = 0.25) { const t2 = a0.currentTime; g0.gain.cancelScheduledValues(t2); g0.gain.setValueAtTime(g0.gain.value, t2); g0.gain.linearRampToValueAtTime(0, t2 + f); for (const x of nodes) try { x.stop(t2 + f + 0.05); } catch (e) {} ENGINES.delete(amb); amb = null; ambG = null; } };
       ENGINES.add(amb);
     }
 
@@ -12078,7 +12088,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const RAD = { pumpkin: 0.55, acorn: 0.42, gourd: 0.4, butternut: 0.45 }, TYPES = ["pumpkin", "pumpkin", "acorn", "gourd", "butternut"];
     const VEGC = { pumpkin: ["217,120,40", "200,95,30", "232,170,80"], acorn: ["40,70,35", "230,160,70", "200,120,40"], gourd: ["225,190,70", "200,160,50", "240,220,140"], butternut: ["210,165,100", "232,140,50", "240,200,140"] };
     let shake = 0, shx = 0, shy = 0, flash = 0, hurt = 0, deadT = 0, cartT = -1;
-    let B, riley, projs, parts, splats, floats, msg, book, cart, stepHold = 0, stepId = null;
+    let B, riley, projs, parts, splats, floats, msg, book, cart;
     // (result: why the round ended, for the end card; hits and squash down, for its counts)
     const result = { why: null, hits: 0, downed: 0 };
     // (the squash's pace: the difficulty's, yup as 1, a quarter quicker than the test page, and quicker at each stage)
@@ -12088,14 +12098,14 @@ body.lab .stage > :not(canvas) { display: none; }
       B = { x: 0, z: Z[0], stage: 0, hp: 100, state: "preview", t: 0, walkPh: 0, walking: false, lift: [0, 0], prevLift: [0, 0], throw: null, nextThrow: 2,
         lean: 0, headR: 0, twitchT: 0, twitchA: 0, nextTwitch: 7, flinch: 0, flinchDir: 1, flare: 0, roarGlow: 0, roarCD: 0, k: 0, gutter: 0, cand: 0.8,
         headHoles: [], bodyHoles: [], divots: [], kneeHits: [], fire: [], fireT: 0, pflare: 0, roarT: 0, roarSide: 1, bigWalk: false, side: false, z0: 0, z1: 0, advDur: 3, faceRoar: false, from: null, thudKnees: false, pose: null };
-      B.pose = standPose();
+      B.pose = standPose(); B.sack = BOSS.sack[S.diff] || BOSS.sack.yup; B.head = null;
       riley = { hp: 100, x: 0 }; projs = []; parts = []; splats = []; floats = []; msg = { text: "", t: 0 }; book = null; cart = null;
-      shake = flash = hurt = deadT = 0; cartT = -1; stepHold = 0; stepId = null; T = 0;
+      shake = flash = hurt = deadT = 0; cartT = -1; T = 0;
       Object.assign(result, { why: null, hits: 0, downed: 0 });
     }
     function msgSet(text, t) { msg.text = text; msg.t = t; }
     const fighting = () => ["fight", "advance", "face"].includes(B.state);
-    const knocked = () => ["crumple", "downed", "dead", "rise", "gloat"].includes(B.state);
+    const knocked = () => ["crumple", "downed", "dead", "rise", "gloat", "rollback", "lunge"].includes(B.state);
     // the round's own: the gun phase is on (and Riley's up)
     const live = () => S.phase === "gun" && riley.hp > 0 && !result.why;
     // ---- (from the test page, lines 120-128)
@@ -12226,14 +12236,35 @@ body.lab .stage > :not(canvas) { display: none; }
     // ---- (from the test page, lines 285-308)
     // an angry roar breathes fire: the candle inside blasts out through the carved mouth
     // (it throws its head back and to one side as it roars, so the fire goes up in a long column)
-    function roar(v, pan = 0) { if (B.roarCD > 0) return; B.roarCD = 2.6; sRoar(v, pan); B.roarGlow = 1; B.roarT = 2.2; B.roarSide = Math.random() < 0.5 ? -1 : 1; if (v >= 0.7) B.fireT = 2.0; }
+    // (v2.26: two kinds of roar, so the head's harder to hit. "side": the head turns side on, dips 10°, then tips up
+    // 45°, the fire out to that side and rising. "up", now and then: the head thrown back, face to the sky, so far less
+    // of it shows from the front, and the fire goes straight up)
+    function roar(v, pan = 0, kind) { if (B.roarCD > 0) return; B.roarCD = 2.6; sRoar(v, pan); B.roarGlow = 1; B.roarT = 2.2; B.roarSide = Math.random() < 0.5 ? -1 : 1; B.roarKind = kind || (Math.random() < 0.35 ? "up" : "side"); if (v >= 0.7) B.fireT = 2.0; }
     function roarTilt() { if (B.roarT <= 0) return 0; return Math.min(1, (2.2 - B.roarT) / 0.35) * Math.min(1, B.roarT / 0.5); }
+    // the side roar's tip, radians, "up" positive: 0 → −10° by 0.3 s → +45° by 0.8 s, held, eased home at the end
+    function roarTip() {
+      if (B.roarT <= 0 || B.roarKind === "up") return 0;
+      const e = 2.2 - B.roarT, d = Math.PI / 180, end = Math.min(1, B.roarT / 0.5);
+      const a = e < 0.3 ? -10 * (e / 0.3) : e < 0.8 ? lerp(-10, 45, easeIO((e - 0.3) / 0.5)) : 45;
+      return a * d * end;
+    }
+    // the up roar's lean back, 0..1: thrown back over 0.5 s, held, back down at the end
+    function roarBack() { if (B.roarT <= 0 || B.roarKind !== "up") return 0; return easeIO(Math.min(1, (2.2 - B.roarT) / 0.5)) * Math.min(1, B.roarT / 0.5); }
+    // where the cut face sits on a thrown-back head (head-local): up toward the top and squeezed
+    const backCuts = (c, bk) => { c.translate(0, 0.95 * bk); c.scale(1, 1 - 0.45 * bk); };
     function updFire(dt) {
       B.roarT = Math.max(0, B.roarT - dt);
       if (B.fireT > 0) {
         B.fireT -= dt;
         const h = B.pose && B.pose.head;
-        if (h && B.fireT < 1.75 && B.fireT > 0.15) {
+        // (the up roar: out of the gaping mouth on the thrown-back head, straight up)
+        if (h && h.back > 0.5 && B.fireT < 1.75 && B.fireT > 0.15) {
+          const bk = h.back, ly = (0.95 * bk + -0.75 * (1 - 0.45 * bk)) * (h.sy || 1), mx = h.x - ly * Math.sin(h.r), my = h.y + ly * Math.cos(h.r), n = Math.floor(dt * 150 + Math.random());
+          for (let i = 0; i < n; i++) {
+            const sp = rand(8, 12), sd = rand(-1.1, 1.1), life = rand(0.6, 1.05);
+            B.fire.push({ x: mx + rand(-0.3, 0.3), y: my, vx: sd, vy: sp, life, max: life, size: rand(0.3, 0.5), seed: rand(0, 9) });
+          }
+        } else if (h && !h.back && B.fireT < 1.75 && B.fireT > 0.15 && 2.2 - B.roarT > (B.roarKind === "up" ? 0 : 0.75)) {
           // from the mouth, along the tilted head's "up", a narrow jet that rises, writhes and swells: dragon fire
           // from the side-on mouth, out to that side and rising (in head terms: forward and a little up)
           const ca = Math.cos(h.r), sa = Math.sin(h.r), sy = h.sy || 1, pf = h.prof || B.roarSide, hx0 = pf * 1.05 * HEADSX, hy0 = -0.85 * sy;
@@ -12277,7 +12308,11 @@ body.lab .stage > :not(canvas) { display: none; }
       // (legs 50% longer than at first: hips at 7.95 m, everything above raised to match)
       const body = { x: bx, y: 11.55 + br - cr, r: -B.lean * 0.6 - sway * 0.05 };
       // roaring, the head turns side on (prof) and tips back, so the fire goes up and away to the side, not at the player
-      const head = { x: bx * 1.4 - sway * 0.3 + B.flinch * 0.25 * B.flinchDir, y: 16.8 + br * 1.3 - cr + tilt * 0.2, r: B.headR + B.flinch * 0.12 * B.flinchDir + tilt * 0.28 * B.roarSide, sy: 1 - tilt * 0.06, prof: tilt > 0.3 ? B.roarSide : 0 };
+      // (v2.26: the side roar dips the head 10° then tips it up 45° (roarTip); the up roar throws it back (back): seen from
+      // the front it's foreshortened to little more than half its height, its bottom held where the neck is)
+      const up = B.roarKind === "up", bk = roarBack(), sy = up ? 1 - 0.5 * bk : 1 - tilt * 0.06;
+      const head = { x: bx * 1.4 - sway * 0.3 + B.flinch * 0.25 * B.flinchDir, y: 16.8 + br * 1.3 - cr + (up ? -1.85 * (1 - sy) : tilt * 0.2),
+        r: B.headR + B.flinch * 0.12 * B.flinchDir + roarTip() * B.roarSide, sy, prof: !up && tilt > 0.3 ? B.roarSide : 0, back: bk };
       const hips = [], knees = [], ankles = [], arms = [];
       for (const [i, s] of [[0, -1], [1, 1]]) {
         const l = B.lift[i];
@@ -12294,11 +12329,32 @@ body.lab .stage > :not(canvas) { display: none; }
       return { body, head, hips, knees, ankles, arms };
     }
     // crumpled: the eggplant tipped over, the limbs splayed on the street, the head sitting up on top, stem up
-    function heapPose() {
+    // (v2.26: once it's down the head's off, rolled away on its own (B.head, see headNow), and what's left quivers, more
+    // with every lob, as if it could get up at any moment (q: how hard))
+    function heapPose(q = 0) {
       const br = Math.sin(T * 0.9) * 0.05;
-      return { body: { x: 0.5, y: 2.4, r: 1.38 }, head: { x: -0.7, y: 6.3 + br, r: -0.1, sy: 1 },
-        hips: [{ x: -1.5, y: 1.3 }, { x: 1.7, y: 1.2 }], knees: [{ x: -3.5, y: 0.85 }, { x: 3.7, y: 0.8 }], ankles: [{ x: -5.1, y: 0.6 }, { x: 5.3, y: 0.55 }],
-        arms: [{ sh: { x: -1.8, y: 3.4 }, el: { x: -4.3, y: 1.0 }, hd: { x: -6.6, y: 0.45 }, behind: false, hs: 1 }, { sh: { x: 2.6, y: 3.9 }, el: { x: 5.0, y: 1.4 }, hd: { x: 7.0, y: 0.4 }, behind: false, hs: 1 }] };
+      const j = (i, a) => (q ? Math.sin(T * (17 + i * 3.7) + i * 1.9) * q * a + Math.sin(T * (41 + i * 5.3) + i) * q * a * 0.35 : 0);
+      const P2 = (x, y, i, a = 1) => ({ x: x + j(i, a), y: y + j(i + 7, a * 0.6) });
+      return { body: { x: 0.5 + j(1, 0.3), y: 2.4 + j(2, 0.3), r: 1.38 + j(3, 0.04) }, head: { x: -0.7, y: 6.3 + br, r: -0.1, sy: 1 }, noHead: !!B.head,
+        hips: [P2(-1.5, 1.3, 4), P2(1.7, 1.2, 5)], knees: [P2(-3.5, 0.85, 6), P2(3.7, 0.8, 7)], ankles: [P2(-5.1, 0.6, 8, 1.4), P2(5.3, 0.55, 9, 1.4)],
+        arms: [{ sh: P2(-1.8, 3.4, 10), el: P2(-4.3, 1.0, 11, 1.3), hd: P2(-6.6, 0.45, 12, 2), behind: false, hs: 1 }, { sh: P2(2.6, 3.9, 13), el: P2(5.0, 1.4, 14, 1.3), hd: P2(7.0, 0.4, 15, 2), behind: false, hs: 1 }] };
+    }
+    // ---- the head, off: it tumbles off the heap, rolls back and to one side, and comes to rest stem up (B.head: where
+    // to, from the knock-down; t: how long it's been rolling). Rolling back onto the heap again before it gets up
+    const HEAD_ROLL = 1.5, HEAD_BACK = 1.0;
+    function makeHeadRoll() {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      return { tx: clamp(B.x + side * rand(2.5, 5), -5.6, 5.6) - B.x, tz: rand(1.5, 6), t: 0, turns: side * (Math.random() < 0.5 ? 1 : 2) };
+    }
+    // (its lob phase's unease, 0 to 1: a fifth more for each spud launched)
+    const tension = () => (S.bossCart ? clamp((BOSS.lobs - S.spudsLeft) / BOSS.lobs, 0, 1) : 0);
+    // the head off the heap, in the street's own metres: x, y (its middle), z, and its turn (0: stem up)
+    function headNow() {
+      const h = B.head, roll = easeIO(clamp(h.t / HEAD_ROLL, 0, 1)), u = B.state === "rollback" ? 1 - easeIO(clamp(B.t / HEAD_BACK, 0, 1)) : roll;
+      const x = lerp(-0.7, h.tx, u), z = h.tz * u, y = lerp(6.3, 1.85, Math.min(1, u * 1.4)) + Math.sin(Math.min(1, u * 1.4) * Math.PI) * 0.9;
+      // (rolling: whole turns, so it ends stem up; at rest it rocks side to side on its round bottom, more as the tension builds)
+      const k = tension(), rock = h.t > HEAD_ROLL && B.state === "downed" ? Math.sin(T * 1.6) * (0.05 + 0.1 * k) + Math.sin(T * 9.7) * 0.012 * (1 + 2 * k) : 0;
+      return { x: B.x + x, y, z: B.z + z, r: -Math.PI * 2 * h.turns * u + rock };
     }
     function lerpPose(a, b, t) {
       const L = (p, q) => lp(p, q, t);
@@ -12342,6 +12398,8 @@ body.lab .stage > :not(canvas) { display: none; }
       projs.push({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: (0.45 + B.z * 0.026) / pace(), h: 1.2 + B.z * 0.04,
         rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false });
       sLaunch(clamp(a.hd.x / 10, -0.6, 0.6)); duck(false);
+      // (one fewer in the sack; the last one gone, it throws no more)
+      if (--B.sack <= 0) { B.sack = 0; msgSet("The sack's empty.", 2.5); } hud();
     }
     // a foot's height through its swing (q 0..1): a slow rise over two-thirds of it, then a stomp down in the last
     // third, twice as fast and speeding up into the ground
@@ -12407,7 +12465,7 @@ body.lab .stage > :not(canvas) { display: none; }
           updWalk(dt, false);
           if (B.t > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
           B.flare = B.t > 0.9 ? Math.min(1, (B.t - 0.9) * 3) * (B.t < 2.4 ? 1 : Math.max(0, 1 - (B.t - 2.4) * 2)) : 0;
-          if (B.t > 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot it down, or step aside.", 3); openCabinets(); }
+          if (B.t > 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot the squash down. Aim for the head.", 3); openCabinets(); }
           break;
         case "fight":
           updWalk(dt, false);
@@ -12417,7 +12475,7 @@ body.lab .stage > :not(canvas) { display: none; }
           }
           B.twitchT -= dt;
           B.headR = B.twitchT > 0 ? lerp(B.headR, B.twitchA, 0.6) : lerp(B.headR, 0, 0.03);
-          if (live() && !B.throw) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
+          if (live() && !B.throw && B.sack > 0) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
           updThrow(dt);
           break;
         case "advance": {
@@ -12428,10 +12486,26 @@ body.lab .stage > :not(canvas) { display: none; }
           if (k >= 1) { B.stage++; B.state = "fight"; B.bigWalk = false; B.flare = 0; B.nextThrow = 1.4; checkStage(); }
           break;
         }
-        case "rise": // all five lobs missed: it hauls itself back up
+        // (v2.26: out of spuds: the head rolls back onto the heap, it hauls itself up, and lunges at Riley)
+        case "rollback":
           updWalk(dt, false);
-          if (B.t >= 2.4) { B.state = "gloat"; B.t = 0; B.roarCD = 0; roar(1); }
+          if (B.t >= HEAD_BACK) { B.head = null; B.from = heapPose(); B.state = "rise"; B.t = 0; sRoar(1, 0, 0.85, 2.6); B.roarGlow = 1; shake = Math.max(shake, 8); }
           break;
+        case "rise": // it hauls itself back up
+          updWalk(dt, false);
+          if (B.t >= 2.4) startLunge();
+          break;
+        case "lunge": { // straight at Riley, fast, roaring
+          updWalk(dt, true, 1.1);
+          const k = clamp(B.t / B.advDur, 0, 1); B.z = lerp(B.z0, 7.5, easeIn(k));
+          B.flare = Math.min(1, B.t * 3);
+          if (k >= 1 && !B.thudKnees) {
+            B.thudKnees = true; B.walking = false; hurt = 1; flash = 0.6; shake = 30; riley.hp = 0;
+            sThud(1.2); sStomp(1.3); splatScreen(26, 4, ["217,120,40", "120,150,70", "95,40,105", "200,40,25"]);
+          }
+          if (k >= 1) updWalk(dt, false);
+          break;
+        }
         case "gloat": updWalk(dt, false); B.flare = Math.min(1, B.t * 3) * (B.t < 2.2 ? 1 : Math.max(0, 1 - (B.t - 2.2) * 2)); break;
         case "crumple": {
           updWalk(dt, false); B.k = clamp(B.t / 2.3, 0, 1);
@@ -12439,13 +12513,15 @@ body.lab .stage > :not(canvas) { display: none; }
           if (B.k >= 1) {
             B.state = "downed"; sStomp(1.2); sThud(1); shake = 24; dimLights(40);
             for (let k2 = 0; k2 < 40; k2++) parts.push({ kind: "dust", x: B.x + rand(-6, 6), y: rand(0, 0.6), z: B.z + rand(-2, 2), vx: rand(-2.5, 2.5), vy: rand(0.3, 1.6), vz: rand(-1.5, 1.5), life: rand(1.5, 3), max: 3, size: rand(0.8, 2), col: "120,112,100", g: 0 });
-            cartT = 1.2; // (the cart rolls in a moment after it hits the street)
+            // (its head comes off and rolls away; the cart rolls in once it's come to rest)
+            B.head = makeHeadRoll(); sThud(0.7);
+            cartT = HEAD_ROLL + 0.4;
           }
           break;
         }
       }
       // the head holes weep
-      if (B.state !== "dead") for (const h of B.headHoles) if (Math.random() < dt * 0.35) {
+      if (B.state !== "dead" && !B.head) for (const h of B.headHoles) if (Math.random() < dt * 0.35) {
         const p = B.pose.head, ca = Math.cos(p.r), sa = Math.sin(p.r);
         const hx = h.x * HEADSX, lx = p.x + hx * ca - h.y * sa, ly = p.y + hx * sa + h.y * ca;
         parts.push({ kind: "drip", x: B.x + lx, y: ly - 0.1, z: B.z - 0.5, vx: 0, vy: -0.3, vz: 0, life: 2.5, max: 2.5, size: 0.09, col: "230,150,60", g: 6 });
@@ -12488,7 +12564,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (a hit scores what it takes off: head 5, a kneecap or limb 2, the body 1; never below its last 5%)
     const PART_NAME = { head: "Head", body: "Body", carrot: "Shoulder", limb: "Limb", foot: "Foot", tomato: "Kneecap" };
     function damage(h, shot) {
-      const amt = { head: 5, body: 1, carrot: 1, limb: 2, foot: 2, tomato: 2 }[h.part], was = B.hp;
+      const amt = { head: BOSS.head, body: 1, carrot: 1, limb: 2, foot: 2, tomato: 2 }[h.part], was = B.hp;
       B.hp = Math.max(5, B.hp - amt);
       const took = Math.round(was - B.hp);
       S.score += took; result.hits++;
@@ -12518,7 +12594,7 @@ body.lab .stage > :not(canvas) { display: none; }
       splatScreen(Math.floor(rand(5, 9)), 2.6, VEGC[q.type]);
       sSplat(1.1, 0.75); sThud(0.6);
       floats.push({ x: W / 2, y: H * 0.55, txt: `−${BOSS.rileyHit}%`, life: 1.2, col: "#ff8a6a" });
-      shotNote(riley.hp > 0 ? `Splat! Riley's hit: ${riley.hp}% left. Shoot them down, or step aside.` : "Riley is down.");
+      shotNote(riley.hp > 0 ? `Splat! Riley's hit: ${riley.hp}% left. Shoot them down!` : "Riley is down.");
       if (riley.hp <= 0) { B.throw = null; msgSet("", 0); endRound("down", 2.4); }
       hud();
     }
@@ -12531,7 +12607,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function explode() {
       B.state = "dead"; deadT = 0; flash = 1; shake = 26; msgSet("", 0);
-      const p = B.pose, hw = { x: B.x + p.head.x, y: p.head.y, z: B.z - 0.4 }, bw = { x: B.x + p.body.x, y: p.body.y, z: B.z - 0.4 };
+      const p = B.pose, hn = B.head ? headNow() : null, hw = hn ? { x: hn.x, y: hn.y, z: hn.z - 0.4 } : { x: B.x + p.head.x, y: p.head.y, z: B.z - 0.4 }, bw = { x: B.x + p.body.x, y: p.body.y, z: B.z - 0.4 };
       for (let i = 0; i < 170; i++) {
         const fromHead = i < 90, c = fromHead ? hw : bw;
         parts.push({ kind: i % 5 === 0 ? "seed" : "chunk", x: c.x + rand(-1, 1), y: c.y + rand(-1, 1), z: c.z + rand(-1, 1), vx: rand(-13, 13), vy: rand(1, 15), vz: rand(-30, 5),
@@ -12542,8 +12618,14 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // ---- (from the test page, lines 857-860)
     function stemWorld() {
-      const h = B.pose.head, ca = Math.cos(h.r), sa = Math.sin(h.r), hx = 0.05 * HEADSX, hy = 3.3 * (h.sy || 1);
-      return { x: B.x + h.x + hx * ca - hy * sa, y: h.y + hx * sa + hy * ca, z: B.z };
+      // (the head off and rolled away (v2.26): its own place)
+      const h = B.head ? headNow() : { ...B.pose.head, x: B.x + B.pose.head.x, z: B.z }, ca = Math.cos(h.r), sa = Math.sin(h.r), hx = 0.05 * HEADSX, hy = 3.3 * (h.sy || 1);
+      return { x: h.x + hx * ca - hy * sa, y: h.y + hx * sa + hy * ca, z: h.z };
+    }
+    // out of spuds, either way (all five lobs missed, or the MP 15s all used before it was down): it comes for Riley
+    function startLunge() {
+      B.state = "lunge"; B.t = 0; B.z0 = B.z; B.advDur = 1.4; B.bigWalk = true; B.walkPh = 0; B.prevLift = [0, 0]; B.thudKnees = false; B.throw = null;
+      B.roarCD = 0; roar(1, 0, "side");
     }
     // ---- (from the test page, lines 998-1088)
     // ---- Riley's notebook: up in the lower part of the screen, held in both hands; it opens, a page turns, and stays
@@ -12831,10 +12913,21 @@ body.lab .stage > :not(canvas) { display: none; }
       c.restore();
       c.fillStyle = "rgba(60,40,20,0.33)"; for (const [x, y, r] of [[-1.3, -0.95, 0.11], [1.2, -1.0, 0.07], [0.35, 2.0, 0.06], [-0.4, 1.4, 0.05], [1.05, 0.55, 0.05]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
       c.strokeStyle = "rgba(40,25,10,0.5)"; c.lineWidth = 0.03; c.beginPath(); c.moveTo(1.5, -0.2); c.lineTo(1.3, -0.4); c.lineTo(1.38, -0.62); c.lineTo(1.2, -0.8); c.stroke();
-      c.fillStyle = "#6e5c38"; c.strokeStyle = "#33270f"; c.lineWidth = 0.04;
-      c.beginPath(); c.moveTo(-0.2, 2.95); c.quadraticCurveTo(-0.22, 3.3, -0.12, 3.5); c.lineTo(0.22, 3.48); c.quadraticCurveTo(0.24, 3.25, 0.2, 2.95); c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = "#9a875c"; c.beginPath(); c.ellipse(0.05, 3.49, 0.18, 0.07, 0.05, 0, 7); c.fill(); c.stroke();
+      const bk = h.back || 0;
+      // (thrown back: the stem's tipped away behind the head, out of sight; the bulb's underside shows, in shadow)
+      if (bk < 0.4) {
+        c.fillStyle = "#6e5c38"; c.strokeStyle = "#33270f"; c.lineWidth = 0.04;
+        c.beginPath(); c.moveTo(-0.2, 2.95); c.quadraticCurveTo(-0.22, 3.3, -0.12, 3.5); c.lineTo(0.22, 3.48); c.quadraticCurveTo(0.24, 3.25, 0.2, 2.95); c.closePath(); c.fill(); c.stroke();
+        c.fillStyle = "#9a875c"; c.beginPath(); c.ellipse(0.05, 3.49, 0.18, 0.07, 0.05, 0, 7); c.fill(); c.stroke();
+      }
+      if (bk > 0) {
+        c.save(); headPath(c); c.clip();
+        const ug = c.createLinearGradient(0, -1.9, 0, 0.4); ug.addColorStop(0, `rgba(30,18,6,${0.55 * bk})`); ug.addColorStop(1, "rgba(30,18,6,0)");
+        c.fillStyle = ug; c.fillRect(-2, -1.9, 4, 2.3); c.restore();
+      }
+      c.save(); headPath(c); c.clip(); if (bk) backCuts(c, bk);
       c.fillStyle = "#d4893a"; for (const pts of cuts) { poly(c, pts); c.fill(); }
+      c.restore();
       c.restore();
     }
     function drawArm(c, p, i) { const s = i ? 1 : -1, a = p.arms[i]; celery(c, a.sh, a.el, 1.0 * a.hs, 0.82 * a.hs, "a" + i + "0", false); tuft(c, a.el, s > 0 ? -0.3 : Math.PI + 0.3, i + 4); celery(c, a.el, a.hd, 0.82 * a.hs, 0.62 * a.hs, "a" + i + "1", true); }
@@ -12846,11 +12939,13 @@ body.lab .stage > :not(canvas) { display: none; }
       gourdFoot(c, an, s, "lip", false);
       tomato(c, p.knees[i], 0.58, i);
     }
+    // (noHead: its head's off, drawn on its own; headOnly: just that head)
     function renderBody(c, p) {
+      if (p.headOnly) { drawHead(c, p.head, FRONTCUTS); return; }
       for (const i of [0, 1]) if (p.arms[i].behind) drawArm(c, p, i);
       for (const i of [0, 1]) drawLeg(c, p, i);
       eggplant(c, p);
-      drawHead(c, p.head, FRONTCUTS);
+      if (!p.noHead) drawHead(c, p.head, FRONTCUTS);
       for (const i of [0, 1]) if (!p.arms[i].behind) drawArm(c, p, i);
       carrots(c, p.arms[0].sh, -1); carrots(c, p.arms[1].sh, 1);
     }
@@ -12947,7 +13042,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const a = clamp(B.cand, 0, 1.3);
       if (h.prof) { cuts = SIDECUTS; holes = []; cx = 0.25; }
       c.save(); c.translate(h.x, h.y); c.rotate(h.r); c.scale(HEADSX * (h.prof || 1), h.sy || 1);
-      c.save(); c.beginPath(); for (const pts of cuts) addPoly(c, pts, 0.86, 0, -0.06); c.clip(); c.translate(cx, 0);
+      c.save(); if (h.back) backCuts(c, h.back); c.beginPath(); for (const pts of cuts) addPoly(c, pts, 0.86, 0, -0.06); c.clip(); c.translate(cx, 0);
       const fy = -1.1, len = (1.25 + 0.3 * Math.sin(T * 8.7) + 0.12 * Math.sin(T * 21.3)) * Math.min(1.1, a) * (1 + B.roarGlow * 0.5), sway = Math.sin(T * 3.1) * 0.09 + Math.sin(T * 7.7) * 0.04;
       let g = c.createRadialGradient(sway * 0.5, fy + len * 0.45, 0.1, 0, fy + 0.4, 2.3);
       g.addColorStop(0, `rgba(255,200,110,${Math.min(1, 0.95 * a)})`); g.addColorStop(0.45, `rgba(205,95,28,${Math.min(1, 0.95 * a)})`); g.addColorStop(1, "rgba(60,18,4,0.97)");
@@ -13024,7 +13119,8 @@ body.lab .stage > :not(canvas) { display: none; }
       c.restore();
     }
     function renderEmissive(c, p) {
-      faceGlow(c, p.head, FRONTCUTS, B.headHoles);
+      if (!p.noHead) faceGlow(c, p.head, FRONTCUTS, B.headHoles);
+      if (p.headOnly) return;
       drawFire(c);
       const th = B.throw;
       if (th && th.holding) { const hd = p.arms[th.side > 0 ? 1 : 0].hd; if (hd.y > 15.1) { c.save(); c.translate(hd.x, hd.y + 0.15); c.scale(1, -1); drawVeg(c, th.type, RAD[th.type], th.ph === "hold" ? Math.sin(T * 40) * 0.03 : 0); c.restore(); } }
@@ -13058,9 +13154,19 @@ body.lab .stage > :not(canvas) { display: none; }
       const o = P(B.x, 0, B.z), s = o.s, ox = o.x + shx, oy = o.y + shy;
       if (o.behind) return;
       const a = P(B.x, 0, B.z - 1.5), b = P(B.x, 0, B.z + 1.5), ry = (a.y - b.y) / 2;
+      // (its head off and rolled away, further down the street: drawn first, on its own, with its own shadow)
+      const fog = (z) => clamp((z - 24) / 50, 0, 0.4);
+      if (B.head) {
+        const hn = headNow(), ho = P(hn.x, 0, hn.z);
+        if (!ho.behind) {
+          const ha = P(hn.x, 0, hn.z - 1), hb = P(hn.x, 0, hn.z + 1);
+          ctx.fillStyle = `rgba(0,0,0,${0.45 * clamp(1.6 - hn.y / 4, 0.2, 1)})`; ctx.beginPath(); ctx.ellipse(ho.x, (ha.y + hb.y) / 2, 1.9 * ho.s, Math.max(1, (ha.y - hb.y) / 2), 0, 0, 7); ctx.fill();
+          paintBoss(ctx, bc, bctx, dpr, ho.x + shx, ho.y + shy, ho.s, { head: { x: 0, y: hn.y, r: hn.r, sy: 1 }, headOnly: true }, fog(hn.z));
+        }
+      }
       ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, (B.state === "downed" || B.state === "crumple" ? 7 : 4.5) * s, Math.max(1, ry), 0, 0, 7); ctx.fill();
       // it comes in side on, the sack on its back, then turns to face you
-      paintBoss(ctx, bc, bctx, dpr, ox, oy, s, B.state === "enter" ? sidePose() : B.pose, clamp((B.z - 24) / 50, 0, 0.4));
+      paintBoss(ctx, bc, bctx, dpr, ox, oy, s, B.state === "enter" ? sidePose() : B.pose, fog(B.z));
     }
     // ---- (from the test page, lines 1617-1654)
     // ---------------------------------------------------------------- drawing: flying things, the launcher, the HUD
@@ -13244,7 +13350,8 @@ body.lab .stage > :not(canvas) { display: none; }
       note("LOAD, pump, then FIRE: come down on the stem, from above.", 4000);
     }
     // all five lobs missed: it hauls itself back up and roars over Riley
-    function rise() { B.from = heapPose(); B.state = "rise"; B.t = 0; sRoar(1, 0, 0.85, 2.6); B.roarGlow = 1; result.why = "lob"; }
+    // all five lobs missed: the head rolls back onto the heap first (then rise, then the lunge: see updBoss)
+    function rise() { B.state = "rollback"; B.t = 0; result.why = "lob"; sCreak(1, 0, 1.0); }
     function win() {
       S.bossWon = true; explode();
       S.bonus += BOSS.stemPts; (S.bonusItems = S.bonusItems || []).push("the stem");
@@ -13255,17 +13362,19 @@ body.lab .stage > :not(canvas) { display: none; }
       // the round's begun: it's heard before it's seen, off to the left
       if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -22; }
       if (B.state !== "preview" && S.phase !== "title" && !S.muted && actx && !amb) startAmbient();
-      // stepping aside: A / D (the cart levels' roll keys) or the ◀ ▶ buttons, while the fight's on
-      const mv = clamp((S.roll || 0) + stepHold, -1, 1);
-      if (live() && !S.bossCart && mv) riley.x = clamp(riley.x + mv * BOSS.step * dt, -BOSS.stepMax, BOSS.stepMax);
       if (S.phase !== "title") updBoss(dt);
-      B.pose = B.state === "crumple" ? lerpPose(B.from, heapPose(), easeIn(B.k)) : B.state === "rise" ? lerpPose(B.from, standPose(), easeIO(clamp(B.t / 2.4, 0, 1))) : B.state === "downed" || B.state === "dead" ? heapPose() : standPose();
+      if (B.head) B.head.t += dt;
+      // (down, it quivers: a little at first, more with every lob; at the last spud, hard)
+      const qv = B.state === "downed" ? 0.02 + 0.07 * tension() + (S.spudsLeft === 1 && S.bossCart ? 0.03 : 0) : B.state === "rollback" ? 0.12 : 0;
+      B.pose = B.state === "crumple" ? lerpPose(B.from, heapPose(), easeIn(B.k)) : B.state === "rise" ? lerpPose(B.from, standPose(), easeIO(clamp(B.t / 2.4, 0, 1))) : B.state === "downed" || B.state === "dead" || B.state === "rollback" ? heapPose(qv) : standPose();
+      // (and now and then a low growl from the heap, more often as it builds)
+      if (B.state === "downed" && S.bossCart && Math.random() < dt * (0.04 + 0.25 * tension())) { sRoar(0.18 + 0.3 * tension(), 0, 0.6, 1.4); B.roarGlow = Math.max(B.roarGlow, 0.5); }
       updFire(dt);
       // the cabinets: away until the entrance is over, and once it's down
       const g = S.gun;
       if (g) { const want = g.phase === "wait" || knocked() || S.bossCart ? 1 : 0; g.hide = (g.hide == null ? 1 : g.hide) + (want - (g.hide == null ? 1 : g.hide)) * Math.min(1, dt * 4); }
       // out of MP 15s before it's down
-      if (g && !S.bossCart && g.phase === "over" && !result.why && !knocked()) { result.why = "out"; B.throw = null; duck(false); }
+      if (g && !S.bossCart && g.phase === "over" && !result.why && !knocked()) { result.why = "out"; B.throw = null; duck(false); startLunge(); S.timer = Math.max(S.timer, 2.8); }
       // the squash in the air
       for (const q of projs) {
         if (q.dead) continue;
@@ -13298,6 +13407,19 @@ body.lab .stage > :not(canvas) { display: none; }
       flash = Math.max(0, flash - dt * 1.2); hurt = Math.max(0, hurt - dt * 1.6);
       if (msg.t < 900) msg.t -= dt;
       if (B.state === "dead") deadT += dt;
+      // the lob's dread: the drone swells and climbs, and a heartbeat quickens, with every spud launched
+      const down = S.bossCart && B.state === "downed", k = tension();
+      if (amb && amb.tense && ac) {
+        const tt = ac.currentTime, x = amb.tense;
+        x.g.gain.setTargetAtTime(down ? 0.01 + 0.04 * k : 0, tt, 0.6);
+        x.f.frequency.setTargetAtTime(220 + 900 * k, tt, 0.8);
+        x.o[0].frequency.setTargetAtTime(55 + 30 * k, tt, 1); x.o[1].frequency.setTargetAtTime(55.8 + 31 * k, tt, 1);
+      }
+      if (down && S.phase !== "levelEnd") {
+        B.beat = (B.beat == null ? 0.5 : B.beat) - dt;
+        if (B.beat <= 0) { sThud(0.12 + 0.35 * k); B.beat2 = 0.24; B.beat = 1.35 - 0.8 * k; }
+        if (B.beat2 > 0 && (B.beat2 -= dt) <= 0) sThud(0.08 + 0.25 * k);
+      }
       // down on the street: then the cart
       if (cartT > 0 && (cartT -= dt) <= 0 && !S.bossCart) toCart();
       if (cart && S.phase === "wait") {
@@ -13315,9 +13437,6 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.fillStyle = fill; ctx.fillRect(x, y, w * clamp(k, 0, 1), 8);
       if (label) text(label, x + w / 2, y - 5, "600 10px system-ui, sans-serif", "#d8cbb4");
     }
-    // the step-aside buttons, either side of the field, halfway down (only while the fight's on)
-    const stepBtns = () => { const s = clamp(Math.min(W, H) * 0.09, 34, 52), y = H * 0.5 - s / 2; return [{ d: -1, x: 8, y, s }, { d: 1, x: W - 8 - s, y, s }]; };
-    const showSteps = () => !S.bossCart && S.phase === "gun" && fighting() && riley.hp > 0;
     function over() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, "rgba(120,10,0,0)"); g.addColorStop(1, `rgba(120,10,0,${0.55 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
@@ -13333,29 +13452,19 @@ body.lab .stage > :not(canvas) { display: none; }
         hudBar(12, 44, w, riley.hp / 100, "#24301c", "#7a9a4a", "");
         text(`RILEY ${riley.hp}%`, 12, 38, "600 10px system-ui, sans-serif", "#d8cbb4", "left");
       }
-      if (showSteps()) for (const b of stepBtns()) {
-        const on = stepHold === b.d || (S.roll || 0) === b.d;
-        ctx.fillStyle = on ? "rgba(217,130,43,.55)" : "rgba(20,22,28,.6)"; ctx.strokeStyle = "rgba(234,223,200,.7)"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.s, b.s, 10) : ctx.rect(b.x, b.y, b.s, b.s); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#eadfc8"; ctx.beginPath(); const cx = b.x + b.s / 2, cy = b.y + b.s / 2, r = b.s * 0.22;
-        ctx.moveTo(cx - b.d * r, cy); ctx.lineTo(cx + b.d * r * 0.8, cy - r); ctx.lineTo(cx + b.d * r * 0.8, cy + r); ctx.closePath(); ctx.fill();
-      }
       if (msg.text && msg.t > 0) { ctx.globalAlpha = clamp(msg.t, 0, 1); text(msg.text, W / 2, H * 0.2, "italic 17px Georgia, serif", "#eadfc8"); ctx.globalAlpha = 1; }
       for (const f of floats) { ctx.globalAlpha = clamp(f.life, 0, 1); text(f.txt, f.x, f.y, f.big ? "700 44px Georgia, serif" : "700 16px system-ui, sans-serif", f.col); ctx.globalAlpha = 1; }
       drawBook();
     }
-    // a tap: the step buttons (held), or the notebook's Close button
-    function press(p, e) {
+    // a tap: the notebook's Close button (and nothing else while it's up, or while the cart rolls in)
+    function press(p) {
       if (book && book.phase === "read" && book.btn) {
         const sc = book.sc || 1, vx = (p.x - (W / 2) * (1 - sc)) / sc, vy = (p.y - H * (1 - sc)) / sc, b = book.btn;
         if (vx >= b.x0 - 6 && vx <= b.x1 + 6 && vy >= b.y0 - 6 && vy <= b.y1 + 6) { closeBook(); return true; }
         return true; // (nothing else till it's closed)
       }
-      if (book || (cart && S.phase === "wait")) return true;
-      if (showSteps()) for (const b of stepBtns()) if (p.x >= b.x - 4 && p.x <= b.x + b.s + 4 && p.y >= b.y - 4 && p.y <= b.y + b.s + 4) { stepHold = b.d; stepId = e.pointerId; return true; }
-      return false;
+      return !!(book || (cart && S.phase === "wait"));
     }
-    function releaseStep(e) { if (stepId === e.pointerId) { stepHold = 0; stepId = null; } }
 
     // ---- the MP 15 phase: the hooks the gun's code asks a place for (gp, as the Reservoir's)
     const gp = {
@@ -13363,16 +13472,15 @@ body.lab .stage > :not(canvas) { display: none; }
       noFollow: true, noPulls: true, noRelive: true, holdTable: true, minPitch: 0.25,
       reset() {},
       drift() {}, floor: () => 0,
-      // a mini spud: does it stop here? A squash it meets bursts (the barrel back, +3, once a shot); Squash Head's
-      // plane: the first of a shot to hit it counts, the rest just spray
+      // a mini spud: does it stop here? A squash it meets bursts (+10, as skeet: no barrel back since v2.26); Squash
+      // Head's plane: the first of a shot to hit it counts, the rest just spray
       pellet(pl, hits) {
         if (S.bossCart) return "stop";
         for (const q of projs) if (!q.dead && q.z > 0.4 && Math.hypot(pl.x - q.x, pl.y - q.y, pl.z - q.z) < q.r + 0.15) {
           burstProj(q); result.downed++;
-          S.bonus += BOSS.squashPts; (S.bonusItems = S.bonusItems || []).push("squash");
-          const shot = pl.shot, g = S.gun;
-          shot.items.push(`Squash shot down! +${BOSS.squashPts}${shot.refund ? "" : ", barrel back"}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
-          if (!shot.refund && g && g.shots > 0) { shot.refund = true; g.shots--; S.spudsLeft++; }
+          S.score += BOSS.squashPts;
+          const shot = pl.shot;
+          shot.items.push(`Squash! +${BOSS.squashPts}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
           hud();
           return "hit";
         }
@@ -13390,7 +13498,7 @@ body.lab .stage > :not(canvas) { display: none; }
       hud(g, held) {
         const left = g.guns.filter((x) => x.ready).length + Math.max(0, (lvl().racks || 1) - 1 - (g.rack || 0)) * GUN.cases;
         $("gunOut").innerHTML = `<span class="pz">🎃 ${Math.ceil(B.hp)}%</span><span class="sep"> · </span>Riley ${riley.hp}%`;
-        $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span>`;
+        $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span><span class="sep">·</span><span>sack ${B.sack}</span>`;
       },
     };
 
@@ -13398,17 +13506,18 @@ body.lab .stage > :not(canvas) { display: none; }
     // the head (or its neck) glances it off; into the heap it just thumps in
     function collide(p) {
       if (!S.bossCart || B.state !== "downed" || p.bonk || p.gold) return null;
-      const st = stemWorld(), hd = B.pose.head, dxs = (p.x - st.x) / 0.6, dzs = (p.z - st.z) / 1.0;
+      // (the head: off the heap, rolled away on its own since v2.26)
+      const st = stemWorld(), hd = B.head ? headNow() : { x: B.x + B.pose.head.x, y: B.pose.head.y, z: B.z }, dxs = (p.x - st.x) / 0.6, dzs = (p.z - st.z) / 1.0;
       if (p.vy < 0 && dxs * dxs + dzs * dzs < 1 && p.y < st.y + 0.35 && p.y > st.y - 0.55) return { kind: "stem", land: [p.x, p.y, p.z], at: [st.x, st.y, st.z] };
-      const hx = (p.x - B.x - hd.x) / (1.75 * HEADSX), hy = (p.y - hd.y + 0.4) / 1.5, hz = (p.z - B.z) / 1.6;
-      const neck = Math.abs(p.x - B.x - hd.x) < 0.75 * HEADSX && p.y > hd.y + 0.4 && p.y < hd.y + 2.95 && Math.abs(p.z - B.z) < 0.8;
+      const hx = (p.x - hd.x) / (1.75 * HEADSX), hy = (p.y - hd.y + 0.4) / 1.5, hz = (p.z - hd.z) / 1.6;
+      const neck = Math.abs(p.x - hd.x) < 0.75 * HEADSX && p.y > hd.y + 0.4 && p.y < hd.y + 2.95 && Math.abs(p.z - hd.z) < 0.8;
       if (hx * hx + hy * hy + hz * hz < 1 || neck) {
-        p.bonk = true; p.vx = -p.vx * 0.3 + Math.sign(p.x - B.x - hd.x || 1) * 2; p.vz = -p.vz * 0.25; p.vy = Math.abs(p.vy) * 0.3 + 1.5;
+        p.bonk = true; p.vx = -p.vx * 0.3 + Math.sign(p.x - hd.x || 1) * 2; p.vz = -p.vz * 0.25; p.vy = Math.abs(p.vy) * 0.3 + 1.5;
         sThud(0.6); spray({ x: p.x, y: p.y, z: p.z }, ["210,165,100", "232,140,50"], 8);
         addPre("It glanced off the side of its head (the stem, from above!)");
         return null;
       }
-      if (p.y < 4.2 && Math.abs(p.x - B.x) < 7 && Math.abs(p.z - B.z) < 2.5) return { kind: "heap", land: [p.x, p.y, p.z], at: [p.x, p.y, p.z] };
+      if (p.y < 3.6 && Math.abs(p.x - B.x) < 7 && Math.abs(p.z - B.z) < 2.5) return { kind: "heap", land: [p.x, p.y, p.z], at: [p.x, p.y, p.z] };
       return null;
     }
     const spudsLeftNote = () => (S.spudsLeft > 0 ? ` · ${S.spudsLeft} spud${S.spudsLeft === 1 ? "" : "s"} left in the cart` : "");
@@ -13434,6 +13543,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (B.state === "dead") return;
       ctx.fillStyle = "#c98a3c"; ctx.strokeStyle = "#23303a"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.ellipse(MX(B.x), MY(B.z), Math.max(4, 6 * sc), Math.max(2.5, 2 * sc), 0, 0, 7); ctx.fill(); ctx.stroke();
+      // (the head where it rolled to, and its stem, green)
+      if (B.head) { const hn = headNow(); ctx.fillStyle = "#d6a35c"; ctx.beginPath(); ctx.arc(MX(hn.x), MY(hn.z), Math.max(3, 1.6 * sc), 0, 7); ctx.fill(); ctx.stroke(); }
       if (S.bossCart) { const st = stemWorld(); ctx.fillStyle = "#39ff14"; ctx.beginPath(); ctx.arc(MX(st.x), MY(st.z), 3.5, 0, 7); ctx.fill(); ctx.stroke(); }
     }
 
@@ -13452,7 +13563,7 @@ body.lab .stage > :not(canvas) { display: none; }
       standing: [], dyn: () => [],
       back: street,
       front() { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.save(); ctx.translate(shx, shy); drawFlying(); ctx.restore(); },
-      over, press, release: releaseStep, collide, landOn, missNote, rise, map,
+      over, press, collide, landOn, missNote, rise, map,
       // (Re-live it puts it as it was before the lob, and after)
       keep: () => [[B, { state: B.state }]],
       // (FIRE closes the notebook while it's open)
@@ -13465,7 +13576,7 @@ body.lab .stage > :not(canvas) { display: none; }
       free: () => true, spots: () => null, roofTargets: () => [],
       // (for testing from the console)
       peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld() }),
-      test: { hitBoss, damage, startThrow, release, toCart, closeBook, win, explode, checkStage, startCrumple },
+      test: { hitBoss, damage, startThrow, release, toCart, closeBook, win, explode, checkStage, startCrumple, makeHeadRoll, roar },
     };
   }
 
