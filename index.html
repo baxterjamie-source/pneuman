@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.29</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.30</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -835,10 +835,10 @@ body.lab .stage > :not(canvas) { display: none; }
     // the finale (v2.25): Squash Head, Downtown at night. An MP 15 level (two racks of five cabinets: 30 spuds) till it's
     // knocked down, then a Cart Launcher level for the lob onto its stem (5 spuds, no wind): gun is true till then
     // (S.bossCart). See buildBoss
-    // Downtown (v2.29): the same night town, 16 minion squash heads with the MP 15 (two racks, 30 spuds), Riley steps
-    // side to side; all 16 down and it runs straight on into Squash Head's level, no score card. See buildBoss (DT)
+    // Downtown (v2.29): the same night town, 16 minion squash heads with the MP 15 (v2.30: three racks, 45 spuds), Riley
+    // steps side to side; all 16 down and it runs straight on into Squash Head's level, no score card. See buildBoss (DT)
     { id: "downtown", name: "Downtown", scene: "downtown", mix: {}, z: [10, 50], wind: [0, 0], props: [], gun: true, downtown: true, noun: "Minions", icon: SQUASH_ICON,
-      gunName: "MP 15", barrels: 3, perPull: 3, racks: 2 },
+      gunName: "MP 15", barrels: 3, perPull: 3, racks: 3 },
     { id: "squashhead", name: "Squash Head", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: SQUASH_ICON,
       get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 3, lobs: 5, mapZ: 60 },
   ];
@@ -7375,7 +7375,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const pts = new Map();
   let drag = null, look = null;
-  const canLook = () => !S.potato && !S.replay && $("overlay").hidden && S.arcView == null;
+  // (v2.30: not on a gun level (Downtown's step buttons are where Reset view would come up); Squash Head's cart, yes)
+  const canLook = () => !S.potato && !S.replay && $("overlay").hidden && S.arcView == null && !lvl().gun;
   const local = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const touchSnap = () => {
     const a = [...pts.values()], m = { x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length };
@@ -9433,6 +9434,9 @@ body.lab .stage > :not(canvas) { display: none; }
   const gunOn = () => !!lvl().gun && S.phase === "gun" && $("overlay").hidden;
   let gunTouch = null;
   cv.addEventListener("pointerdown", (e) => {
+    // (v2.30: a finger on the field lets go of any page button it was on before (FIRE and the like), so nothing's
+    // left holding the focus and the next touch counts first time)
+    const ae = document.activeElement; if (ae && ae !== document.body && ae.blur) ae.blur();
     // (a place's own buttons first, on either kind of level: Squash Head's step-aside buttons and notebook)
     if (S.scene && S.scene.press && $("overlay").hidden && !HOWTO.on && S.scene.press(local(e), e)) { e.stopImmediatePropagation(); audio(); return; }
     if (!gunOn()) return;
@@ -12051,7 +12055,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const BOSS = { squashPts: 10, stemPts: 300, rileyHit: 10, lobs: 5, sack: { meh: 20, yup: 24, gnarly: 28 }, head: 8, double: 0.4 };
   // Downtown's minions (v2.29): how many, how many at once, their size against Squash Head's, walking speed (m/s, yup),
   // tomato range and hurt, how near before they claw, points (a tomato shot down: tomatoPts), Riley's step
-  const DTN = { count: 16, maxOn: 4, sc: 0.13, speed: 1.0, range: 40, tomato: 5, reach: 5, claw: 15, pts: 10, headPts: 5, tomatoPts: 5, step: 6.5, stepMax: 5 };
+  // (tomatoSlow, v2.30: a tomato's flight time against a squash's, 1 / 0.8: 20% slower)
+  const DTN = { count: 16, maxOn: 4, sc: 0.13, speed: 1.0, range: 40, tomato: 5, reach: 5, claw: 15, pts: 10, headPts: 5, tomatoPts: 5, step: 6.5, stepMax: 5, tomatoSlow: 1.25 };
   function buildBoss(mode) {
     // (Downtown (v2.29) is this same town, with the minions instead: DT)
     const DT = mode === "downtown";
@@ -12507,7 +12512,8 @@ body.lab .stage > :not(canvas) { display: none; }
       const x0 = B.x + a.hd.x * sc, y0 = a.hd.y * sc, z0 = B.z - 1.2 * sc;
       // (at Riley as it lets go; quicker than the test page's, and a flatter arc, so it stays in view more of the way)
       // (a minion's tomato: its own hurt, DTN.tomato)
-      projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(), h: B.small ? 1 + B.z * 0.03 : 1.2 + B.z * 0.04,
+      // (v2.30: a minion's tomato 20% slower through the air: DTN.tomatoSlow)
+      projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(B.small ? DTN.tomatoSlow : 1), h: B.small ? 1 + B.z * 0.03 : 1.2 + B.z * 0.04,
         rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false, dmg: B.small ? DTN.tomato : BOSS.rileyHit }));
       sLaunch(clamp((x0 - riley.x) / 10, -0.6, 0.6)); if (!B.small) duck(false);
       if (B.small) return;
@@ -13990,8 +13996,10 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let i = 1; i < row.length; i++) if (row[i].z1 - row[i - 1].z2 >= 3) alleys.push({ side, z: (row[i].z1 + row[i - 1].z2) / 2 });
     }
     const minAlive = () => mins.filter((m) => m.state === "emerge" || m.state === "walk").length;
-    let stepHold = 0, stepId = null;
-    function resetMins() { mins.length = 0; Object.assign(minSt, { spawned: 0, down: 0, gone: 0, spawnT: 2.5, won: false }); stepHold = 0; stepId = null; }
+    // (stepTap: a press keeps Riley stepping at least STEP_TAP s, about a metre and a half, however quick the tap)
+    const STEP_TAP = 0.25;
+    let stepHold = 0, stepId = null, stepTap = { d: 0, t: 0 };
+    function resetMins() { mins.length = 0; Object.assign(minSt, { spawned: 0, down: 0, gone: 0, spawnT: 2.5, won: false }); stepHold = 0; stepId = null; stepTap = { d: 0, t: 0 }; }
     function spawnMin() {
       const fromCar = Math.random() < 0.5, near = cars.filter((c) => c.z > 18 && c.z < 60), al = alleys.filter((a) => a.z > 18 && a.z < 62);
       let x, z;
@@ -14041,7 +14049,8 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function tickMins(dt) {
       // stepping aside (Downtown only): A / D, or the ◀ ▶ buttons
-      const mv = clamp((S.roll || 0) + stepHold, -1, 1);
+      if (stepTap.t > 0) stepTap.t -= dt;
+      const mv = clamp((S.roll || 0) + (stepHold || (stepTap.t > 0 ? stepTap.d : 0)), -1, 1);
       if (live() && mv) riley.x = clamp(riley.x + mv * DTN.step * dt, -DTN.stepMax, DTN.stepMax);
       if (live() && minSt.spawned < DTN.count && minAlive() < DTN.maxOn && (minSt.spawnT -= dt) <= 0) { spawnMin(); minSt.spawnT = rand(4, 9) / (dif().pace / DIFF.yup.pace); }
       for (const m of mins) asMin(m, () => {
@@ -14102,22 +14111,35 @@ body.lab .stage > :not(canvas) { display: none; }
       if (m.box) asMin(m, () => paintBossOn(ctx, m.cv, dpr, o.x + shx, o.y + shy, s, m.pose, { ...m.box, dx: dpr * (o.x + shx - m.pox), dy: dpr * (o.y + shy - m.poy) }));
       ctx.restore(); shakeT();
     }
-    // the step-aside buttons, either side of the field, halfway down (Downtown, while it's on)
-    const stepBtns = () => { const s = clamp(Math.min(W, H) * 0.09, 34, 52), y = H * 0.5 - s / 2; return [{ d: -1, x: 8, y, s }, { d: 1, x: W - 8 - s, y, s }]; };
+    // the step-aside buttons (v2.30): a ◀ ▶ pair down in each bottom corner, for either thumb (Downtown, while it's
+    // on); while the cabinets are up they ride just above them, so a tap on a cabinet still grabs it
+    const stepBtns = () => {
+      const s = clamp(Math.min(W, H) * 0.12, 44, 60), gap = 6, low = H - s - 12, g = S.gun;
+      let y = low;
+      if (g && (g.up || 0) < 1) { const L = caseLayout(); y = Math.min(low, low + ((L.cy - 44 * L.sc - s - 10) - low) * (1 - (g.up || 0)) * (1 - (g.hide || 0))); }
+      return [{ d: -1, x: 8, y, s }, { d: 1, x: 8 + s + gap, y, s }, { d: -1, x: W - 8 - 2 * s - gap, y, s }, { d: 1, x: W - 8 - s, y, s }];
+    };
     const showSteps = () => DT && S.phase === "gun" && live();
     function drawSteps() {
       if (!showSteps()) return;
       for (const b of stepBtns()) {
-        const on = stepHold === b.d || (S.roll || 0) === b.d;
+        const on = stepHold === b.d || (stepTap.t > 0 && stepTap.d === b.d) || (S.roll || 0) === b.d;
         ctx.fillStyle = on ? "rgba(217,130,43,.55)" : "rgba(20,22,28,.6)"; ctx.strokeStyle = "rgba(234,223,200,.7)"; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.s, b.s, 10) : ctx.rect(b.x, b.y, b.s, b.s); ctx.fill(); ctx.stroke();
         ctx.fillStyle = "#eadfc8"; ctx.beginPath(); const cx = b.x + b.s / 2, cy = b.y + b.s / 2, r = b.s * 0.22;
-        ctx.moveTo(cx - b.d * r, cy); ctx.lineTo(cx + b.d * r * 0.8, cy - r); ctx.lineTo(cx + b.d * r * 0.8, cy + r); ctx.closePath(); ctx.fill();
+        // (the point of the triangle on the side it steps to)
+        ctx.moveTo(cx + b.d * r, cy); ctx.lineTo(cx - b.d * r * 0.8, cy - r); ctx.lineTo(cx - b.d * r * 0.8, cy + r); ctx.closePath(); ctx.fill();
       }
     }
     function pressSteps(p, e) {
       if (!showSteps()) return false;
-      for (const b of stepBtns()) if (p.x >= b.x - 4 && p.x <= b.x + b.s + 4 && p.y >= b.y - 4 && p.y <= b.y + b.s + 4) { stepHold = b.d; stepId = e.pointerId; return true; }
+      // (v2.30: every press counts at once, whatever went before: it takes over from any held one, and even a quick
+      // tap carries Riley a full step (stepTap) rather than the few centimetres it was down for)
+      for (const b of stepBtns()) if (p.x >= b.x - 3 && p.x <= b.x + b.s + 3 && p.y >= b.y - 6 && p.y <= b.y + b.s + 6) {
+        stepHold = b.d; stepId = e.pointerId; stepTap = { d: b.d, t: STEP_TAP };
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+        return true;
+      }
       return false;
     }
     function releaseStep(e) { if (stepId === e.pointerId) { stepHold = 0; stepId = null; } }
