@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.28</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.29</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -835,11 +835,16 @@ body.lab .stage > :not(canvas) { display: none; }
     // the finale (v2.25): Squash Head, Downtown at night. An MP 15 level (two racks of five cabinets: 30 spuds) till it's
     // knocked down, then a Cart Launcher level for the lob onto its stem (5 spuds, no wind): gun is true till then
     // (S.bossCart). See buildBoss
+    // Downtown (v2.29): the same night town, 16 minion squash heads with the MP 15 (two racks, 30 spuds), Riley steps
+    // side to side; all 16 down and it runs straight on into Squash Head's level, no score card. See buildBoss (DT)
+    { id: "downtown", name: "Downtown", scene: "downtown", mix: {}, z: [10, 50], wind: [0, 0], props: [], gun: true, downtown: true, noun: "Minions", icon: SQUASH_ICON,
+      gunName: "MP 15", barrels: 3, perPull: 3, racks: 2 },
     { id: "squashhead", name: "Squash Head", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: SQUASH_ICON,
       get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 3, lobs: 5, mapZ: 60 },
   ];
   // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
-  const COMING_SOON = ["Winery", "Downtown", "Golf"];
+  // (v2.29: none for now; Winery and Golf off the list, Downtown built)
+  const COMING_SOON = [];
   const SPUDS = 10;
   const HOLES = Array.from({ length: 13 }, (_, i) => 10 + i * 5); // 10°..70°
   const G = 9.81, K = 0.0026, MUZZLE = 4.1, MAX_PSI = 120;
@@ -2303,7 +2308,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (Squash Head's round counts no spare spuds or clear bonus: its stem is +300)
     const boss = !!lvl().boss, br = boss && S.scene.result ? S.scene.result() : null;
     // (v2.27: Riley killed: no score, no best, no challenge; just the end of Riley, and play again)
-    if (boss && !cleared()) { bossDeath(br); return; }
+    if ((boss || lvl().downtown) && !cleared()) { bossDeath(S.scene.result ? S.scene.result() : null); return; }
     const spare = cleared() && !boss ? S.spudsLeft : 0;
     // MP levels: clearing also earns +1 for each pull not used (of the 20), so it pays to clear early rather than wait
     // for the perfect pair (v2.17: per pull, not per skeet, so the Reservoir's threes don't count half again as much)
@@ -2356,11 +2361,25 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // Squash Head won: Riley's dead. No score for it (nothing kept as a best, no tally, no Challenge a friend, no Re-live
   // it); free play offers Replay and Pick a level, a campaign Try again and Save & quit (the try counts)
+  // Downtown cleared (v2.29): no score card. Its points are kept as its best (and its campaign best, it's cleared), then
+  // straight on into Squash Head's level, fresh (Riley at 100%, its own 45 spuds)
+  function downtownDone() {
+    const L = lvl(), tot = Math.round((S.score + S.bonus) * dif().mult), prev = getBest(L);
+    if (prev == null || tot > prev) setBest(L, tot);
+    if (S.camp) {
+      const r = S.camp; r.tries[L.id] = (r.tries[L.id] || 0) + 1; r.cleared[L.id] = true;
+      if (r.best[L.id] == null || tot > r.best[L.id]) r.best[L.id] = tot;
+      campSave(r); campPlay(r);
+    } else startLevel(levelIx("squashhead"));
+  }
   function bossDeath(br) {
     const L = lvl();
     S.phase = "levelEnd"; hideRelive(); S.score = 0; S.bonus = 0; hud();
-    const counts = `<span class="pz">${SQUASH_ICON} ${br ? br.hp : 0}% left</span><span class="pz">squash shot down ${br ? br.downed : 0}</span>`;
-    const title = "Squash Head rose again.", body = "Sadly, that is the end of Riley.";
+    // (Downtown, v2.29: overrun by the minions, or out of MP 15s; the same no-score card)
+    const dt = !!(br && br.downtown);
+    const counts = dt ? `<span class="pz">${SQUASH_ICON} ${br.minDown} of ${br.minOf} minions down</span><span class="pz">tomatoes shot down ${br.downed}</span>`
+      : `<span class="pz">${SQUASH_ICON} ${br ? br.hp : 0}% left</span><span class="pz">squash shot down ${br ? br.downed : 0}</span>`;
+    const title = dt ? (br.why === "out" ? "Out of MP 15s." : "Riley is down.") : "Squash Head rose again.", body = dt ? "The minions overran Riley." : "Sadly, that is the end of Riley.";
     if (S.camp) {
       const r = S.camp, n = r.order.length, k = r.order.indexOf(L.id);
       r.tries[L.id] = (r.tries[L.id] || 0) + 1; campSave(r);
@@ -2476,6 +2495,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (v2.09: no eyebrow or rules line any more, for room: How to play has them)
     showCard("", "Pneuman", "",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
+      LEVELS[sel].downtown ? `<span class="pz">${SQUASH_ICON} minion down +${DTN.pts} (head shot +${DTN.pts + DTN.headPts}) · tomato +${DTN.tomatoPts}</span>` :
       LEVELS[sel].boss ? `<span class="pz">${SQUASH_ICON} head ${BOSS.head} · kneecap or limb 2 · body 1 · squash +${BOSS.squashPts} · the stem, lobbed, +${BOSS.stemPts}</span>` :
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
@@ -2513,7 +2533,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // Cul de sac), then Cart Launcher and MP levels taking turns, Harvest's long shots just before the finale, and the
   // Reservoir (the most satisfying) last (v2.19). A new level slots in here once it's built
   // (v2.25: Squash Head, the finale, after the Reservoir; Downtown goes in before it once it's built)
-  const CAMP_ORDER = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir", "squashhead"].filter((id) => LEVELS.some((L) => L.id === id));
+  const CAMP_ORDER = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir", "downtown", "squashhead"].filter((id) => LEVELS.some((L) => L.id === id));
   // a run, kept on the device after every level: { diff, order, best: {id: the best clear's level total},
   // tries: {id: rounds played}, cleared: {id: true}, started }. A level part-played isn't kept
   const CAMP_KEY = "pneuman-camp", campTopKey = (d) => `pneuman-camp-top-${d}`;
@@ -4041,7 +4061,7 @@ body.lab .stage > :not(canvas) { display: none; }
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
-  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory(), mill: () => buildMill(), reservoir: () => buildReservoir(), boss: () => buildBoss() };
+  const SCENE_BUILD = { pasture: () => PASTURE, culdesac: () => buildCulDeSac(), harvest: () => buildHarvest(), lake: () => buildLake(), factory: () => buildFactory(), mill: () => buildMill(), reservoir: () => buildReservoir(), boss: () => buildBoss(), downtown: () => buildBoss("downtown") };
   const sceneFor = (L) => built[L.scene] || (built[L.scene] = SCENE_BUILD[L.scene]());
 
   // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
@@ -7684,6 +7704,11 @@ body.lab .stage > :not(canvas) { display: none; }
     if (L.scene === "reservoir") {
       $("xPlus").innerHTML = `<small class="xmore">the drone (+10), the green nav buoy (+5)</small>`;
       $("xMinus").innerHTML = `<small class="xmore">rowers, coaches' launches, the gull, the duck, the hydro worker, powerhouse windows</small>`;
+      return;
+    }
+    if (L.downtown) {
+      $("xPlus").innerHTML = `<small class="xmore">minion squash heads (+${DTN.pts}, head shot +${DTN.pts + DTN.headPts}), tomatoes shot down (+${DTN.tomatoPts})</small>`;
+      $("xMinus").innerHTML = `<small class="xmore">a tomato that reaches Riley (${DTN.tomato}%), a minion that gets to Riley (${DTN.claw}%); step aside: A / D, ◀ ▶</small>`;
       return;
     }
     if (L.boss) {
@@ -12024,7 +12049,12 @@ body.lab .stage > :not(canvas) { display: none; }
   // (v2.27: a bigger sack, 20 / 24 / 28, and a third rack (45 spuds); from its second stomp closer it sometimes throws
   // two at once (double). Yup: 24 squash, Riley survives 9, so at least 15 must be shot, plus 13 head shots: 28 of 45)
   const BOSS = { squashPts: 10, stemPts: 300, rileyHit: 10, lobs: 5, sack: { meh: 20, yup: 24, gnarly: 28 }, head: 8, double: 0.4 };
-  function buildBoss() {
+  // Downtown's minions (v2.29): how many, how many at once, their size against Squash Head's, walking speed (m/s, yup),
+  // tomato range and hurt, how near before they claw, points (a tomato shot down: tomatoPts), Riley's step
+  const DTN = { count: 16, maxOn: 4, sc: 0.13, speed: 1.0, range: 40, tomato: 5, reach: 5, claw: 15, pts: 10, headPts: 5, tomatoPts: 5, step: 6.5, stepMax: 5 };
+  function buildBoss(mode) {
+    // (Downtown (v2.29) is this same town, with the minions instead: DT)
+    const DT = mode === "downtown";
     // ---- the test page's helpers, kept to this place
     const lerp = (a, b, t) => a + (b - a) * t, easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2), easeIn = (t) => t * t;
     const rand = rnd, lp = (A, B2, t) => ({ x: lerp(A.x, B2.x, t), y: lerp(A.y, B2.y, t) });
@@ -12147,20 +12177,24 @@ body.lab .stage > :not(canvas) { display: none; }
     // up close (STAGE_AT: the share thrown before each step forward), so the early fight is mostly skeet)
     const Z = [90, 58, 36], STAGE_AT = [0.6, 0.9];
     const HEADSX = 0.86; // the head's width squeeze, so it reads as a squash
-    const RAD = { pumpkin: 0.55, acorn: 0.42, gourd: 0.4, butternut: 0.45 }, TYPES = ["pumpkin", "pumpkin", "acorn", "gourd", "butternut"];
-    const VEGC = { pumpkin: ["217,120,40", "200,95,30", "232,170,80"], acorn: ["40,70,35", "230,160,70", "200,120,40"], gourd: ["225,190,70", "200,160,50", "240,220,140"], butternut: ["210,165,100", "232,140,50", "240,200,140"] };
+    const RAD = { pumpkin: 0.55, acorn: 0.42, gourd: 0.4, butternut: 0.45, tomato: 0.24 }, TYPES = ["pumpkin", "pumpkin", "acorn", "gourd", "butternut"];
+    const VEGC = { pumpkin: ["217,120,40", "200,95,30", "232,170,80"], acorn: ["40,70,35", "230,160,70", "200,120,40"], gourd: ["225,190,70", "200,160,50", "240,220,140"], butternut: ["210,165,100", "232,140,50", "240,200,140"], tomato: ["200,30,20", "150,15,10", "232,210,122"] };
     let shake = 0, shx = 0, shy = 0, flash = 0, hurt = 0, deadT = 0, cartT = -1;
     let B, riley, projs, parts, splats, floats, msg, book, cart;
     // (result: why the round ended, for the end card; hits and squash down, for its counts)
     const result = { why: null, hits: 0, downed: 0 };
     // (the squash's pace: the difficulty's, yup as 1, a quarter quicker than the test page, and quicker at each stage)
     const pace = () => (dif().pace / DIFF.yup.pace) * 1.25 * (1 + 0.12 * B.stage);
+    // (a figure's state: Squash Head's, or (v2.29) a minion's, drawn and moved by the same code with B swapped to it;
+    // sc: its size against Squash Head's (a minion's about a ninth); small: a minion (quiet steps, tomatoes, no roars))
+    const newB = (o = {}) => ({ x: 0, z: Z[0], stage: 0, hp: 100, state: "preview", t: 0, walkPh: 0, walking: false, lift: [0, 0], prevLift: [0, 0], throw: null, nextThrow: 2,
+      lean: 0, headR: 0, twitchT: 0, twitchA: 0, nextTwitch: 7, flinch: 0, flinchDir: 1, flare: 0, roarGlow: 0, roarCD: 0, k: 0, gutter: 0, cand: 0.8,
+      headHoles: [], bodyHoles: [], divots: [], kneeHits: [], fire: [], fireT: 0, pflare: 0, roarT: 0, roarSide: 1, bigWalk: false, side: false, z0: 0, z1: 0, advDur: 3, faceRoar: false, from: null, thudKnees: false, pose: null,
+      sc: 1, small: false, head: null, ...o });
     function resetBoss() {
       // (on the start card it stands at the end of the street, facing you; the round starts it off the side)
-      B = { x: 0, z: Z[0], stage: 0, hp: 100, state: "preview", t: 0, walkPh: 0, walking: false, lift: [0, 0], prevLift: [0, 0], throw: null, nextThrow: 2,
-        lean: 0, headR: 0, twitchT: 0, twitchA: 0, nextTwitch: 7, flinch: 0, flinchDir: 1, flare: 0, roarGlow: 0, roarCD: 0, k: 0, gutter: 0, cand: 0.8,
-        headHoles: [], bodyHoles: [], divots: [], kneeHits: [], fire: [], fireT: 0, pflare: 0, roarT: 0, roarSide: 1, bigWalk: false, side: false, z0: 0, z1: 0, advDur: 3, faceRoar: false, from: null, thudKnees: false, pose: null };
-      B.pose = standPose(); B.sack = B.sack0 = BOSS.sack[S.diff] || BOSS.sack.yup; B.head = null;
+      B = newB(DT ? { state: "away" } : {});
+      B.pose = standPose(); B.sack = B.sack0 = BOSS.sack[S.diff] || BOSS.sack.yup;
       riley = { hp: 100, x: 0 }; projs = []; parts = []; splats = []; floats = []; msg = { text: "", t: 0 }; book = null; cart = null;
       shake = flash = hurt = deadT = 0; cartT = -1; T = 0;
       Object.assign(result, { why: null, hits: 0, downed: 0 });
@@ -12434,8 +12468,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const PH = [["reach", 0.65], ["pull", 0.7], ["hold", 0.55], ["whip", 0.24], ["follow", 0.22], ["ret", 0.7]];
     function startThrow() {
       const s = Math.random() < 0.62 ? 1 : -1;
-      B.throw = { side: s, i: 0, ph: "reach", p: 0, released: false, holding: false, type: pick(TYPES) };
-      if (Math.random() < 0.22 + B.stage * 0.16) roar(0.75);
+      B.throw = { side: s, i: 0, ph: "reach", p: 0, released: false, holding: false, type: B.small ? "tomato" : pick(TYPES) };
+      if (!B.small && Math.random() < 0.22 + B.stage * 0.16) roar(0.75);
     }
     function updThrow(dt) {
       const th = B.throw;
@@ -12450,9 +12484,9 @@ body.lab .stage > :not(canvas) { display: none; }
         th.i++;
         if (th.i >= PH.length) { B.throw = null; B.nextThrow = (rand(2.4, 4.2) - B.stage * 0.45) * THROW_PACE / pace(); return; }
         th.ph = PH[th.i][0]; th.p = 0;
-        if (th.ph === "pull") { th.holding = true; sCreak(0.9, th.side * 0.2); }
-        if (th.ph === "hold") duck(true);
-        if (th.ph === "whip") sWhoosh(0.55, 0, 0.3, 140, 900);
+        if (th.ph === "pull") { th.holding = true; sCreak(B.small ? 0.25 : 0.9, th.side * 0.2); }
+        if (th.ph === "hold" && !B.small) duck(true);
+        if (th.ph === "whip") sWhoosh(B.small ? 0.2 : 0.55, 0, 0.3, 140, 900);
       }
     }
     // (v2.28: a squash's arc kept in view: if any of its path would go up past the top of the view (from where Riley
@@ -12469,12 +12503,14 @@ body.lab .stage > :not(canvas) { display: none; }
       return q;
     }
     function release(th) {
-      const a = B.pose.arms[th.side > 0 ? 1 : 0], type = th.type;
-      const x0 = B.x + a.hd.x, y0 = a.hd.y, z0 = B.z - 1.2;
+      const a = B.pose.arms[th.side > 0 ? 1 : 0], type = th.type, sc = B.sc || 1;
+      const x0 = B.x + a.hd.x * sc, y0 = a.hd.y * sc, z0 = B.z - 1.2 * sc;
       // (at Riley as it lets go; quicker than the test page's, and a flatter arc, so it stays in view more of the way)
-      projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(), h: 1.2 + B.z * 0.04,
-        rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false }));
-      sLaunch(clamp(a.hd.x / 10, -0.6, 0.6)); duck(false);
+      // (a minion's tomato: its own hurt, DTN.tomato)
+      projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(), h: B.small ? 1 + B.z * 0.03 : 1.2 + B.z * 0.04,
+        rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false, dmg: B.small ? DTN.tomato : BOSS.rileyHit }));
+      sLaunch(clamp((x0 - riley.x) / 10, -0.6, 0.6)); if (!B.small) duck(false);
+      if (B.small) return;
       // (from its second stomp closer on, sometimes a second one with it, a little higher and slower, so they come one
       // after the other: two barrels to stop them both)
       if (B.stage >= 1 && B.sack >= 2 && Math.random() < BOSS.double) {
@@ -12504,6 +12540,7 @@ body.lab .stage > :not(canvas) { display: none; }
     let onStomp = null;
     function stomp(i) {
       if (onStomp) onStomp(i);
+      if (B.small) return; // (a minion's steps make no thunder)
       const near = clamp(1.15 - (B.z - 26) / 40, 0.45, 1.1);
       sStomp(near, clamp(B.x / 14, -0.9, 0.9)); shake = Math.max(shake, 5 + near * 9); dimLights(26);
       const ax = B.x + (i ? 1.8 : -1.8);
@@ -12686,10 +12723,11 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // (a squash that reaches Riley: 20% of Riley's health; none left and Riley's down, and the round's lost)
     function hitPlayer(q) {
-      q.dead = true; riley.hp = Math.max(0, riley.hp - BOSS.rileyHit); hurt = 1; shake = Math.max(shake, 14);
+      const dmg = q.dmg || BOSS.rileyHit;
+      q.dead = true; riley.hp = Math.max(0, riley.hp - dmg); hurt = 1; shake = Math.max(shake, DT ? 8 : 14);
       splatScreen(Math.floor(rand(5, 9)), 2.6, VEGC[q.type]);
       sSplat(1.1, 0.75); sThud(0.6);
-      floats.push({ x: W / 2, y: H * 0.55, txt: `−${BOSS.rileyHit}%`, life: 1.2, col: "#ff8a6a" });
+      floats.push({ x: W / 2, y: H * 0.55, txt: `−${dmg}%`, life: 1.2, col: "#ff8a6a" });
       shotNote(riley.hp > 0 ? `Splat! Riley's hit: ${riley.hp}% left. Shoot them down!` : "Riley is down.");
       if (riley.hp <= 0) { B.throw = null; msgSet("", 0); endRound("down", 99); startDeath(); }
       hud();
@@ -13044,8 +13082,11 @@ body.lab .stage > :not(canvas) { display: none; }
       if (h.prof) cuts = SIDECUTS;
       c.save(); c.translate(h.x, h.y); c.rotate(h.r); c.scale(HEADSX * (h.prof || 1), h.sy || 1);
       headPath(c);
-      const g = c.createRadialGradient(-0.55, -0.1, 0.15, 0, 0.2, 2.9); g.addColorStop(0, "#dcb67e"); g.addColorStop(0.55, "#b38851"); g.addColorStop(1, "#5e4020");
+      // (a minion's head can be orange or mottled green: B.hc, its three shades; Squash Head's butternut otherwise)
+      const hc = B.hc || ["#dcb67e", "#b38851", "#5e4020"];
+      const g = c.createRadialGradient(-0.55, -0.1, 0.15, 0, 0.2, 2.9); g.addColorStop(0, hc[0]); g.addColorStop(0.55, hc[1]); g.addColorStop(1, hc[2]);
       c.fillStyle = g; c.fill(); c.strokeStyle = "#3d2812"; c.lineWidth = 0.05; c.stroke();
+      if (B.mottle) { c.save(); headPath(c); c.clip(); c.fillStyle = "rgba(210,220,150,0.35)"; for (let i = 0; i < 18; i++) { const a = i * 2.4, d = 0.3 + (i % 5) * 0.32; c.beginPath(); c.ellipse(Math.cos(a) * d, Math.sin(a) * d * 1.2 + 0.3, 0.16, 0.09, a, 0, 7); c.fill(); } c.restore(); }
       c.save(); headPath(c); c.clip(); c.strokeStyle = "rgba(80,52,22,0.22)"; c.lineWidth = 0.035;
       for (const k of [-0.75, -0.4, 0.4, 0.75]) { c.beginPath(); c.moveTo(k * 0.55, 2.95); c.bezierCurveTo(k * 0.85, 1.4, k * 2.2, 0.4, k * 1.9, -1.7); c.stroke(); }
       c.restore();
@@ -13294,25 +13335,43 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // paint the boss into a target canvas: body on the offscreen canvas, night lighting on its pixels only, then what glows
     // (k: the canvases' pixel scale; ox, oy: the feet on screen; s: pixels per metre)
-    function paintBoss(tc, ocv, oct, k, ox, oy, s, pose, fog) {
-      oct.setTransform(1, 0, 0, 1, 0, 0); oct.clearRect(0, 0, ocv.width, ocv.height);
-      oct.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
+    // (v2.29: in two halves, so the minions' bodies can all be painted first and laid down after: paintBossBody, its
+    // body on the offscreen canvas with the night light on it, then paintBossOn, laid on the field with its face lit)
+    function paintBoss(tc, ocv, oct, k, ox, oy, s, pose, fog, local = false) {
+      const b = paintBossBody(ocv, oct, k, ox, oy, s, pose, fog, local);
+      if (b) paintBossOn(tc, ocv, k, ox, oy, s, pose, b);
+    }
+    function paintBossBody(ocv, oct, k, ox, oy, s, pose, fog, local = false) {
+      // (only its own patch of the screen is cleared and laid down; local: ocv is a small canvas of the figure's own (a
+      // minion's), the patch's size)
+      const cw = Math.round(W * k), chh = Math.round(H * k);
+      const bx = Math.max(0, Math.floor(k * (ox - 15 * s))), by = Math.max(0, Math.floor(k * (oy - 25 * s))), bx1 = Math.min(cw, Math.ceil(k * (ox + 15 * s))), by1 = Math.min(chh, Math.ceil(k * (oy + 2 * s)));
+      if (bx1 <= bx || by1 <= by) return null;
+      const ow = bx1 - bx, oh = by1 - by, o0x = local ? bx : 0, o0y = local ? by : 0;
+      if (local && (ocv.width < ow || ocv.height < oh)) { ocv.width = Math.max(ocv.width, ow); ocv.height = Math.max(ocv.height, oh); }
+      oct.setTransform(1, 0, 0, 1, 0, 0); oct.clearRect(bx - o0x, by - o0y, ow, oh);
+      oct.setTransform(k * s, 0, 0, -k * s, k * ox - o0x, k * oy - o0y);
       if (pose.side) renderSide(oct, pose); else renderBody(oct, pose);
       if (!pose.side && !pose.noHead) cutHoles(oct, pose.head);
       const hx = ox + pose.head.x * s, hy = oy - pose.head.y * s, rx = ox - 14 * s, ry = oy - 21 * s, rw = 28 * s, rh = 23 * s;
-      oct.setTransform(k, 0, 0, k, 0, 0); oct.globalCompositeOperation = "source-atop";
+      oct.setTransform(k, 0, 0, k, -o0x, -o0y); oct.globalCompositeOperation = "source-atop";
       let g = oct.createLinearGradient(0, oy - 17 * s, 0, oy); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(3,3,8,0.55)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
       g = oct.createRadialGradient(hx, hy, 0, hx, hy, 7.5 * s); g.addColorStop(0, `rgba(255,150,60,${0.3 * B.cand})`); g.addColorStop(1, "rgba(255,150,60,0)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
       g = oct.createLinearGradient(ox - 6 * s, 0, ox + 6 * s, 0); g.addColorStop(0, "rgba(0,0,0,0.3)"); g.addColorStop(0.6, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(150,170,220,0.1)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
       if (fog > 0) { oct.fillStyle = `rgba(18,22,34,${fog})`; oct.fillRect(rx, ry, rw, rh); }
       oct.globalCompositeOperation = "source-over";
-      tc.save(); tc.setTransform(1, 0, 0, 1, 0, 0); tc.drawImage(ocv, 0, 0); tc.restore();
+      return { bx, by, ow, oh, o0x, o0y, hx, hy };
+    }
+    function paintBossOn(tc, ocv, k, ox, oy, s, pose, b) {
+      // (dx, dy: how far it's moved, in device pixels, since its body was painted (a minion's, between repaints))
+      const { bx, by, ow, oh, o0x, o0y } = b, hx = ox + pose.head.x * s, hy = oy - pose.head.y * s;
+      tc.save(); tc.setTransform(1, 0, 0, 1, 0, 0); tc.drawImage(ocv, bx - o0x, by - o0y, ow, oh, bx + (b.dx || 0), by + (b.dy || 0), ow, oh); tc.restore();
       tc.save(); tc.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
       if (pose.side) faceGlow(tc, pose.head, SIDECUTS, [], 0.25); else renderEmissive(tc, pose);
       tc.restore();
       tc.save(); tc.setTransform(k, 0, 0, k, 0, 0); tc.globalCompositeOperation = "lighter";
       const fireGlow = Math.min(1, B.fire.length / 90), gr = (5.5 + fireGlow * 9) * s;
-      g = tc.createRadialGradient(hx, hy, 0, hx, hy, gr); g.addColorStop(0, `rgba(255,140,50,${0.13 * B.cand + 0.3 * fireGlow})`); g.addColorStop(1, "rgba(255,140,50,0)");
+      const g = tc.createRadialGradient(hx, hy, 0, hx, hy, gr); g.addColorStop(0, `rgba(255,140,50,${0.13 * B.cand + 0.3 * fireGlow})`); g.addColorStop(1, "rgba(255,140,50,0)");
       tc.fillStyle = g; tc.beginPath(); tc.arc(hx, hy, gr, 0, 7); tc.fill(); tc.restore();
     }
     // (its body is painted on a canvas of its own the field's size, so the night lighting falls on it alone)
@@ -13348,6 +13407,13 @@ body.lab .stage > :not(canvas) { display: none; }
         for (const k of [-0.62, 0.62, -0.32, 0.32, 0]) { c.beginPath(); c.ellipse(k * r, 0, r * (0.48 - Math.abs(k) * 0.16), ry, 0, 0, 7); c.fill(); c.stroke(); }
         if (dark) { c.fillStyle = "rgba(220,130,40,0.55)"; c.beginPath(); c.ellipse(r * 0.35, r * 0.45, r * 0.22, r * 0.14, 0.4, 0, 7); c.fill(); }
         c.fillStyle = "#3b3a1e"; c.fillRect(-r * 0.08, -ry - r * 0.18, r * 0.16, r * 0.24);
+      } else if (type === "tomato") {
+        // (a minion's beefsteak tomato: lobed, glossy red, its green calyx)
+        const g = c.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.05, 0, 0, r * 1.2); g.addColorStop(0, "#ff6a4a"); g.addColorStop(0.55, "#c81e14"); g.addColorStop(1, "#5a0806");
+        c.fillStyle = g; c.strokeStyle = "rgba(60,5,3,0.6)"; c.lineWidth = r * 0.05;
+        for (const k of [-0.45, 0.45, 0]) { c.beginPath(); c.ellipse(k * r, 0, r * (0.62 - Math.abs(k) * 0.2), r * 0.82, 0, 0, 7); c.fill(); c.stroke(); }
+        c.fillStyle = "rgba(255,255,255,0.35)"; c.beginPath(); c.ellipse(-r * 0.35, -r * 0.4, r * 0.18, r * 0.1, -0.5, 0, 7); c.fill();
+        c.fillStyle = "#2f6a24"; for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; c.beginPath(); c.ellipse(Math.cos(a) * r * 0.18, -r * 0.78 + Math.sin(a) * r * 0.06, r * 0.2, r * 0.05, a, 0, 7); c.fill(); }
       } else if (type === "gourd") {
         const g = c.createRadialGradient(-r * 0.3, -r * 0.2, r * 0.05, 0, r * 0.2, r * 1.3); g.addColorStop(0, "#e6c24a"); g.addColorStop(1, "#6e5410"); c.fillStyle = g;
         c.beginPath(); c.moveTo(0, -r * 1.1); c.bezierCurveTo(r * 0.5, -r * 1.1, r * 0.35, -r * 0.2, r * 0.85, r * 0.4); c.bezierCurveTo(r * 1.05, r * 1.1, -r * 1.05, r * 1.1, -r * 0.85, r * 0.4); c.bezierCurveTo(-r * 0.35, -r * 0.2, -r * 0.5, -r * 1.1, 0, -r * 1.1); c.fill();
@@ -13602,9 +13668,10 @@ body.lab .stage > :not(canvas) { display: none; }
       ...trees.map((t) => ({ x: t.x, z: t.z, draw: () => drawTree(t) })),
       ...barns.map((o) => ({ x: o.x, z: o.z, draw: () => drawBarn(o) })),
       ...lights.map((L) => ({ x: L.x, z: L.z, draw: () => drawLight(L) })),
-      ...cars.map((c) => ({ x: c.x, z: c.z + c.len / 2, draw: () => drawCar(c) })),
+      ...cars.map((c) => ({ x: c.x, z: c.z + c.len / 2, car: true, draw: () => drawCar(c) })),
       { x: 0, z: HALL.z1 + 7, draw: drawHall },
     ];
+    const carItems = townItems.filter((s) => s.car);
     // (a lob into a building, a house or the hall: it stops there)
     function wallAt(p) {
       for (const b of blds) if (p.x >= Math.min(b.x0, b.x1) && p.x <= Math.max(b.x0, b.x1) && p.z >= b.z1 && p.z <= b.z2 && p.y < b.h) return true;
@@ -13638,14 +13705,19 @@ body.lab .stage > :not(canvas) { display: none; }
       const d = (o) => Math.hypot(o.x - CAM.x, o.z - CAM.z), bd = d({ x: B.x, z: B.z }), sorted = visItems().slice().sort((a, b) => d(b) - d(a));
       postOnly = true;
       try {
-        bakeLayer(BK.cv[0], () => { drawSky(); drawGround(); for (const s of sorted) if (d(s) > bd) s.draw(s); });
-        bakeLayer(BK.cv[1], () => { for (const s of sorted) if (d(s) <= bd) s.draw(s); });
+        // (Downtown: everything but the cars into one picture behind; the cars and minions are drawn live)
+        if (DT) bakeLayer(BK.cv[0], () => { drawSky(); drawGround(); for (const s of sorted) if (!s.car) s.draw(s); });
+        else {
+          bakeLayer(BK.cv[0], () => { drawSky(); drawGround(); for (const s of sorted) if (d(s) > bd) s.draw(s); });
+          bakeLayer(BK.cv[1], () => { for (const s of sorted) if (d(s) <= bd) s.draw(s); });
+        }
       } finally { postOnly = false; }
     }
     // the sky, the far hills and the ground (all behind what stands), or the town's pictures; then the stomps' shake
     // for what's drawn after
     function street() {
       shx = shake ? (Math.random() - 0.5) * 2 * shake : 0; shy = shake ? (Math.random() - 0.5) * 2 * shake : 0;
+      if (DT) prepaintMins(); // (before anything is drawn on the field this frame)
       prep();
       if (BK.on) { blit(0); return; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -13694,7 +13766,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // (from well beyond the left edge of the view, however wide the field: v2.28)
       if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -((W / 2 / F) * B.z + 14); }
       if (B.state !== "preview" && S.phase !== "title" && !S.muted && actx && !amb) startAmbient();
-      if (S.phase !== "title") updBoss(dt);
+      if (DT) { tickMins(dt); }
+      if (S.phase !== "title" && !DT) updBoss(dt);
       if (B.head) B.head.t += dt;
       // (down, it quivers: a little at first, more with every lob; at the last spud, hard)
       const qv = B.state === "downed" ? 0.02 + 0.07 * tension() + (S.spudsLeft === 1 && S.bossCart ? 0.03 : 0) : B.state === "rollback" ? 0.12 : 0;
@@ -13706,7 +13779,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const g = S.gun;
       if (g) { const want = g.phase === "wait" || knocked() || S.bossCart ? 1 : 0; g.hide = (g.hide == null ? 1 : g.hide) + (want - (g.hide == null ? 1 : g.hide)) * Math.min(1, dt * 4); }
       // out of MP 15s before it's down
-      if (g && !S.bossCart && g.phase === "over" && !result.why && !knocked()) { result.why = "out"; B.throw = null; duck(false); startDeath(); S.timer = 99; }
+      if (g && !DT && !S.bossCart && g.phase === "over" && !result.why && !knocked()) { result.why = "out"; B.throw = null; duck(false); startDeath(); S.timer = 99; }
       // the squash in the air
       for (const q of projs) {
         if (q.dead) continue;
@@ -13775,7 +13848,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, "rgba(120,10,0,0)"); g.addColorStop(1, `rgba(120,10,0,${0.55 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
       drawSplats();
       if (flash > 0) { ctx.fillStyle = `rgba(255,220,170,${0.8 * flash * flash})`; ctx.fillRect(0, 0, W, H); }
-      if (S.phase !== "title" && B.state !== "intro" && B.state !== "enter" && B.state !== "preview" && B.state !== "dead") {
+      if (DT && S.phase !== "title") text(`MINIONS  ${minSt.down + minSt.gone} / ${DTN.count}`, W / 2, 22, "600 12px system-ui, sans-serif", "#d8cbb4");
+      if (!DT && S.phase !== "title" && B.state !== "intro" && B.state !== "enter" && B.state !== "preview" && B.state !== "dead") {
         const w = Math.min(W * 0.6, 420), x = W / 2 - w / 2;
         hudBar(x, 16, w, B.hp / 100, "#3a0d08", "#9c2414", "S Q U A S H   H E A D");
         ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
@@ -13788,10 +13862,12 @@ body.lab .stage > :not(canvas) { display: none; }
       if (msg.text && msg.t > 0) { ctx.globalAlpha = clamp(msg.t, 0, 1); text(msg.text, W / 2, H * 0.2, "italic 17px Georgia, serif", "#eadfc8"); ctx.globalAlpha = 1; }
       for (const f of floats) { ctx.globalAlpha = clamp(f.life, 0, 1); text(f.txt, f.x, f.y, f.big ? "700 44px Georgia, serif" : "700 16px system-ui, sans-serif", f.col); ctx.globalAlpha = 1; }
       if (B.state === "loom") drawLoom();
+      drawSteps();
       drawBook();
     }
     // a tap: the notebook's Close button (and nothing else while it's up, or while the cart rolls in)
-    function press(p) {
+    function press(p, e) {
+      if (pressSteps(p, e)) return true;
       if (book && book.phase === "read" && book.btn) {
         const sc = book.sc || 1, vx = (p.x - (W / 2) * (1 - sc)) / sc, vy = (p.y - H * (1 - sc)) / sc, b = book.btn;
         if (vx >= b.x0 - 6 && vx <= b.x1 + 6 && vy >= b.y0 - 6 && vy <= b.y1 + 6) { closeBook(); return true; }
@@ -13803,7 +13879,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // ---- the MP 15 phase: the hooks the gun's code asks a place for (gp, as the Reservoir's)
     const gp = {
       // (no pulls of targets: it throws its own; no Re-live it for these shots; the cabinets wait for the entrance)
-      noFollow: true, noPulls: true, noRelive: true, holdTable: true, minPitch: 0.25,
+      noFollow: true, noPulls: true, noRelive: true, holdTable: !DT, minPitch: 0.25,
       reset() {},
       drift() {}, floor: () => 0,
       // a mini spud: does it stop here? A squash it meets bursts (+10, as skeet: no barrel back since v2.26); Squash
@@ -13812,13 +13888,14 @@ body.lab .stage > :not(canvas) { display: none; }
         if (S.bossCart) return "stop";
         for (const q of projs) if (!q.dead && q.z > 0.4 && Math.hypot(pl.x - q.x, pl.y - q.y, pl.z - q.z) < q.r + 0.15) {
           burstProj(q); result.downed++;
-          S.score += BOSS.squashPts;
+          const pts = q.type === "tomato" ? DTN.tomatoPts : BOSS.squashPts; S.score += pts;
           const shot = pl.shot;
-          shot.items.push(`Squash! +${BOSS.squashPts}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
+          shot.items.push(`${q.type === "tomato" ? "Tomato" : "Squash"}! +${pts}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
           hud();
           return "hit";
         }
-        if (!pl.passed && pl.z >= B.z - 0.6) {
+        if (DT) { if (pelletMins(pl)) return "hit"; }
+        else if (!pl.passed && pl.z >= B.z - 0.6) {
           pl.passed = true;
           if (fighting()) {
             const hh = hitBoss(pl.x - B.x, pl.y);
@@ -13831,6 +13908,11 @@ body.lab .stage > :not(canvas) { display: none; }
       // the MP 15's box under the field: Squash Head's health, Riley's, the barrels and the cabinets left
       hud(g, held) {
         const left = g.guns.filter((x) => x.ready).length + Math.max(0, (lvl().racks || 1) - 1 - (g.rack || 0)) * GUN.cases;
+        if (DT) {
+          $("gunOut").innerHTML = `<span class="pz">${SQUASH_ICON} ${minSt.down + minSt.gone}/${DTN.count}</span><span class="sep"> · </span>Riley ${riley.hp}%`;
+          $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span>`;
+          return;
+        }
         $("gunOut").innerHTML = `<span class="pz">${SQUASH_ICON} ${Math.ceil(B.hp)}%</span><span class="sep"> · </span>Riley ${riley.hp}%`;
         $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span><span class="sep">·</span><span>sack ${B.sack}</span>`;
       },
@@ -13893,12 +13975,172 @@ body.lab .stage > :not(canvas) { display: none; }
       if (S.bossCart) { const st = stemWorld(); ctx.fillStyle = "#39ff14"; ctx.beginPath(); ctx.arc(MX(st.x), MY(st.z), 3.5, 0, 7); ctx.fill(); ctx.stroke(); }
     }
 
-    resetBoss();
+    // ================= Downtown (v2.29): the minion squash heads =================
+    // Squash Head's own drawing at human size (sc), heads butternut, orange or mottled green; 16 of them, at most 4 on
+    // the street at once, stepping out from behind the parked cars and out of the alleys, walking slow toward Riley and
+    // throwing beefsteak tomatoes once within 40 m. One head shot drops one, or any three hits. One that reaches Riley
+    // claws (DTN.claw). All 16 dealt with: the street goes quiet, and on into Squash Head's own level
+    const DTN_COLS = [null, ["#f0a050", "#d0661c", "#6a2a08"], ["#9fb06a", "#5f7a34", "#26341a"]];
+    const mins = [], minSt = { spawned: 0, down: 0, gone: 0, spawnT: 2.5, won: false };
+    const fogAt = (z) => clamp((z - 24) / 50, 0, 0.4);
+    // where they come from: the alleys between the blocks (and the cross street), and behind the parked cars
+    const alleys = [];
+    for (const side of [-1, 1]) {
+      const row = blds.filter((b) => b.side === side).sort((a, b) => a.z1 - b.z1);
+      for (let i = 1; i < row.length; i++) if (row[i].z1 - row[i - 1].z2 >= 3) alleys.push({ side, z: (row[i].z1 + row[i - 1].z2) / 2 });
+    }
+    const minAlive = () => mins.filter((m) => m.state === "emerge" || m.state === "walk").length;
+    let stepHold = 0, stepId = null;
+    function resetMins() { mins.length = 0; Object.assign(minSt, { spawned: 0, down: 0, gone: 0, spawnT: 2.5, won: false }); stepHold = 0; stepId = null; }
+    function spawnMin() {
+      const fromCar = Math.random() < 0.5, near = cars.filter((c) => c.z > 18 && c.z < 60), al = alleys.filter((a) => a.z > 18 && a.z < 62);
+      let x, z;
+      if (fromCar && near.length) { const c = pick(near); x = c.x + Math.sign(c.x) * 1.4; z = c.z + c.len / 2; }
+      else if (al.length) { const a = pick(al); x = a.side * (TOWN.front + 3); z = a.z; }
+      else { x = (Math.random() < 0.5 ? -1 : 1) * 20; z = (TOWN.cross[0] + TOWN.cross[1]) / 2; }
+      const look = Math.floor(Math.random() * 3), sp = DTN.speed * (dif().pace / DIFF.yup.pace) * rand(0.85, 1.15);
+      const m = newB({ small: true, sc: DTN.sc, x, z, state: "emerge", t: 0, hc: DTN_COLS[look], mottle: look === 2, nextThrow: rand(1.5, 3), tx: rand(-6, 6), hits: 0, speed: sp, alpha: 1, nextTwitch: rand(3, 8) });
+      mins.push(m); minSt.spawned++;
+    }
+    // (B swapped to a minion while its own pose, walk and throw are worked out or drawn)
+    function asMin(m, fn) { const keep = B; B = m; try { return fn(); } finally { B = keep; } }
+    function minHit(m, hh, shot) {
+      shot.mins = shot.mins || new Set();
+      const at = { x: m.x + hh.lx * m.sc, y: hh.ly * m.sc, z: m.z - 0.1 };
+      if (shot.mins.has(m)) { spray(at, ["217,140,60", "120,150,70"], 3); return; }
+      shot.mins.add(m);
+      const head = hh.part === "head";
+      asMin(m, () => {
+        if (head) B.headHoles.push({ x: hh.hx, y: hh.hy, seed: rand(1, 1e6) });
+        else if (hh.part === "body") B.bodyHoles.push({ x: hh.bx, y: hh.by, seed: rand(1, 1e6) });
+        else if (hh.part === "limb") B.divots.push({ key: hh.key, t: hh.t, e: hh.e, o: hh.e * rand(0, 0.6), seed: rand(1, 1e6) });
+        else if (hh.part === "tomato") B.kneeHits.push({ i: hh.i, ang: hh.ang, seed: rand(1, 1e6) });
+        B.flinch = 1; B.flinchDir = (hh.hx || hh.lx || 0) > 0 ? -1 : 1;
+      });
+      spray(at, head ? ["217,140,60", "235,200,120"] : ["60,25,70", "120,150,70", "200,40,25"], head ? 10 : 6);
+      if (head) sHitHead(); else sHitLimb();
+      m.hits++; m.dirty = true; // (its new hole shows at once)
+      if (head || m.hits >= 3) {
+        const pts = DTN.pts + (head ? DTN.headPts : 0);
+        S.score += pts; result.hits++; minSt.down++;
+        shot.items.push(head ? `Head shot! +${pts}` : `Down! +${pts}`); shot.scores++; shot.at = shot.at || [at.x, at.y, at.z];
+        asMin(m, () => { B.throw = null; B.from = B.pose; B.state = "crumple"; B.t = 0; B.k = 0; });
+        sThud(0.35);
+      } else shot.items.push(`Hit (${m.hits} of 3)`);
+      hud();
+    }
+    // one that gets to Riley: it claws, and it's gone
+    function minReach(m) {
+      m.state = "gone"; m.alpha = 0; minSt.gone++;
+      riley.hp = Math.max(0, riley.hp - DTN.claw); hurt = 1; shake = Math.max(shake, 12);
+      splatScreen(6, 2.2, ["120,150,70", "200,40,25"]); sThud(0.9); sSplat(0.8, 0.8);
+      floats.push({ x: W / 2, y: H * 0.55, txt: `−${DTN.claw}%`, life: 1.2, col: "#ff8a6a" });
+      shotNote(riley.hp > 0 ? `It got to Riley! ${riley.hp}% left.` : "Riley is down.");
+      if (riley.hp <= 0) endRound("down", 1.8);
+      hud();
+    }
+    function tickMins(dt) {
+      // stepping aside (Downtown only): A / D, or the ◀ ▶ buttons
+      const mv = clamp((S.roll || 0) + stepHold, -1, 1);
+      if (live() && mv) riley.x = clamp(riley.x + mv * DTN.step * dt, -DTN.stepMax, DTN.stepMax);
+      if (live() && minSt.spawned < DTN.count && minAlive() < DTN.maxOn && (minSt.spawnT -= dt) <= 0) { spawnMin(); minSt.spawnT = rand(4, 9) / (dif().pace / DIFF.yup.pace); }
+      for (const m of mins) asMin(m, () => {
+        B.t += dt; B.flinch = Math.max(0, B.flinch - dt * 3); B.cand = candle();
+        if (B.state === "emerge") {
+          // out from behind its car or its alley, sideways into the street
+          const d = B.tx - B.x; B.x += Math.sign(d) * Math.min(Math.abs(d), B.speed * 1.4 * dt); updWalk(dt, true, 1.2);
+          if (Math.abs(d) < 0.3) { B.state = "walk"; B.t = 0; }
+        } else if (B.state === "walk") {
+          if (!B.throw) { B.z -= B.speed * dt; B.x += clamp(riley.x * 0.3 + B.tx * 0.7 - B.x, -1, 1) * 0.3 * dt; }
+          updWalk(dt, !B.throw, 1.2);
+          if (live() && B.z < DTN.range && !B.throw) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
+          updThrow(dt);
+          if (B.z < DTN.reach && live()) minReach(B);
+        } else if (B.state === "crumple") {
+          updWalk(dt, false); B.k = clamp(B.t / 1.1, 0, 1);
+          if (B.t > 4) B.alpha = Math.max(0, 1 - (B.t - 4) / 1.5);
+          if (B.t > 5.5) B.state = "gone";
+        }
+        B.pose = B.state === "crumple" ? lerpPose(B.from, heapPose(), easeIn(B.k)) : standPose();
+      });
+      for (let i = mins.length - 1; i >= 0; i--) if (mins[i].state === "gone") mins.splice(i, 1);
+      // all 16 dealt with: the street goes quiet; then on into Squash Head's level
+      if (!minSt.won && !result.why && minSt.spawned >= DTN.count && minSt.down + minSt.gone >= DTN.count && riley.hp > 0) {
+        minSt.won = true; result.why = "won"; TRIG.on = false; duck(true);
+        msgSet("The street goes quiet…", 2.4);
+        if (S.gun) S.gun.phase = "over";
+        S.phase = "settle"; S.timer = 2.6; S.after = downtownDone;
+      }
+      // out of MP 15s with some still coming
+      if (S.gun && S.gun.phase === "over" && !result.why) result.why = "out";
+    }
+    // every minion's body into its own small canvas, all before anything else is drawn on the field: the browser then
+    // catches up with them once, not once for each (four a frame cost the game its speed)
+    // (each is a figure as detailed as Squash Head, a few ms to paint whatever its size: so each one's body is painted
+    // afresh every third frame (taking turns), or at once when it's hit, and slid along with it in between; its face
+    // glows live every frame)
+    let minFrame = 0;
+    function prepaintMins() {
+      minFrame++;
+      mins.forEach((m, i) => {
+        const o = P(m.x, 0, m.z); if (o.behind || m.alpha <= 0) { m.box = null; return; }
+        const s = o.s * m.sc, ox = o.x + shx, oy = o.y + shy;
+        if (m.box && !m.dirty && (minFrame + i) % 3 && Math.abs(s - m.ps) < m.ps * 0.05) return;
+        if (!m.cv) { m.cv = document.createElement("canvas"); m.cv.width = m.cv.height = 8; m.cx = m.cv.getContext("2d"); }
+        m.box = asMin(m, () => paintBossBody(m.cv, m.cx, dpr, ox, oy, s, m.pose, fogAt(m.z), true));
+        m.pox = ox; m.poy = oy; m.ps = s; m.dirty = false;
+      });
+    }
+    function drawMin(m) {
+      const o = P(m.x, 0, m.z); if (o.behind || m.alpha <= 0) return;
+      if (bc.width !== cv.width || bc.height !== cv.height) { bc.width = cv.width; bc.height = cv.height; }
+      const s = o.s * m.sc, a = P(m.x, 0, m.z - 0.6), b = P(m.x, 0, m.z + 0.6);
+      ctx.save(); ctx.globalAlpha = m.alpha;
+      ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, (m.state === "crumple" ? 7 : 4) * s, Math.max(1, (a.y - b.y) / 2), 0, 0, 7); ctx.fill();
+      // (its body was painted into its own small canvas at the start of the frame, with the others (prepaintMins); here
+      // it's laid on the street in its place among the cars, and its face lit)
+      if (m.box) asMin(m, () => paintBossOn(ctx, m.cv, dpr, o.x + shx, o.y + shy, s, m.pose, { ...m.box, dx: dpr * (o.x + shx - m.pox), dy: dpr * (o.y + shy - m.poy) }));
+      ctx.restore(); shakeT();
+    }
+    // the step-aside buttons, either side of the field, halfway down (Downtown, while it's on)
+    const stepBtns = () => { const s = clamp(Math.min(W, H) * 0.09, 34, 52), y = H * 0.5 - s / 2; return [{ d: -1, x: 8, y, s }, { d: 1, x: W - 8 - s, y, s }]; };
+    const showSteps = () => DT && S.phase === "gun" && live();
+    function drawSteps() {
+      if (!showSteps()) return;
+      for (const b of stepBtns()) {
+        const on = stepHold === b.d || (S.roll || 0) === b.d;
+        ctx.fillStyle = on ? "rgba(217,130,43,.55)" : "rgba(20,22,28,.6)"; ctx.strokeStyle = "rgba(234,223,200,.7)"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.s, b.s, 10) : ctx.rect(b.x, b.y, b.s, b.s); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#eadfc8"; ctx.beginPath(); const cx = b.x + b.s / 2, cy = b.y + b.s / 2, r = b.s * 0.22;
+        ctx.moveTo(cx - b.d * r, cy); ctx.lineTo(cx + b.d * r * 0.8, cy - r); ctx.lineTo(cx + b.d * r * 0.8, cy + r); ctx.closePath(); ctx.fill();
+      }
+    }
+    function pressSteps(p, e) {
+      if (!showSteps()) return false;
+      for (const b of stepBtns()) if (p.x >= b.x - 4 && p.x <= b.x + b.s + 4 && p.y >= b.y - 4 && p.y <= b.y + b.s + 4) { stepHold = b.d; stepId = e.pointerId; return true; }
+      return false;
+    }
+    function releaseStep(e) { if (stepId === e.pointerId) { stepHold = 0; stepId = null; } }
+    // a mini spud reaching a minion's plane: the first of a shot to hit it counts
+    function pelletMins(pl) {
+      for (const m of mins) {
+        if (m.state !== "walk" && m.state !== "emerge") continue;
+        pl.pm = pl.pm || new Set();
+        if (pl.pm.has(m) || pl.z < m.z - 0.1) continue;
+        pl.pm.add(m);
+        const hh = asMin(m, () => hitBoss((pl.x - m.x) / m.sc, pl.y / m.sc));
+        if (hh) { minHit(m, hh, pl.shot); return true; }
+      }
+      return false;
+    }
+
+    resetBoss(); resetMins();
     return { ...FLAT,
       // (where Riley stands: on the street, a step to either side when stepping aside; looking up the street at it)
       get eye() { return [riley.x, 1.6, 0]; },
-      get look() { return -Math.atan(0.18 * H / this.focal()); },
-      focal: () => (W < H ? W * 1.1 : Math.min(W * 0.67, H * 1.07)),
+      // (Downtown: a narrower view, nearly level, so the street and its minions fill it)
+      get look() { return -Math.atan((DT ? 0.04 : 0.18) * H / this.focal()); },
+      focal: () => (W < H ? W * 1.1 : Math.min(W * 0.67, H * 1.07)) * (DT ? 1.6 : 1),
       // (an MP 15 level till it's knocked down, then a Cart Launcher level)
       get gun() { return !S.bossCart; },
       gp, launchers: [], skyline: "#111114", ownSky: true, noDist: true,
@@ -13909,27 +14151,29 @@ body.lab .stage > :not(canvas) { display: none; }
       // (looking at an arc from off to one side, View arc or Re-live it's side passes: everything on the camera's side
       // of the street, out to the camera, is left out, so the whole arc shows; the far side stays as the backdrop)
       // (the town's pictures in use: nothing to sort, just the nearer picture over Squash Head, last of all)
-      get standing() { return BK.on ? [] : visItems(); },
-      dyn: () => [...(B.state === "dead" ? [] : [{ x: B.x, z: B.z, draw: () => { drawBoss(); shakeT(); } }]), ...(BK.on ? [{ x: CAM.x, z: CAM.z, draw: () => blit(1) }] : [])],
+      // (Downtown: the parked cars stay live, sorted with the minions, who step out from behind them)
+      get standing() { return BK.on ? (DT ? carItems : []) : visItems(); },
+      dyn: () => (DT ? mins.map((m) => ({ x: m.x, z: m.z, draw: () => drawMin(m) }))
+        : [...(B.state === "dead" ? [] : [{ x: B.x, z: B.z, draw: () => { drawBoss(); shakeT(); } }]), ...(BK.on ? [{ x: CAM.x, z: CAM.z, draw: () => blit(1) }] : [])]),
       back: street,
       front() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.save(); ctx.translate(shx, shy);
         if (BK.on) for (const L of lights) lampGlow(L);
         drawFlying(); ctx.restore();
       },
-      over, press, collide, landOn, missNote, rise, map,
+      over, press, release: releaseStep, collide, landOn, missNote, rise, map,
       // (Re-live it puts it as it was before the lob, and after)
       keep: () => [[B, { state: B.state }]],
       // (FIRE closes the notebook while it's open)
       bookOpen: () => !!(book && book.phase === "read"),
       action() { if (book) { closeBook(); return true; } return !!(cart && S.phase === "wait"); },
       // (for the end card)
-      result: () => ({ ...result, hp: Math.ceil(B.hp), riley: riley.hp }),
+      result: () => ({ ...result, hp: Math.ceil(B.hp), riley: riley.hp, minDown: minSt.down, minOf: DTN.count, downtown: DT }),
       update(dt) { if (!dt) return; if (!S.bossCart) updateGun(dt); tick(dt); },
       reset() { resetGun(); },
       free: () => true, spots: () => null, roofTargets: () => [],
       // (for testing from the console)
-      peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld() }),
+      peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld(), mins, minSt }),
       test: { hitBoss, damage, startThrow, release, toCart, closeBook, win, explode, checkStage, startCrumple, makeHeadRoll, roar },
     };
   }
