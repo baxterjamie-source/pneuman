@@ -760,7 +760,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.30</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.31</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2379,7 +2379,11 @@ body.lab .stage > :not(canvas) { display: none; }
     const dt = !!(br && br.downtown);
     const counts = dt ? `<span class="pz">${SQUASH_ICON} ${br.minDown} of ${br.minOf} minions down</span><span class="pz">tomatoes shot down ${br.downed}</span>`
       : `<span class="pz">${SQUASH_ICON} ${br ? br.hp : 0}% left</span><span class="pz">squash shot down ${br ? br.downed : 0}</span>`;
-    const title = dt ? (br.why === "out" ? "Out of MP 15s." : "Riley is down.") : "Squash Head rose again.", body = dt ? "The minions overran Riley." : "Sadly, that is the end of Riley.";
+    // (Squash Head, three ways to lose: Riley's health gone before it fell, out of MP 15s before it fell, or it fell
+    // and every lob missed the stem)
+    const why = br ? br.why : "down";
+    const title = dt ? (why === "out" ? "Out of MP 15s." : "Riley is down.") : why === "lob" ? "Squash Head rose again." : why === "out" ? "Out of MP 15s." : "Riley is down.";
+    const body = dt ? "The minions overran Riley." : why === "lob" ? "Every lob missed the stem." : why === "out" ? "Squash Head was still standing." : "Squash Head never fell.";
     if (S.camp) {
       const r = S.camp, n = r.order.length, k = r.order.indexOf(L.id);
       r.tries[L.id] = (r.tries[L.id] || 0) + 1; campSave(r);
@@ -12590,12 +12594,16 @@ body.lab .stage > :not(canvas) { display: none; }
         }
         // (v2.28: it comes along the cross street from far off to the left, its head above the rooftops before it's in
         // the open, to the crossroads at the end of the main street)
-        case "enter": updWalk(dt, true, 1.7); B.x += dt * 14; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
+        // (v2.31: at 40% of its old pace, 5.6 m/s, its stride slowed to match so the feet don't skate)
+        case "enter": updWalk(dt, true, 1.7 / 0.4); B.x += dt * 14 * 0.4; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
         case "face": // it stops dead, stands too still, then turns on you
           updWalk(dt, false);
-          if (B.t > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
-          B.flare = B.t > 0.9 ? Math.min(1, (B.t - 0.9) * 3) * (B.t < 2.4 ? 1 : Math.max(0, 1 - (B.t - 2.4) * 2)) : 0;
-          if (B.t > 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot the squash down. Aim for the head.", 3); openCabinets(); }
+          { // (v2.31: first the turn, side on to facing, over TURN_S; then the beats as before, after it)
+            const ft = B.t - TURN_S;
+            if (ft > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
+            B.flare = ft > 0.9 ? Math.min(1, (ft - 0.9) * 3) * (ft < 2.4 ? 1 : Math.max(0, 1 - (ft - 2.4) * 2)) : 0;
+          }
+          if (B.t > TURN_S + 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot the squash down. Aim for the head.", 3); openCabinets(); }
           break;
         case "fight":
           updWalk(dt, false);
@@ -13213,7 +13221,11 @@ body.lab .stage > :not(canvas) { display: none; }
       c.strokeStyle = "rgba(20,12,4,0.45)"; c.lineWidth = 0.05; c.stroke(); c.lineCap = "butt";
     }
     function renderSide(c, sp) {
-      c.save(); c.filter = "brightness(0.5)"; drawSideArm(c, sp.arms[0], 0); drawSideLeg(c, sp.legs[0], 0); c.restore();
+      // the far arm and leg, in shadow: drawn first on the cleared patch, then darkened by half with a black wash laid
+      // only on what's there (source-atop). (Not ctx.filter: on this field-sized canvas it cost ~1.5 s a frame on the
+      // GPU, the walk-in's frame-rate drop)
+      drawSideArm(c, sp.arms[0], 0); drawSideLeg(c, sp.legs[0], 0);
+      c.save(); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(0,0,0,0.5)"; c.fillRect(-15, -2, 30, 28); c.restore();
       drawSack(c, sp);
       eggplant(c, sp);
       drawHead(c, sp.head, SIDECUTS);
@@ -13347,6 +13359,8 @@ body.lab .stage > :not(canvas) { display: none; }
       const b = paintBossBody(ocv, oct, k, ox, oy, s, pose, fog, local);
       if (b) paintBossOn(tc, ocv, k, ox, oy, s, pose, b);
     }
+    const MOONLIFT = [0.07, 0.08];
+    const TURN_S = 1.2; // (seconds to turn from side on to facing Riley, after the walk-in)
     function paintBossBody(ocv, oct, k, ox, oy, s, pose, fog, local = false) {
       // (only its own patch of the screen is cleared and laid down; local: ocv is a small canvas of the figure's own (a
       // minion's), the patch's size)
@@ -13356,7 +13370,7 @@ body.lab .stage > :not(canvas) { display: none; }
       const ow = bx1 - bx, oh = by1 - by, o0x = local ? bx : 0, o0y = local ? by : 0;
       if (local && (ocv.width < ow || ocv.height < oh)) { ocv.width = Math.max(ocv.width, ow); ocv.height = Math.max(ocv.height, oh); }
       oct.setTransform(1, 0, 0, 1, 0, 0); oct.clearRect(bx - o0x, by - o0y, ow, oh);
-      oct.setTransform(k * s, 0, 0, -k * s, k * ox - o0x, k * oy - o0y);
+      oct.setTransform(k * s * (pose.sx || 1), 0, 0, -k * s, k * ox - o0x, k * oy - o0y);
       if (pose.side) renderSide(oct, pose); else renderBody(oct, pose);
       if (!pose.side && !pose.noHead) cutHoles(oct, pose.head);
       const hx = ox + pose.head.x * s, hy = oy - pose.head.y * s, rx = ox - 14 * s, ry = oy - 21 * s, rw = 28 * s, rh = 23 * s;
@@ -13365,6 +13379,15 @@ body.lab .stage > :not(canvas) { display: none; }
       g = oct.createRadialGradient(hx, hy, 0, hx, hy, 7.5 * s); g.addColorStop(0, `rgba(255,150,60,${0.3 * B.cand})`); g.addColorStop(1, "rgba(255,150,60,0)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
       g = oct.createLinearGradient(ox - 6 * s, 0, ox + 6 * s, 0); g.addColorStop(0, "rgba(0,0,0,0.3)"); g.addColorStop(0.6, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(150,170,220,0.1)"); oct.fillStyle = g; oct.fillRect(rx, ry, rw, rh);
       if (fog > 0) { oct.fillStyle = `rgba(18,22,34,${fog})`; oct.fillRect(rx, ry, rw, rh); }
+      // (crumpled, waiting for the lob: a little extra moonlight on the heap so it reads on the dark street, and a bit
+      // more on the head and stem, the target. MOONLIFT: [body, head], how far it's lifted toward the moon's grey)
+      const ml = local ? 0 : B.state === "crumple" ? easeIn(B.k) : B.state === "downed" || B.state === "rollback" ? 1 : 0;
+      if (ml > 0) {
+        oct.fillStyle = `rgba(175,185,210,${MOONLIFT[0] * ml})`; oct.fillRect(rx, ry, rw, rh);
+        const sr = 4.5 * s, sy = hy - 1.2 * s, mg = oct.createRadialGradient(hx, sy, 0, hx, sy, sr);
+        mg.addColorStop(0, `rgba(190,198,220,${MOONLIFT[1] * ml})`); mg.addColorStop(0.6, `rgba(190,198,220,${MOONLIFT[1] * 0.6 * ml})`); mg.addColorStop(1, "rgba(190,198,220,0)");
+        oct.fillStyle = mg; oct.fillRect(hx - sr, sy - sr, sr * 2, sr * 2);
+      }
       oct.globalCompositeOperation = "source-over";
       return { bx, by, ow, oh, o0x, o0y, hx, hy };
     }
@@ -13372,7 +13395,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // (dx, dy: how far it's moved, in device pixels, since its body was painted (a minion's, between repaints))
       const { bx, by, ow, oh, o0x, o0y } = b, hx = ox + pose.head.x * s, hy = oy - pose.head.y * s;
       tc.save(); tc.setTransform(1, 0, 0, 1, 0, 0); tc.drawImage(ocv, bx - o0x, by - o0y, ow, oh, bx + (b.dx || 0), by + (b.dy || 0), ow, oh); tc.restore();
-      tc.save(); tc.setTransform(k * s, 0, 0, -k * s, k * ox, k * oy);
+      tc.save(); tc.setTransform(k * s * (pose.sx || 1), 0, 0, -k * s, k * ox, k * oy);
       if (pose.side) faceGlow(tc, pose.head, SIDECUTS, [], 0.25); else renderEmissive(tc, pose);
       tc.restore();
       tc.save(); tc.setTransform(k, 0, 0, k, 0, 0); tc.globalCompositeOperation = "lighter";
@@ -13398,8 +13421,14 @@ body.lab .stage > :not(canvas) { display: none; }
         }
       }
       ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, (B.state === "downed" || B.state === "crumple" ? 7 : 4.5) * s, Math.max(1, ry), 0, 0, 7); ctx.fill();
-      // it comes in side on, the sack on its back, then turns to face you
-      paintBoss(ctx, bc, bctx, dpr, ox, oy, s, B.state === "enter" ? sidePose() : B.pose, fog(B.z));
+      // it comes in side on, the sack on its back, then turns to face you (v2.31: over TURN_S, the side figure narrowing
+      // to edge on, then the front one widening out of it)
+      let pose = B.state === "enter" ? sidePose() : B.pose;
+      if (B.state === "face" && B.t < TURN_S) {
+        const k = easeIO(clamp(B.t / TURN_S, 0, 1)), c = Math.cos(k * Math.PI);
+        pose = k < 0.5 ? { ...sidePose(), sx: Math.max(0.03, c) } : { ...B.pose, sx: Math.max(0.03, -c) };
+      }
+      paintBoss(ctx, bc, bctx, dpr, ox, oy, s, pose, fog(B.z));
     }
     // ---- (from the test page, lines 1617-1654)
     // ---------------------------------------------------------------- drawing: flying things, the launcher, the HUD
@@ -13475,6 +13504,8 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let x = -10; x <= W + 10; x += 6) { const az = CAM.yaw + Math.atan((x - W / 2) / F), q = dirP(az, el(az)); ctx.lineTo(x, q.behind ? HZ : q.y); }
       ctx.lineTo(W + 10, HZ + 2); ctx.fill();
     }
+    // the moon's seas, as fractions of its radius: [x, y, half-width, half-height, tilt] (roughly as seen from the north)
+    const MARIA = [[-0.35, -0.35, 0.28, 0.22, 0.4], [-0.05, -0.38, 0.2, 0.16, -0.2], [0.3, -0.25, 0.18, 0.14, 0.3], [0.4, 0.05, 0.15, 0.2, 0], [-0.45, 0.1, 0.22, 0.32, 0.2], [-0.1, 0.05, 0.16, 0.12, 0.6], [0.15, 0.3, 0.14, 0.1, -0.3]];
     function drawSky() {
       const hz = Math.max(0, HZ);
       const g = ctx.createLinearGradient(0, Math.min(0, hz - H), 0, hz + 1); g.addColorStop(0, "#04050a"); g.addColorStop(0.6, "#0b0f1a"); g.addColorStop(1, "#1f1a1c");
@@ -13484,7 +13515,14 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!m.behind && m.y < hz) {
         const r = Math.max(10, F * 0.03), mg = ctx.createRadialGradient(m.x, m.y, r * 0.5, m.x, m.y, r * 4.7);
         mg.addColorStop(0, "rgba(200,205,220,0.18)"); mg.addColorStop(1, "rgba(200,205,220,0)"); ctx.fillStyle = mg; ctx.fillRect(m.x - r * 5, m.y - r * 5, r * 10, r * 10);
-        ctx.fillStyle = "#cfcab8"; ctx.beginPath(); ctx.arc(m.x, m.y, r, 0, 7); ctx.fill();
+        // a full moon: a pale disc darkening a touch at its rim, with the grey seas on it (the "man in the moon")
+        const md = ctx.createRadialGradient(m.x - r * 0.15, m.y - r * 0.15, r * 0.1, m.x, m.y, r);
+        md.addColorStop(0, "#e4e0d2"); md.addColorStop(0.75, "#d3cebd"); md.addColorStop(1, "#b5b0a0");
+        ctx.save(); ctx.fillStyle = md; ctx.beginPath(); ctx.arc(m.x, m.y, r, 0, 7); ctx.fill(); ctx.clip();
+        ctx.fillStyle = "rgba(120,122,128,0.38)";
+        for (const [dx, dy, rx, ry, a] of MARIA) { ctx.beginPath(); ctx.ellipse(m.x + dx * r, m.y + dy * r, rx * r, ry * r, a, 0, 7); ctx.fill(); }
+        ctx.fillStyle = "rgba(240,238,228,0.5)"; ctx.beginPath(); ctx.arc(m.x + 0.12 * r, m.y + 0.72 * r, 0.07 * r, 0, 7); ctx.fill(); // (Tycho, the bright crater low down)
+        ctx.restore();
       }
       for (const c of clouds) {
         const q = dirP(c.az, c.el); if (q.behind) continue;
@@ -13532,6 +13570,28 @@ body.lab .stage > :not(canvas) { display: none; }
       return pts;
     }
     const litCol = (w, f = 1) => `rgba(${210 + w.warm * 40},${150 + w.warm * 40},${80 + w.warm * 30},${0.85 * f})`;
+    // what's in a lit shop window (close up only): a toy shop, women's fashions, luggage or electronics, by the block
+    // (r: [y0, y1, u0, u1, colour], u across the pane from za to zb, y in metres up the glass)
+    const SHOP_KIT = [
+      // toys: two shelves, blocks, a ball, a teddy, a toy truck
+      [[1.45, 1.5, 0, 1, "#3a2414"], [2.25, 2.3, 0, 1, "#3a2414"], [1.5, 1.75, 0.08, 0.2, "#b8261c"], [1.5, 1.68, 0.24, 0.34, "#2f5fb0"], [1.5, 1.82, 0.4, 0.5, "#d9a821"],
+        [2.3, 2.62, 0.12, 0.3, "#7a4a22"], [2.55, 2.72, 0.15, 0.27, "#7a4a22"], [2.3, 2.5, 0.5, 0.78, "#c8401c"], [2.3, 2.4, 0.52, 0.6, "#222"], [2.3, 2.4, 0.68, 0.76, "#222"],
+        [0.55, 0.9, 0.6, 0.82, "#3d8a3a"], [0.55, 1.1, 0.12, 0.3, "#6a3c8a"]],
+      // fashions: three dresses on stands, heads above
+      [[0.55, 0.62, 0.12, 0.3, "#2a2420"], [0.62, 1.5, 0.19, 0.23, "#2a2420"], [1.5, 2.3, 0.1, 0.32, "#8a1f3a"], [2.3, 2.5, 0.16, 0.26, "#d8c8b0"],
+        [0.55, 0.62, 0.41, 0.59, "#2a2420"], [0.62, 1.3, 0.48, 0.52, "#2a2420"], [1.3, 2.2, 0.38, 0.62, "#1f3a5a"], [2.2, 2.4, 0.45, 0.55, "#d8c8b0"],
+        [0.55, 0.62, 0.7, 0.88, "#2a2420"], [0.62, 1.55, 0.77, 0.81, "#2a2420"], [1.55, 2.3, 0.68, 0.9, "#c89a3a"], [2.3, 2.5, 0.74, 0.84, "#d8c8b0"]],
+      // luggage: cases standing on the floor, a stack, a shelf of bags
+      [[0.55, 1.5, 0.06, 0.3, "#5a2e1a"], [1.5, 1.62, 0.14, 0.22, "#1c1410"], [0.55, 1.2, 0.36, 0.56, "#1f3448"], [1.2, 1.3, 0.42, 0.5, "#1c1410"],
+        [0.55, 0.85, 0.62, 0.94, "#6a6a6a"], [0.85, 1.12, 0.65, 0.9, "#8a2a24"], [1.12, 1.34, 0.68, 0.86, "#2a4a2a"], [2.0, 2.05, 0, 1, "#3a2414"], [2.05, 2.4, 0.1, 0.3, "#7a5030"], [2.05, 2.35, 0.55, 0.75, "#3a3030"]],
+      // electronics: TVs, their screens lit blue, on a shelf and a stand, a speaker
+      [[1.6, 1.65, 0, 1, "#222"], [1.65, 2.35, 0.05, 0.47, "#111"], [1.71, 2.29, 0.08, 0.44, "#4a7ab0"], [1.65, 2.15, 0.55, 0.85, "#111"], [1.7, 2.1, 0.57, 0.83, "#6a9ad0"],
+        [0.55, 1.25, 0.1, 0.18, "#222"], [0.6, 1.4, 0.3, 0.7, "#111"], [0.66, 1.34, 0.33, 0.67, "#3a6aa0"], [0.55, 1.0, 0.8, 0.94, "#222"], [0.68, 0.84, 0.83, 0.91, "#444"]],
+    ];
+    function shopWin(b, Xf, za, zb) {
+      const kit = SHOP_KIT[Math.floor(Math.abs(b.z1 * 7.3 + b.side * 3)) % SHOP_KIT.length], L = zb - za;
+      for (const [y0, y1, u0, u1, col] of kit) { const z0 = za + u0 * L, z1 = za + u1 * L; wq([[Xf, y0, z0], [Xf, y0, z1], [Xf, y1, z1], [Xf, y1, z0]], col); }
+    }
     // a block of the main street: brick, its cornice, shopfront and awning on the street side, upstairs windows
     function drawBuilding(b) {
       const s = b.side, X0 = b.x0, X1 = b.x1, h = b.h, xin = Math.min(X0, X1), xout = Math.max(X0, X1);
@@ -13555,6 +13615,7 @@ body.lab .stage > :not(canvas) { display: none; }
       for (const [za, zb] of [[b.z1 + 0.5, dz - 0.7], [dz + 0.7, b.z2 - 0.5]]) {
         if (zb - za < 0.6) continue;
         wq([[Xf, 0.55, za], [Xf, 0.55, zb], [Xf, 2.9, zb], [Xf, 2.9, za]], b.lit ? litCol(b, 0.75) : "#0b0d12");
+        if (b.lit) shopWin(b, Xf, za, zb);
         if (pathClip([[Xf, 0.55, za], [Xf, 0.55, zb], [Xf, 2.9, zb], [Xf, 2.9, za]])) { ctx.strokeStyle = shadeRGB(b.trim, 0.45); ctx.lineWidth = Math.max(1, 0.06 * q.s); ctx.stroke(); }
       }
       wq([[Xf, 0, dz - 0.55], [Xf, 0, dz + 0.55], [Xf, 2.5, dz + 0.55], [Xf, 2.5, dz - 0.55]], "#20140e");
