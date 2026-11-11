@@ -233,6 +233,7 @@ body.introon header, body.introon .hud, body.introon .tray, body.introon .ver, b
 body.introon .stage { border-color: #13202a; }
 body.introon .ht-thumb { z-index: 61; }
 .intro { position: fixed; inset: 0; z-index: 60; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.cutskip { position: fixed; right: 14px; top: 12px; z-index: 61; background: rgba(0,0,0,.45); color: #f5ecd8; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 6px 14px; font: 800 .85rem system-ui, sans-serif; cursor: pointer; }
 .introskip { position: fixed; right: 14px; bottom: 12px; color: var(--paper); opacity: .45; font-size: .75rem; font-weight: 800; }
 /* end-of-level tally */
 .tally { display: grid; gap: 4px; }
@@ -733,6 +734,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   <!-- (v2.20) the intro, on a device's first visit: the title and tagline, then two moments from the game -->
   <div class="intro" id="intro" hidden aria-label="Pneuman intro: tap to skip"><span class="introskip">tap to skip</span></div>
+  <div class="intro" id="cut" hidden aria-label="Story scene: tap to go on"><button class="cutskip" id="cutSkip" type="button">Skip ›</button></div>
   <section class="tray" aria-label="Launcher settings">
     <div class="ctl ctl-ang">
       <div class="ctl-head"><span class="lbl">Angle <span id="holeOut" class="hole">hole 7/13</span></span><span class="val" id="angOut">40<small>°</small></span></div>
@@ -769,7 +771,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.31</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.33</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2614,7 +2616,10 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function campNew() {
     const r = { diff: campPick, order: CAMP_ORDER.slice(), best: {}, tries: {}, cleared: {}, started: Date.now() };
-    campSave(r); campPlay(r);
+    campSave(r);
+    // (Scenes 1 and 2, the porch and the barn, first: on every New story, each skippable; then the first level opens
+    // with the iris. Continue goes straight on)
+    playCut("porch", () => playCut("barn", () => { campPlay(r); irisIn(); }));
   }
   // on to the run's first level not cleared yet (or, all cleared, its finish)
   function campPlay(r) {
@@ -15021,6 +15026,752 @@ body.lab .stage > :not(canvas) { display: none; }
     askRestart("Watching the intro", () => { leaveChallenge(); campOff(); audio(); playIntro(showModes); });
   });
 
+  // ================= cutscenes (Story mode; Nov 10 2026, TODO batch D) =================
+  // Riley's POV, drawn in code; the lines type out: a tap (or Space / Enter / F) finishes a line or moves on, Skip (or
+  // Escape) skips the scene. Played on every New story (not Continue), then the story's first level. The scene is drawn
+  // in an 800 x 450 frame scaled to cover the field; the subtitles are drawn at screen size so they always read.
+  // New story plays Scene 1 (the porch), then Scene 2 (the barn), then Pasture opens with the iris. Skip skips one scene.
+  // A scene is its shots and its steps. A shot: back (its still part, drawn once at the field's size, w wide), paint
+  // (what moves, each frame: (c, seconds into the shot, the step, the still part)), cues ([seconds into the shot, a
+  // sound]), fit (true: shown whole, letterboxed, rather than cropped to cover), cx (the x kept in view on a narrow
+  // field), res (the still part drawn this much finer, for a shot that zooms in). A step: a timed one (dur, seconds:
+  // it plays out; taps do nothing) or a line (s) that waits for a tap: said by who (a subtitle box) or hand (written in
+  // the notebook, drawn by the shot); delay: seconds into the step before it starts. A new shot fades through black.
+  const CUT = { on: false, id: null, t: 0, step: 0, st: 0, shotT: 0, shown: 0, go: 0, went: false, out: 0, outDur: 0.9, dest: null, posT: -1, cued: {}, amb: {} };
+  const RUN_T = 3.4; // (the barn: seconds of running before Riley's at its door)
+  const CUT_SPEED = 38; // letters a second, said
+  const CUT_HAND_SPEED = 30; // …and written (the Uncle's notebook)
+  const CUT_HAND = '600 17px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+  const CUT_SCENES = {
+    // Scene 1, the porch: the Aunt in her rocker, Broadside's fields, barn and tractor behind her, Riley's knees and
+    // sneakers at the bottom of the frame
+    porch: {
+      shots: { porch: { back: porchBack, paint: paintPorch } },
+      steps: [
+        { shot: "porch", who: "Aunt", delay: 1.1, mood: "warm", s: "Riley, it always makes me happy when you visit Broadside. Your Uncle too, before he passed." },
+        { shot: "porch", who: "Aunt", mood: "laugh", s: "The two of you were always thick as thieves. Oh, the things you two got up to!" },
+        { shot: "porch", who: "Aunt", mood: "soft", s: "He loved you dearly, Riley." },
+        { shot: "porch", who: "Aunt", mood: "grave", s: "He seemed very agitated near the end, and I know it wasn't the illness." },
+        { shot: "porch", who: "Aunt", mood: "grave", s: "We protected you. We wanted you to focus on being a teenager." },
+        { shot: "porch", who: "Aunt", mood: "wry", look: -1, s: "Your Uncle spent too much time in that barn, if you ask me!" },
+        { shot: "porch", who: "Aunt", mood: "warm", s: "Okay then, why don't you go for a walk while I make supper?" },
+      ],
+    },
+    // Scene 2, the barn: a run through the rain to the barn and its door sliding open; a slow look round inside (the
+    // hayloft, the stables, a horse); the workbench as the light clicks on; the Uncle's notebook, its last entry; then
+    // a glint in the dark corner, the phone's light, and the Pneuman and the cart
+    barn: {
+      shots: {
+        run: { back: runBack, paint: paintRun, cx: 400, cues: [[0, () => ambRain(0.16)], [1.45, () => cutThunder(1)], [RUN_T + 0.4, () => { noise(1.5, 240, 0.3, 420); tone(85, 70, 1.3, 0.12, "sawtooth"); }],
+          ...[...Array(10)].map((_, i) => [0.12 + i * 0.35, () => noise(0.09, 600, 0.1, 250)])] },
+        pan: { w: 1400, back: panBack, paint: paintPan, cues: [[0, () => { sfx.thunk(); ambRainMuffle(); }], [3.2, () => sample("horse", 0.3, 1.6)], [4.8, () => cutThunder(0.45)]] },
+        bench: { back: benchBack, paint: paintBench, cues: [[1.15, () => { sfx.click(); tone(300, 180, 0.05, 0.12, "square"); }], [1.35, ambHum]] },
+        book: { fit: true, back: bookBack, paint: paintBook, cues: [[0.1, () => noise(0.35, 900, 0.12, 400)], [0.85, () => noise(0.4, 1400, 0.1, 600)]] },
+        corner: { res: 1.3, cx: 400, mid: true, back: cornerBack, paint: paintCorner, cues: [[4.3, () => tone(2600, 2400, 0.03, 0.1, "square")], [5.3, cutChord]] },
+      },
+      steps: [
+        { shot: "run", dur: 5.8 },
+        { shot: "pan", dur: 7.5 },
+        { shot: "bench", dur: 4.6 },
+        { shot: "book", hand: true, page: 0, delay: 1.7, s: "My food abundance experiments have failed. Worse in fact, backfired!! Please forgive me! It is too absurd, nobody would have believed me." },
+        { shot: "book", hand: true, page: 1, s: "Riley, help me undo this! The only thing that will stop it is The Pneuman! Practice, practice, practice. Time ran out for me, but I know you can do it Riley!" },
+        { shot: "book", hand: true, page: 1, s: "Read my notes about how. Start in the pasture behind the barn. It's out there, THEY are out there!" },
+        { shot: "corner", dur: 8.6 },
+      ],
+    },
+  };
+  // (a steady "random" for the scenery, so it's the same every frame)
+  const cutR = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  const cutRR = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+  const cutLerp = (a, b, t) => a + (b - a) * t, cutEase = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const cutStep = () => CUT_SCENES[CUT.id].steps[CUT.step];
+  // a line wrapped to a width, as [start, end] pairs into it (in the font set on c)
+  function cutWrap(c, s, maxW) {
+    const rows = []; let start = 0, last = -1;
+    for (let i = 0; i <= s.length; i++) {
+      if (i < s.length && s[i] !== " ") continue;
+      if (c.measureText(s.slice(start, i)).width > maxW && last > start) { rows.push([start, last]); start = last + 1; }
+      last = i;
+    }
+    rows.push([start, s.length]);
+    return rows;
+  }
+  // the shot's still part, drawn once at the field's size (redrawn when the shot or the size changes)
+  let cutBg = null;
+  function cutBack(sc, name) {
+    const sh = sc.shots[name], w = sh.w || 800, k = (sh.fit ? Math.min(W / 800, H / 450) : Math.max(W / 800, H / 450)) * dpr * (sh.res || 1), key = `${CUT.id}:${name}:${k.toFixed(3)}`;
+    if (!cutBg || cutBg.key !== key) {
+      const cv2 = document.createElement("canvas"); cv2.width = Math.ceil(w * k); cv2.height = Math.ceil(450 * k);
+      const g = cv2.getContext("2d"); g.scale(k, k); sh.back(g); cutBg = { key, c: cv2 };
+    }
+    return cutBg.c;
+  }
+  function playCut(id, dest) {
+    Object.assign(CUT, { on: true, id, t: 0, step: 0, st: 0, shotT: 0, shown: 0, go: 0, went: false, out: 0, outDur: 0.9, dest, posT: -1, cued: {} });
+    document.body.classList.add("introon"); $("overlay").hidden = true; $("cut").hidden = false;
+  }
+  function endCut() {
+    if (!CUT.on) return;
+    CUT.on = false; cutBg = null; ambStop(); $("cut").hidden = true; document.body.classList.remove("introon");
+    const d = CUT.dest; CUT.dest = null; d && d();
+  }
+  // on to the next step: straight on within a shot, through black to a new one, or out at the end
+  function cutNext() {
+    const nx = CUT_SCENES[CUT.id].steps[CUT.step + 1];
+    if (!nx) { CUT.out = 1e-6; CUT.outDur = 0.9; return; }
+    if (nx.shot === cutStep().shot) cutAdvance(); else { CUT.go = 1e-6; CUT.went = false; }
+  }
+  function cutAdvance() {
+    const was = cutStep().shot; CUT.step++; CUT.st = 0; CUT.shown = 0;
+    if (cutStep().shot !== was) { CUT.shotT = 0; CUT.cued = {}; }
+  }
+  function cutTap() {
+    if (!CUT.on || CUT.out || CUT.go) return;
+    const p = cutStep();
+    if (!p.s) return; // (a timed shot plays out; Skip skips the scene)
+    if (CUT.shown < p.s.length) { CUT.shown = p.s.length; CUT.st = Math.max(CUT.st, p.delay || 0); return; }
+    cutNext();
+  }
+  function cutSkip() { if (CUT.on && !CUT.out) { CUT.out = 1e-6; CUT.outDur = 0.35; sfx.click(); } }
+  // is the speaker's mouth moving (a letter being said), and how open
+  function cutMouth() {
+    const p = CUT.on && cutStep();
+    if (!p || !p.s || p.hand || CUT.st < (p.delay || 0) || CUT.shown >= p.s.length || !/[a-z]/i.test(p.s[Math.floor(CUT.shown)])) return 0;
+    return 0.3 + 0.7 * Math.abs(Math.sin(CUT.st * 16));
+  }
+  function cutFrame(dt) {
+    dt = Math.min(dt, 0.05); CUT.t += dt; CUT.st += dt; CUT.shotT += dt;
+    const sc = CUT_SCENES[CUT.id];
+    if (CUT.go) { CUT.go += dt; if (CUT.go >= 0.3 && !CUT.went) { CUT.went = true; cutAdvance(); } if (CUT.go >= 0.6) CUT.go = 0; }
+    let p = cutStep();
+    if (!CUT.go && !CUT.out) {
+      if (p.dur != null) { if (CUT.st >= p.dur) cutNext(); }
+      else if (CUT.st >= (p.delay || 0) && CUT.shown < p.s.length) {
+        const was = Math.floor(CUT.shown);
+        CUT.shown = Math.min(p.s.length, CUT.shown + dt * (p.hand ? CUT_HAND_SPEED : CUT_SPEED));
+        for (let i = was; i < Math.floor(CUT.shown); i++) if (i % 2 === 0 && /\w/.test(p.s[i])) { if (p.hand) noise(0.03, 3400, 0.05, 2600); else tone(1500, 1200, 0.03, 0.035, "triangle"); break; }
+      }
+    }
+    p = cutStep();
+    const sh = sc.shots[p.shot];
+    if (sh.cues) sh.cues.forEach(([at, fn], i) => { if (!CUT.cued[i] && CUT.shotT >= at) { CUT.cued[i] = true; try { fn(); } catch (e) {} } });
+    if (CUT.out) CUT.out += dt;
+    // (Skip sits at the field's top right)
+    if (CUT.t - CUT.posT > 0.5) {
+      CUT.posT = CUT.t; const r = cv.getBoundingClientRect(), b = $("cutSkip");
+      b.style.top = `${Math.max(8, r.top + 10)}px`; b.style.right = `${Math.max(8, innerWidth - r.right + 10)}px`;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = sh.fit ? "#140e0a" : "#000"; ctx.fillRect(0, 0, W, H);
+    // (cropped from the top on a wide field, so what's at the bottom stays in; on a narrow one, kept on x cx; a fit
+    // shot shown whole)
+    const s = sh.fit ? Math.min(W / 800, H / 450) : Math.max(W / 800, H / 450);
+    const ox = sh.fit ? (W - 800 * s) / 2 : Math.min(0, Math.max(W - 800 * s, W / 2 - (sh.cx || 440) * s)), oy = sh.fit || sh.mid ? (H - 450 * s) / 2 : H - 450 * s;
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(s, s);
+    try { sh.paint(ctx, CUT.shotT, p, cutBack(sc, p.shot)); } finally { ctx.restore(); }
+    if (p.s && !p.hand) cutSubs(p);
+    if (p.hand && CUT.shown >= p.s.length && !CUT.go && !CUT.out) {
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(CUT.st * 5); ctx.fillStyle = "#f0c070"; ctx.font = `600 ${Math.max(16, Math.min(24, H / 16))}px system-ui, sans-serif`;
+      ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("▸", W - 14, H - 10); ctx.globalAlpha = 1; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    }
+    const go = CUT.go ? (CUT.go < 0.3 ? CUT.go / 0.3 : Math.max(0, 1 - (CUT.go - 0.3) / 0.3)) : 0;
+    const a = Math.max(Math.max(0, 1 - CUT.t / 0.9), go, CUT.out ? Math.min(1, CUT.out / CUT.outDur) : 0);
+    if (a > 0) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, W, H); }
+    if (CUT.out && CUT.out >= CUT.outDur + 0.15) endCut();
+  }
+  // a said line: a see-through box in the lower middle, the speaker's name, the words so far, a ▸ once it's all there
+  function cutSubs(L) {
+    if (CUT.st < (L.delay || 0)) return;
+    const fs = Math.max(14, Math.min(22, W / 34, H / 16)), pad = fs * 0.8, bw = Math.min(W - 20, fs * 30);
+    ctx.font = `600 ${fs}px system-ui, sans-serif`;
+    const s = L.s, rows = cutWrap(ctx, s, bw - pad * 2);
+    const lh = fs * 1.32, nameH = fs * 1.05, bh = pad * 1.6 + nameH + rows.length * lh;
+    const bx = (W - bw) / 2, by = H - bh - Math.max(8, H * 0.035);
+    cutRR(ctx, bx, by, bw, bh, fs * 0.6); ctx.fillStyle = "rgba(14,16,20,.62)"; ctx.fill();
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.font = `800 ${fs * 0.72}px system-ui, sans-serif`; ctx.fillStyle = "#f0c070"; ctx.fillText(L.who.toUpperCase(), bx + pad, by + pad * 0.8);
+    ctx.font = `600 ${fs}px system-ui, sans-serif`; ctx.fillStyle = "#f6f0e4";
+    const n = Math.floor(CUT.shown);
+    rows.forEach(([a, b], i) => { if (n > a) ctx.fillText(s.slice(a, Math.min(b, n)), bx + pad, by + pad * 0.8 + nameH + i * lh); });
+    if (n >= s.length && !CUT.out && !CUT.go) {
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(CUT.st * 5); ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillStyle = "#f0c070";
+      ctx.fillText("▸", bx + bw - pad * 0.7, by + bh - pad * 0.35); ctx.globalAlpha = 1;
+    }
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  }
+  // ---- the scenes' sounds: rain (a loop, muffled once inside), thunder, the lamp's hum, the tense chord at the reveal
+  // (a recording named tense, if one's added to sounds/, takes over the chord)
+  function ambRain(gain) {
+    const a = audio(); if (!a || CUT.amb.rain) return;
+    const n = a.sampleRate * 2, buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf; src.loop = true;
+    const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 3200;
+    const g = a.createGain(), t = a.currentTime; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.8);
+    src.connect(f).connect(g).connect(a.destination); src.start();
+    CUT.amb.rain = { g, f, nodes: [src] };
+  }
+  function ambRainMuffle() {
+    const r = CUT.amb.rain; if (!r || !actx) return;
+    const t = actx.currentTime;
+    r.f.frequency.setValueAtTime(r.f.frequency.value, t); r.f.frequency.linearRampToValueAtTime(520, t + 0.25);
+    r.g.gain.setValueAtTime(r.g.gain.value, t); r.g.gain.linearRampToValueAtTime(0.07, t + 0.25);
+  }
+  function ambHum() {
+    const a = audio(); if (!a || CUT.amb.hum) return;
+    const t = a.currentTime, g = a.createGain(), g2 = a.createGain(), o1 = a.createOscillator(), o2 = a.createOscillator();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.022, t + 0.2); g2.gain.value = 0.4;
+    o1.frequency.value = 120; o2.type = "triangle"; o2.frequency.value = 240;
+    o1.connect(g); o2.connect(g2).connect(g); g.connect(a.destination); o1.start(); o2.start();
+    CUT.amb.hum = { g, nodes: [o1, o2] };
+  }
+  function ambStop() {
+    const a = actx;
+    for (const k in CUT.amb) {
+      const x = CUT.amb[k]; if (!a) continue;
+      const t = a.currentTime; x.g.gain.cancelScheduledValues(t); x.g.gain.setValueAtTime(x.g.gain.value, t); x.g.gain.linearRampToValueAtTime(0, t + 0.4);
+      for (const nd of x.nodes) try { nd.stop(t + 0.45); } catch (e) {}
+    }
+    CUT.amb = {};
+  }
+  function cutThunder(v) { noise(2.4, 110, 0.6 * v, 40); tone(62, 34, 2, 0.35 * v, "sine", 0.05); }
+  function cutChord() {
+    if (sample("tense", 0.9)) return;
+    for (const f of [110, 155.6, 164.8, 233.1]) tone(f, f * 0.985, 2.6, 0.07, "sawtooth");
+    tone(55, 40, 1.6, 0.3, "sine"); noise(0.6, 180, 0.25, 60);
+  }
+  // ---- the iris: a level opening out of black through a growing circle (Story mode; after the barn, onto Pasture)
+  const IRIS = { t: -1 };
+  function irisIn() { IRIS.t = 0; }
+  function irisDraw(dt) {
+    if (IRIS.t < 0) return;
+    IRIS.t += Math.min(dt, 0.05);
+    const k = Math.max(0, (IRIS.t - 0.25) / 1.2);
+    if (k >= 1) { IRIS.t = -1; return; }
+    const r = (1 - Math.pow(1 - k, 3)) * Math.hypot(W, H) * 0.55;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, H / 2, Math.max(0.1, r), 0, Math.PI * 2); ctx.fill("evenodd");
+  }
+  $("cut").addEventListener("pointerdown", (e) => { if (e.target.closest("#cutSkip")) return; e.preventDefault(); cutTap(); });
+  $("cutSkip").addEventListener("click", (e) => { e.stopPropagation(); cutSkip(); });
+  window.addEventListener("keydown", (e) => {
+    if (!CUT.on) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.key === "Escape") cutSkip();
+    else if (!e.repeat && (e.key === " " || e.key === "Enter" || e.key === "f" || e.key === "F")) cutTap();
+  }, true);
+
+  // ---- Scene 1: the porch (after images/cutscenes/aunt_on_porch.jpg) ----
+  // the still part: autumn sky, treeline and fields, the red barn and silo, a tractor, the porch's roof, posts, railing,
+  // floor, pumpkins and a pot of mums
+  function porchBack(c) {
+    let g = c.createLinearGradient(0, 0, 0, 240); g.addColorStop(0, "#b7c9d4"); g.addColorStop(0.6, "#e4dac2"); g.addColorStop(1, "#f2deb2");
+    c.fillStyle = g; c.fillRect(0, 0, 800, 250);
+    c.fillStyle = "#a3b09a"; c.beginPath(); c.moveTo(0, 250);
+    for (let x = 0; x <= 800; x += 20) c.lineTo(x, 196 - 14 * Math.sin(x / 130) - 6 * Math.sin(x / 47));
+    c.lineTo(800, 250); c.fill();
+    const AUT = ["#d0702c", "#b8452a", "#d9a23a", "#c4882f", "#8f6a2c", "#a83a26", "#6f8a3c", "#e0b04a"];
+    for (let i = 0; i < 80; i++) {
+      const x = cutR(i) * 840 - 20, y = 208 + cutR(i + 99) * 22, r = 12 + cutR(i + 7) * 15;
+      if (cutR(i + 3) < 0.3) { c.fillStyle = cutR(i + 5) < 0.5 ? "#2f4a35" : "#3a5640"; c.beginPath(); c.moveTo(x, y - r * 3.2); c.lineTo(x + r * 0.75, y + 8); c.lineTo(x - r * 0.75, y + 8); c.fill(); }
+      else { c.fillStyle = AUT[Math.floor(cutR(i + 11) * AUT.length)]; c.beginPath(); c.arc(x, y - r * 0.6, r, 0, 7); c.arc(x - r * 0.7, y, r * 0.8, 0, 7); c.arc(x + r * 0.7, y, r * 0.8, 0, 7); c.fill(); }
+    }
+    g = c.createLinearGradient(0, 226, 0, 450); g.addColorStop(0, "#cbb86e"); g.addColorStop(0.35, "#a9a957"); g.addColorStop(1, "#7d8d44");
+    c.fillStyle = g; c.fillRect(0, 226, 800, 224);
+    c.strokeStyle = "rgba(90,80,30,.22)"; c.lineWidth = 1.2;
+    for (let i = 1; i < 10; i++) { const y = 232 + i * i * 1.9; c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(250, y - 3, 550, y + 4, 800, y); c.stroke(); }
+    for (let i = 0; i < 46; i++) { const x = cutR(i + 300) * 800, y = 262 + cutR(i + 333) * 110; c.fillStyle = cutR(i + 40) < 0.5 ? "#c9a23b" : "#8e8a3c"; c.beginPath(); c.ellipse(x, y, 8 + cutR(i) * 14, 3 + cutR(i + 1) * 4, 0, 0, 7); c.fill(); }
+    // the red barn (the game's), its silo, far off
+    const bx = 128, by = 240;
+    c.fillStyle = "#9aa0a2"; c.fillRect(bx - 18, by - 52, 15, 52); c.beginPath(); c.arc(bx - 10.5, by - 52, 7.5, Math.PI, 0); c.fill();
+    c.fillStyle = "#8e2a23"; c.beginPath(); c.moveTo(bx + 56, by); c.lineTo(bx + 56, by - 26); c.lineTo(bx + 96, by - 22); c.lineTo(bx + 96, by); c.fill();
+    c.fillStyle = "#5a5550"; c.beginPath(); c.moveTo(bx + 46, by - 38); c.lineTo(bx + 56, by - 27); c.lineTo(bx + 98, by - 23); c.lineTo(bx + 88, by - 35); c.fill();
+    c.fillStyle = "#a8322a"; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx, by - 26); c.lineTo(bx + 10, by - 38); c.lineTo(bx + 28, by - 47); c.lineTo(bx + 46, by - 38); c.lineTo(bx + 56, by - 26); c.lineTo(bx + 56, by); c.fill();
+    c.strokeStyle = "#4a4643"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(bx - 2, by - 25); c.lineTo(bx + 10, by - 39); c.lineTo(bx + 28, by - 48); c.lineTo(bx + 46, by - 39); c.lineTo(bx + 58, by - 25); c.stroke();
+    c.fillStyle = "#7d241e"; c.fillRect(bx + 17, by - 21, 22, 21); c.fillRect(bx + 23, by - 37, 10, 8);
+    c.strokeStyle = "#f1ebe1"; c.lineWidth = 1.4; c.strokeRect(bx + 17, by - 21, 22, 21); c.strokeRect(bx + 23, by - 37, 10, 8);
+    c.beginPath(); c.moveTo(bx + 17, by - 21); c.lineTo(bx + 39, by); c.moveTo(bx + 39, by - 21); c.lineTo(bx + 17, by); c.stroke();
+    // a tractor in the field
+    const tx = 252, ty = 268;
+    c.fillStyle = "#cf6a24"; c.fillRect(tx - 16, ty - 13, 24, 8); c.fillRect(tx + 2, ty - 24, 12, 14);
+    c.strokeStyle = "#2b2622"; c.lineWidth = 1.5; c.strokeRect(tx + 2, ty - 24, 12, 12); c.beginPath(); c.moveTo(tx - 10, ty - 13); c.lineTo(tx - 10, ty - 22); c.stroke();
+    c.fillStyle = "#2b2622"; c.beginPath(); c.arc(tx + 8, ty - 2, 9, 0, 7); c.arc(tx - 15, ty + 1, 5.5, 0, 7); c.fill();
+    c.fillStyle = "#d9b35a"; c.beginPath(); c.arc(tx + 8, ty - 2, 3.5, 0, 7); c.arc(tx - 15, ty + 1, 2.2, 0, 7); c.fill();
+    // the porch: floor, railing, posts, roof
+    c.fillStyle = "#7a5c40"; c.fillRect(0, 384, 800, 66);
+    c.strokeStyle = "rgba(40,25,15,.45)"; c.lineWidth = 1.5;
+    for (let x = -600; x <= 1400; x += 64) { c.beginPath(); c.moveTo(400 + (x - 400) * 0.6, 386); c.lineTo(x, 450); c.stroke(); }
+    c.strokeStyle = "rgba(255,230,190,.12)"; for (let x = -600; x <= 1400; x += 64) { c.beginPath(); c.moveTo(402 + (x - 400) * 0.6, 386); c.lineTo(x + 3, 450); c.stroke(); }
+    c.fillStyle = "#4e3828"; for (let x = 8; x < 800; x += 24) c.fillRect(x, 302, 7, 80);
+    c.fillStyle = "rgba(255,225,180,.18)"; for (let x = 8; x < 800; x += 24) c.fillRect(x, 302, 2, 80);
+    c.fillStyle = "#5c4331"; c.fillRect(0, 292, 800, 12); c.fillRect(0, 376, 800, 9);
+    c.fillStyle = "#73563f"; c.fillRect(0, 292, 800, 3);
+    const post = (x, w) => {
+      g = c.createLinearGradient(x, 0, x + w, 0); g.addColorStop(0, "#3a2a1e"); g.addColorStop(0.4, "#6b4e36"); g.addColorStop(1, "#3d2c20");
+      c.fillStyle = g; c.fillRect(x, 0, w, 450);
+      c.fillStyle = "#3a2a1e"; c.beginPath(); c.moveTo(x, 40); c.lineTo(x - 34, 40); c.lineTo(x, 74); c.fill(); c.beginPath(); c.moveTo(x + w, 40); c.lineTo(x + w + 34, 40); c.lineTo(x + w, 74); c.fill();
+    };
+    post(40, 30); post(306, 32); post(772, 30);
+    g = c.createLinearGradient(0, 0, 0, 44); g.addColorStop(0, "#2a1d14"); g.addColorStop(1, "#4b3524");
+    c.fillStyle = g; c.fillRect(0, 0, 800, 44); c.fillStyle = "#5e4430"; c.fillRect(0, 34, 800, 8);
+    c.fillStyle = "rgba(0,0,0,.25)"; for (let x = 20; x < 800; x += 70) c.fillRect(x, 0, 6, 34);
+    // pumpkins and a gourd on the rail; a basket of them on the floor; mums in a pot
+    const pumpkin = (x, y, r, col) => {
+      c.fillStyle = col; c.beginPath(); c.ellipse(x - r * 0.4, y, r * 0.65, r * 0.8, 0, 0, 7); c.ellipse(x + r * 0.4, y, r * 0.65, r * 0.8, 0, 0, 7); c.ellipse(x, y, r * 0.7, r * 0.85, 0, 0, 7); c.fill();
+      c.strokeStyle = "rgba(0,0,0,.18)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - r * 0.8); c.lineTo(x, y + r * 0.8); c.stroke();
+      c.fillStyle = "#4b5a2a"; c.fillRect(x - 1.5, y - r * 1.1, 3, r * 0.4);
+    };
+    pumpkin(360, 281, 12, "#d8701f"); pumpkin(386, 285, 8, "#c9cfb6"); pumpkin(700, 280, 13, "#d8701f");
+    c.fillStyle = "#8a6a3a"; cutRR(c, 670, 398, 70, 34, 6); c.fill(); c.strokeStyle = "#6a4f2a"; c.lineWidth = 1.2;
+    for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(672, 404 + i * 8); c.lineTo(738, 404 + i * 8); c.stroke(); }
+    pumpkin(686, 396, 9, "#d8701f"); pumpkin(704, 393, 8, "#e0a23a"); pumpkin(722, 396, 9, "#c45a1e");
+    c.fillStyle = "#7a4a30"; c.beginPath(); c.moveTo(178, 392); c.lineTo(226, 392); c.lineTo(220, 424); c.lineTo(184, 424); c.fill();
+    for (let i = 0; i < 22; i++) { c.fillStyle = i % 3 ? "#e0882c" : "#c86424"; c.beginPath(); c.arc(184 + cutR(i + 500) * 38, 362 + cutR(i + 520) * 30, 6 + cutR(i + 540) * 3, 0, 7); c.fill(); }
+  }
+  // the moving part: the Aunt rocking gently in her chair, then Riley's legs
+  function paintPorch(c, t, p, back) {
+    c.drawImage(back, 0, 0, 800, 450);
+    const ax = 455, rock = Math.sin(t * 1.1) * 0.016;
+    c.save(); c.translate(ax, 480); c.rotate(rock); c.translate(-ax, -480);
+    try { drawAunt(c, t, ax); } finally { c.restore(); }
+    drawRileyLegs(c, t);
+  }
+  function drawAunt(c, t, ax) {
+    const L = (CUT.on && cutStep()) || {}, mood = L.mood || "warm", look = L.look || 0;
+    const skin = "#b9805c", skinD = "#94603f", hair = "#221815", wood = "#3f2c1f", woodH = "#5b4130";
+    const br = Math.sin(t * 1.6) * 1.2, hx = ax + look * 3, hy = 188 + br * 0.4;
+    // the rocker's back
+    c.fillStyle = wood; c.fillRect(ax - 104, 150, 14, 300); c.fillRect(ax + 90, 150, 14, 300);
+    c.beginPath(); c.arc(ax - 97, 143, 9, 0, 7); c.arc(ax + 97, 143, 9, 0, 7); c.fill();
+    c.beginPath(); c.moveTo(ax - 92, 160); c.quadraticCurveTo(ax, 138, ax + 92, 160); c.lineTo(ax + 92, 186); c.quadraticCurveTo(ax, 164, ax - 92, 186); c.closePath(); c.fill();
+    c.fillStyle = woodH; for (let i = -3; i <= 3; i++) c.fillRect(ax + i * 24 - 3, 178, 6, 130);
+    c.fillRect(ax - 104, 150, 3, 300); c.fillRect(ax + 90, 150, 3, 300);
+    // her hair at the back, and the bun
+    c.fillStyle = hair; c.beginPath(); c.ellipse(hx + 1, hy - 6, 42, 49, 0, 0, 7); c.fill();
+    c.beginPath(); c.arc(hx + 16, hy - 50, 19, 0, 7); c.fill();
+    c.strokeStyle = hair; c.lineWidth = 1.2; c.lineCap = "round";
+    for (const [dx, dy, ex, ey] of [[30, -56, 38, -62], [6, -60, -2, -66], [32, -44, 37, -38]]) { c.beginPath(); c.moveTo(hx + dx, hy + dy); c.quadraticCurveTo(hx + (dx + ex) / 2 + 2, hy + (dy + ey) / 2 - 2, hx + ex, hy + ey); c.stroke(); }
+    // neck
+    c.fillStyle = skinD; c.fillRect(hx - 15, hy + 26, 30, 44);
+    // jeans in her lap
+    c.fillStyle = "#283043"; c.beginPath(); c.moveTo(ax - 82, 388); c.lineTo(ax + 82, 388); c.lineTo(ax + 124, 452); c.lineTo(ax - 124, 452); c.fill();
+    // the maroon tee, then the open plaid flannel over it
+    const torso = () => { c.beginPath(); c.moveTo(ax - 24, 248 + br); c.quadraticCurveTo(ax - 72, 250 + br, ax - 92, 274 + br); c.lineTo(ax - 82, 396); c.lineTo(ax + 82, 396); c.lineTo(ax + 92, 274 + br); c.quadraticCurveTo(ax + 72, 250 + br, ax + 24, 248 + br); c.closePath(); };
+    torso(); c.fillStyle = "#6a2330"; c.fill();
+    c.fillStyle = skinD; c.beginPath(); c.moveTo(ax - 16, 247 + br); c.quadraticCurveTo(ax, 266 + br, ax + 16, 247 + br); c.fill();
+    const plaid = (path) => {
+      c.save(); path(); c.clip();
+      c.fillStyle = "#353c44"; c.fillRect(ax - 160, 200, 320, 260);
+      c.fillStyle = "rgba(160,140,115,.35)"; for (let x = -160; x < 160; x += 22) c.fillRect(ax + x, 200, 4, 260); for (let y = 200; y < 460; y += 22) c.fillRect(ax - 160, y, 320, 4);
+      c.fillStyle = "rgba(175,95,60,.3)"; for (let x = -151; x < 160; x += 22) c.fillRect(ax + x, 200, 1.5, 260); for (let y = 209; y < 460; y += 22) c.fillRect(ax - 160, y, 320, 1.5);
+      c.restore();
+    };
+    plaid(() => { c.beginPath(); c.moveTo(ax - 24, 248 + br); c.quadraticCurveTo(ax - 72, 250 + br, ax - 92, 274 + br); c.lineTo(ax - 82, 396); c.lineTo(ax - 28, 396); c.lineTo(ax - 30, 300); c.closePath(); });
+    plaid(() => { c.beginPath(); c.moveTo(ax + 24, 248 + br); c.quadraticCurveTo(ax + 72, 250 + br, ax + 92, 274 + br); c.lineTo(ax + 82, 396); c.lineTo(ax + 28, 396); c.lineTo(ax + 30, 300); c.closePath(); });
+    c.strokeStyle = "#22282e"; c.lineWidth = 1.5; c.strokeRect(ax + 40, 300 + br * 0.5, 26, 24);
+    c.fillStyle = "#2c3238"; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(ax + sd * 18, 246 + br); c.lineTo(ax + sd * 46, 252 + br); c.lineTo(ax + sd * 32, 286 + br); c.fill(); }
+    // upper arms, the chair's arms, then forearms and hands resting on them (a watch on one wrist, bangles on the other)
+    c.lineCap = "round";
+    for (const sd of [-1, 1]) {
+      c.strokeStyle = "#353c44"; c.lineWidth = 32; c.beginPath(); c.moveTo(ax + sd * 84, 282 + br); c.lineTo(ax + sd * 110, 342); c.stroke();
+      c.strokeStyle = "rgba(160,140,115,.35)"; c.lineWidth = 3; c.beginPath(); c.moveTo(ax + sd * 76, 290 + br); c.lineTo(ax + sd * 100, 344); c.stroke();
+    }
+    c.fillStyle = wood; cutRR(c, ax - 158, 364, 76, 13, 5); c.fill(); cutRR(c, ax + 82, 364, 76, 13, 5); c.fill();
+    c.fillRect(ax - 152, 376, 11, 80); c.fillRect(ax + 141, 376, 11, 80);
+    for (const sd of [-1, 1]) {
+      c.strokeStyle = "#4a525b"; c.lineWidth = 30; c.beginPath(); c.moveTo(ax + sd * 106, 336); c.lineTo(ax + sd * 112, 348); c.stroke();
+      c.strokeStyle = skin; c.lineWidth = 19; c.beginPath(); c.moveTo(ax + sd * 112, 350); c.lineTo(ax + sd * 128, 366); c.stroke();
+      c.fillStyle = skin; c.beginPath(); c.ellipse(ax + sd * 134, 368, 15, 8, 0, 0, 7); c.fill();
+      c.strokeStyle = skinD; c.lineWidth = 1.2; for (let f = 0; f < 3; f++) { c.beginPath(); c.moveTo(ax + sd * (138 + f * 4), 366); c.lineTo(ax + sd * (138 + f * 4), 376); c.stroke(); }
+    }
+    c.fillStyle = "#3a3026"; c.fillRect(ax + 118, 356, 9, 8); c.fillStyle = "#efe8d8"; c.beginPath(); c.arc(ax + 122.5, 360, 2.6, 0, 7); c.fill();
+    c.strokeStyle = "#d8cbb0"; c.lineWidth = 1.6; for (const d of [0, 4]) { c.beginPath(); c.moveTo(ax - 116 - d, 352 + d); c.lineTo(ax - 124 - d, 360 + d); c.stroke(); }
+    // her head: ears, face, features, then the hair at the front
+    c.fillStyle = skin;
+    c.beginPath(); c.ellipse(hx - 33, hy + 4, 6, 10, 0, 0, 7); c.ellipse(hx + 33, hy + 4, 6, 10, 0, 0, 7); c.fill();
+    c.beginPath(); c.ellipse(hx, hy, 34, 43, 0, 0, 7); c.fill();
+    c.fillStyle = "rgba(120,60,40,.18)"; c.beginPath(); c.ellipse(hx, hy + 30, 26, 12, 0, 0, Math.PI); c.fill();
+    c.fillStyle = "#ece6da"; c.beginPath(); c.arc(hx - 33, hy + 15, 2.2, 0, 7); c.arc(hx + 33, hy + 15, 2.2, 0, 7); c.fill();
+    c.fillStyle = "rgba(205,95,75,.16)"; c.beginPath(); c.arc(hx - 18, hy + 12, 7, 0, 7); c.arc(hx + 18, hy + 12, 7, 0, 7); c.fill();
+    const fx = hx + look * 4, blink = (t % 4.3) < 0.12, squint = mood === "laugh" ? 0.6 : 1, ix = look * 2.4;
+    for (const sd of [-1, 1]) {
+      const ex = fx + sd * 14, ey = hy - 2;
+      if (blink) { c.strokeStyle = "#2a1a14"; c.lineWidth = 1.6; c.beginPath(); c.moveTo(ex - 7, ey); c.quadraticCurveTo(ex, ey + 2, ex + 7, ey); c.stroke(); }
+      else {
+        c.fillStyle = "#f3ece4"; c.beginPath(); c.ellipse(ex, ey, 7, 3.8 * squint, 0, 0, 7); c.fill();
+        c.save(); c.beginPath(); c.ellipse(ex, ey, 7, 3.8 * squint, 0, 0, 7); c.clip();
+        c.fillStyle = "#4a2c1c"; c.beginPath(); c.arc(ex + ix, ey, 3.3, 0, 7); c.fill(); c.fillStyle = "#120a07"; c.beginPath(); c.arc(ex + ix, ey, 1.5, 0, 7); c.fill();
+        c.restore();
+        c.strokeStyle = "#2a1a14"; c.lineWidth = 1.7; c.beginPath(); c.ellipse(ex, ey, 7, 3.8 * squint, 0, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+      }
+      // brows: raised in the middle when grave, one up when wry
+      const inner = mood === "grave" || mood === "soft" ? -3 : 0, wry = mood === "wry" && sd === 1 ? -3 : 0;
+      c.strokeStyle = "#241814"; c.lineWidth = 2.6; c.beginPath(); c.moveTo(ex - sd * 6, ey - 9 + inner + wry); c.quadraticCurveTo(ex + sd * 1, ey - 12 + wry, ex + sd * 8, ey - 9 + wry); c.stroke();
+    }
+    c.strokeStyle = skinD; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fx + 1, hy + 2); c.lineTo(fx + 3, hy + 14); c.quadraticCurveTo(fx, hy + 17, fx - 4, hy + 15); c.stroke();
+    const m = cutMouth(), my = hy + 25;
+    if (m > 0.05) {
+      const mw = mood === "laugh" ? 9 : 7;
+      c.fillStyle = "#5b1f22"; c.beginPath(); c.ellipse(fx, my, mw, 1.5 + 6 * m, 0, 0, 7); c.fill();
+      c.fillStyle = "#efe7dc"; c.fillRect(fx - mw * 0.6, my - 1.5 - 6 * m + 1, mw * 1.2, Math.min(3, 1 + 3 * m));
+      c.strokeStyle = "#9b4a45"; c.lineWidth = 1.4; c.beginPath(); c.ellipse(fx, my, mw, 1.5 + 6 * m, 0, 0, 7); c.stroke();
+    } else {
+      c.strokeStyle = "#8e3f3a"; c.lineWidth = 2.2; c.beginPath();
+      if (mood === "grave") { c.moveTo(fx - 8, my + 1); c.quadraticCurveTo(fx, my - 1, fx + 8, my + 1); }
+      else if (mood === "wry") { c.moveTo(fx - 7, my); c.quadraticCurveTo(fx + 2, my + 2, fx + 10, my - 3); }
+      else { const k = mood === "soft" ? 2.5 : 4.5; c.moveTo(fx - 10, my - 1); c.quadraticCurveTo(fx, my + k + 1, fx + 10, my - 1); }
+      c.stroke();
+    }
+    c.fillStyle = hair; c.beginPath(); c.moveTo(hx - 36, hy + 4); c.quadraticCurveTo(hx - 40, hy - 46, hx + 2, hy - 47); c.quadraticCurveTo(hx + 42, hy - 45, hx + 36, hy + 4);
+    c.quadraticCurveTo(hx + 30, hy - 24, hx + 6, hy - 29); c.quadraticCurveTo(hx - 26, hy - 29, hx - 36, hy + 4); c.fill();
+    c.strokeStyle = hair; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(hx - 31, hy - 20); c.quadraticCurveTo(hx - 38, hy + 4, hx - 31, hy + 28); c.stroke();
+    c.beginPath(); c.moveTo(hx + 30, hy - 20); c.quadraticCurveTo(hx + 37, hy + 2, hx + 33, hy + 22); c.stroke();
+    c.lineCap = "butt";
+  }
+  // Riley: knees and sneakers at the bottom of the frame, one foot tapping now and then, the other shifting
+  function drawRileyLegs(c, t) {
+    const p1 = t % 5.5, tap = p1 > 2 && p1 < 2.8 ? Math.sin(((p1 - 2) / 0.8) * Math.PI * 3) * 0.1 : 0;
+    const p2 = (t + 2.7) % 7.5, sway = p2 < 1 ? Math.sin(p2 * Math.PI) * 7 : 0;
+    const leg = (x0, x1, kx, ax, ay, rot) => {
+      c.fillStyle = "#4a6a96"; c.beginPath(); c.moveTo(x0, 452); c.quadraticCurveTo(kx - 46, 420, ax - 17, ay + 8); c.lineTo(ax + 17, ay + 8); c.quadraticCurveTo(kx + 46, 420, x1, 452); c.fill();
+      c.fillStyle = "rgba(255,255,255,.12)"; c.beginPath(); c.ellipse(kx, 432, 30, 14, 0, 0, 7); c.fill();
+      c.strokeStyle = "rgba(30,45,70,.45)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(kx - 10, 448); c.quadraticCurveTo(kx - 4, 424, ax - 6, ay + 12); c.stroke();
+      c.save(); c.translate(ax, ay); c.rotate(rot);
+      c.fillStyle = "#f4f2ec"; c.strokeStyle = "#a9a497"; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(-16, 4); c.bezierCurveTo(-19, -20, -16, -44, 0, -48); c.bezierCurveTo(16, -44, 19, -20, 16, 4); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = "#dedad0"; c.beginPath(); c.ellipse(0, -36, 11, 9, 0, 0, 7); c.fill();
+      c.fillStyle = "#cfcabe"; cutRR(c, -7, -28, 14, 28, 4); c.fill();
+      c.strokeStyle = "#fafafa"; c.lineWidth = 2.2; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-8, -24 + i * 6); c.lineTo(8, -22 + i * 6); c.stroke(); }
+      c.strokeStyle = "#c0392b"; c.lineWidth = 3; c.beginPath(); c.moveTo(14, -2); c.quadraticCurveTo(18, -18, 10, -32); c.stroke();
+      c.restore();
+      c.fillStyle = "#3b5a85"; c.beginPath(); c.ellipse(ax, ay + 8, 20, 7, rot, 0, 7); c.fill();
+    };
+    leg(40, 230, 150, 214 + sway * 0.3, 402, -0.12 + tap);
+    leg(232, 400, 318, 296 + sway, 406, 0.1 + sway * 0.01);
+  }
+
+  // ---- Scene 2: the barn ----
+  // Riley's arm, from off the bottom of the frame to a hand at (hx, hy): a teal hoodie sleeve and cuff, then the hand
+  // (open, or a fist) pointing along the arm
+  function cutArm(c, x0, y0, hx, hy, open) {
+    const dx = hx - x0, dy = hy - y0, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, wx = hx - ux * 22, wy = hy - uy * 22;
+    c.lineCap = "round"; c.strokeStyle = "#2e6b74"; c.lineWidth = 44; c.beginPath(); c.moveTo(x0, y0); c.lineTo(wx, wy); c.stroke();
+    c.strokeStyle = "#245a62"; c.lineWidth = 8; c.beginPath(); c.moveTo(wx - ux * 6 - uy * 19, wy - uy * 6 + ux * 19); c.lineTo(wx - ux * 6 + uy * 19, wy - uy * 6 - ux * 19); c.stroke();
+    c.save(); c.translate(hx, hy); c.rotate(Math.atan2(ux, -uy)); c.fillStyle = "#c58f68"; c.strokeStyle = "#9c6a4a"; c.lineWidth = 1.2;
+    if (open) { cutRR(c, -15, -26, 30, 34, 10); c.fill(); for (const fx of [-7, 0, 7]) { c.beginPath(); c.moveTo(fx, -26); c.lineTo(fx, -12); c.stroke(); } }
+    else { cutRR(c, -16, -18, 32, 26, 11); c.fill(); for (const fx of [-6, 2, 9]) { c.beginPath(); c.moveTo(fx, -18); c.lineTo(fx, -10); c.stroke(); } }
+    c.restore(); c.lineCap = "butt";
+  }
+  function cutRainFx(c, t, n, a) {
+    c.strokeStyle = `rgba(200,215,235,${a})`; c.lineWidth = 1.2; c.beginPath();
+    for (let i = 0; i < n; i++) {
+      const sp = 900 + cutR(i + 900) * 500, x = (cutR(i + 700) * 800 + t * 140) % 800, y = ((cutR(i + 800) * 520 + t * sp) % 520) - 40, l = 16 + cutR(i + 950) * 14;
+      c.moveTo(x, y); c.lineTo(x - l * 0.16, y + l);
+    }
+    c.stroke();
+  }
+  function cutVignette(c, a) {
+    const g = c.createRadialGradient(400, 250, 160, 400, 250, 520); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${a})`);
+    c.fillStyle = g; c.fillRect(0, 0, 800, 450);
+  }
+  // shot 1, the run: a stormy dusk, the track to the barn
+  function runBack(c) {
+    let g = c.createLinearGradient(0, 0, 0, 300); g.addColorStop(0, "#1c232c"); g.addColorStop(1, "#3d4752"); c.fillStyle = g; c.fillRect(0, 0, 800, 300);
+    for (let i = 0; i < 26; i++) { c.fillStyle = i % 2 ? "rgba(20,26,33,.55)" : "rgba(70,80,92,.35)"; c.beginPath(); c.ellipse(cutR(i + 40) * 800, 20 + cutR(i + 60) * 120, 80 + cutR(i + 80) * 120, 18 + cutR(i + 90) * 20, 0, 0, 7); c.fill(); }
+    c.fillStyle = "#1a231d"; c.beginPath(); c.moveTo(0, 300); for (let x = 0; x <= 800; x += 10) c.lineTo(x, 262 - 10 * cutR(x + 3) - 8 * Math.sin(x / 37)); c.lineTo(800, 300); c.fill();
+    g = c.createLinearGradient(0, 280, 0, 450); g.addColorStop(0, "#2c3a2a"); g.addColorStop(1, "#1d2419"); c.fillStyle = g; c.fillRect(0, 282, 800, 168);
+    c.fillStyle = "#3a3026"; c.beginPath(); c.moveTo(360, 300); c.lineTo(440, 300); c.lineTo(660, 450); c.lineTo(140, 450); c.fill();
+    for (let i = 0; i < 9; i++) { const y = 318 + cutR(i + 20) * 125, x = 300 + (cutR(i + 30) - 0.5) * (y - 280) * 1.6; c.fillStyle = "rgba(120,140,165,.3)"; c.beginPath(); c.ellipse(x, y, 10 + (y - 300) * 0.3, 2 + (y - 300) * 0.05, 0, 0, 7); c.fill(); }
+  }
+  // the Harvest barn's front, base middle at (cx, base), k its size: red boards, white trim, a lamp over the doorway,
+  // the hayloft door, and the big door sliding open (door 0 shut .. 1 open)
+  function drawBarnFront(c, cx, base, k, door) {
+    c.save(); c.translate(cx, base); c.scale(k, k);
+    const wall = () => { c.beginPath(); c.moveTo(-260, 0); c.lineTo(-260, -200); c.lineTo(-170, -262); c.lineTo(0, -300); c.lineTo(170, -262); c.lineTo(260, -200); c.lineTo(260, 0); c.closePath(); };
+    wall(); c.fillStyle = "#7e241e"; c.fill();
+    c.save(); wall(); c.clip(); c.strokeStyle = "rgba(0,0,0,.22)"; c.lineWidth = 2;
+    for (let x = -260; x <= 260; x += 26) { c.beginPath(); c.moveTo(x, -310); c.lineTo(x, 0); c.stroke(); }
+    c.fillStyle = "rgba(170,190,220,.07)"; for (let x = -250; x < 260; x += 52) c.fillRect(x, -300, 6, 300); c.restore();
+    const lg = c.createRadialGradient(0, -214, 4, 0, -214, 120); lg.addColorStop(0, "rgba(255,205,130,.5)"); lg.addColorStop(1, "rgba(255,205,130,0)"); c.fillStyle = lg; c.fillRect(-120, -334, 240, 240);
+    c.fillStyle = "#1b1714"; c.beginPath(); c.moveTo(-16, -212); c.lineTo(16, -212); c.lineTo(10, -224); c.lineTo(-10, -224); c.fill(); c.fillStyle = "#ffe2a8"; c.beginPath(); c.arc(0, -209, 5, 0, 7); c.fill();
+    c.fillStyle = "#6a1e19"; c.fillRect(-45, -284, 90, 52); c.strokeStyle = "#d8d1c4"; c.lineWidth = 5; c.strokeRect(-45, -284, 90, 52);
+    c.beginPath(); c.moveTo(-45, -284); c.lineTo(45, -232); c.moveTo(45, -284); c.lineTo(-45, -232); c.stroke();
+    c.fillStyle = "#cfc8bb"; c.fillRect(-262, -200, 12, 200); c.fillRect(250, -200, 12, 200);
+    c.fillStyle = "#0c0806"; c.fillRect(-90, -190, 180, 190); c.fillStyle = "rgba(150,120,60,.25)"; c.fillRect(-90, -24, 180, 24);
+    c.fillStyle = "#26201c"; c.fillRect(-96, -200, 380, 8);
+    const dx = door * 172;
+    c.fillStyle = "#8a2a23"; c.fillRect(-90 + dx, -190, 180, 190);
+    c.strokeStyle = "#d8d1c4"; c.lineWidth = 7; c.strokeRect(-86 + dx, -186, 172, 182);
+    c.beginPath(); c.moveTo(-86 + dx, -186); c.lineTo(86 + dx, -4); c.moveTo(86 + dx, -186); c.lineTo(-86 + dx, -4); c.stroke();
+    c.fillStyle = "#1e1a17"; c.fillRect(-78 + dx, -120, 7, 44);
+    c.strokeStyle = "#2e2a27"; c.lineWidth = 14; c.lineJoin = "round"; c.beginPath(); c.moveTo(-272, -194); c.lineTo(-170, -264); c.lineTo(0, -304); c.lineTo(170, -264); c.lineTo(272, -194); c.stroke();
+    c.lineJoin = "miter"; c.restore();
+  }
+  // running (the view bobbing, fists pumping at the bottom), the barn growing nearer; lightning once; then both hands on
+  // the door's edge as it slides open
+  function paintRun(c, t, p, back) {
+    const run = t < RUN_T, e = cutEase(Math.min(1, t / RUN_T)), bob = run ? -Math.abs(Math.sin(t * 9)) * 9 : 0, sway = run ? Math.sin(t * 4.5) * 7 : 0;
+    const k = 0.3 + 0.7 * e, base = 300 + 120 * e, door = cutEase(Math.max(0, Math.min(1, (t - RUN_T - 0.4) / 1.6)));
+    c.save(); c.translate(sway, bob); c.drawImage(back, -12, -12, 824, 474);
+    if (t > 1.1 && t < 1.36) { c.strokeStyle = "rgba(240,245,255,.95)"; c.lineWidth = 3; c.beginPath(); c.moveTo(600, 0); for (const [x, y] of [[612, 40], [598, 82], [626, 122], [612, 162], [640, 210]]) c.lineTo(x, y); c.stroke(); }
+    drawBarnFront(c, 400, base, k, door);
+    c.restore();
+    cutRainFx(c, t, 170, 0.32);
+    const fl = t > 1.1 && t < 1.6 ? (t < 1.18 || (t > 1.26 && t < 1.34) ? 0.6 : Math.max(0, 0.35 - (t - 1.34) * 1.4)) : 0;
+    if (fl > 0) { c.fillStyle = `rgba(225,232,255,${fl})`; c.fillRect(0, 0, 800, 450); }
+    cutVignette(c, 0.6);
+    if (run) {
+      const a = Math.sin(t * 9);
+      cutArm(c, 150, 520, 205 + 10 * a, 470 - Math.max(0, a) * 85, false);
+      cutArm(c, 650, 520, 595 - 10 * a, 470 - Math.max(0, -a) * 85, false);
+    } else {
+      const ex = 400 + k * (-90 + door * 172), rk = cutEase(Math.min(1, (t - RUN_T) / 0.4));
+      cutArm(c, 250, 520, cutLerp(250, ex + 12, rk), cutLerp(520, 290, rk), true);
+      cutArm(c, 380, 540, cutLerp(380, ex + 18, rk), cutLerp(540, 350, rk), true);
+    }
+  }
+  // shot 2, inside (1400 wide, panned across): the hayloft and its bales, three stalls, the ladder, a high window grey
+  // with rain, the bench far off in the dark
+  function panBack(c) {
+    c.fillStyle = "#3a2a1f"; c.fillRect(0, 0, 1400, 450);
+    c.lineWidth = 2; c.strokeStyle = "rgba(0,0,0,.4)"; for (let x = 0; x < 1400; x += 34) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 450); c.stroke(); }
+    c.strokeStyle = "rgba(255,220,170,.06)"; for (let x = 3; x < 1400; x += 34) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 450); c.stroke(); }
+    c.fillStyle = "#21170f"; for (let x = -100; x < 1500; x += 230) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x + 26, 0); c.lineTo(x + 126, 60); c.lineTo(x + 100, 60); c.fill(); }
+    c.fillRect(0, 56, 1400, 12);
+    c.fillStyle = "#5d6a78"; c.fillRect(1060, 80, 110, 90); c.strokeStyle = "#1e1611"; c.lineWidth = 6; c.strokeRect(1060, 80, 110, 90);
+    c.beginPath(); c.moveTo(1115, 80); c.lineTo(1115, 170); c.moveTo(1060, 125); c.lineTo(1170, 125); c.stroke();
+    c.fillStyle = "rgba(150,170,200,.08)"; c.beginPath(); c.moveTo(1060, 170); c.lineTo(1170, 170); c.lineTo(1030, 450); c.lineTo(830, 450); c.fill();
+    c.fillStyle = "#2a1d14"; c.fillRect(0, 168, 960, 18);
+    const bale = (x, y) => {
+      c.fillStyle = "#9c8044"; c.fillRect(x, y, 86, 36); c.strokeStyle = "rgba(60,45,20,.5)"; c.lineWidth = 1;
+      for (let i = 4; i < 36; i += 5) { c.beginPath(); c.moveTo(x, y + i); c.lineTo(x + 86, y + i + (i % 3)); c.stroke(); }
+      c.strokeStyle = "#5a4622"; c.lineWidth = 2; c.beginPath(); c.moveTo(x + 24, y); c.lineTo(x + 24, y + 36); c.moveTo(x + 62, y); c.lineTo(x + 62, y + 36); c.stroke();
+    };
+    for (const [x, y] of [[30, 132], [118, 132], [206, 132], [294, 132], [382, 132], [560, 132], [648, 132], [74, 96], [162, 96], [250, 96], [604, 96], [118, 60]]) bale(x, y);
+    c.strokeStyle = "rgba(170,140,70,.6)"; c.lineWidth = 1;
+    for (let i = 0; i < 40; i++) { const x = cutR(i + 1200) * 940; c.beginPath(); c.moveTo(x, 186); c.lineTo(x + (cutR(i + 1300) - 0.5) * 10, 192 + cutR(i + 1250) * 14); c.stroke(); }
+    for (const x0 of [34, 344, 654]) {
+      c.fillStyle = "#140d08"; c.fillRect(x0, 186, 286, 120);
+      c.fillStyle = "#5a3f2b"; c.fillRect(x0 + 6, 300, 274, 130);
+      c.strokeStyle = "rgba(0,0,0,.4)"; c.lineWidth = 2; for (let x = x0 + 6; x < x0 + 280; x += 22) { c.beginPath(); c.moveTo(x, 300); c.lineTo(x, 430); c.stroke(); }
+      c.strokeStyle = "#3a2819"; c.lineWidth = 10; c.beginPath(); c.moveTo(x0 + 14, 310); c.lineTo(x0 + 272, 310); c.lineTo(x0 + 14, 420); c.lineTo(x0 + 272, 420); c.stroke();
+      c.fillStyle = "#2a2a2a"; c.fillRect(x0 + 250, 350, 16, 6);
+    }
+    c.fillStyle = "#24190f"; for (const x of [10, 320, 630, 940]) c.fillRect(x, 168, 24, 282);
+    c.strokeStyle = "#4a3422"; c.lineWidth = 8; c.beginPath(); c.moveTo(1000, 440); c.lineTo(972, 150); c.moveTo(1050, 440); c.lineTo(1022, 150); c.stroke();
+    c.lineWidth = 5; for (let y = 172; y < 440; y += 30) { const f = (y - 150) / 290; c.beginPath(); c.moveTo(972 + 28 * f, y); c.lineTo(1022 + 28 * f, y); c.stroke(); }
+    c.fillStyle = "#2c2117"; c.fillRect(0, 430, 1400, 20);
+    c.strokeStyle = "rgba(170,140,70,.45)"; c.lineWidth = 1;
+    for (let i = 0; i < 120; i++) { const x = cutR(i + 1400) * 1400, y = 430 + cutR(i + 1500) * 20; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 8 + cutR(i) * 8, y - 2 + cutR(i + 2) * 4); c.stroke(); }
+    c.fillStyle = "#1a120c"; c.fillRect(1180, 300, 210, 16); c.fillRect(1190, 316, 14, 120); c.fillRect(1366, 316, 14, 120);
+    c.fillRect(1200, 190, 180, 8); for (let i = 0; i < 6; i++) c.fillRect(1210 + i * 28, 164 + (i % 2) * 6, 16, 26 - (i % 2) * 6);
+    c.fillRect(1288, 40, 4, 72); c.beginPath(); c.ellipse(1290, 128, 34, 16, 0, Math.PI, 0); c.fill();
+    c.fillStyle = "rgba(6,8,14,.5)"; c.fillRect(0, 0, 1400, 450);
+  }
+  // a horse looking out over the middle stall's door (dim), nodding, an ear flicking now and then
+  function drawHorse(c, x, y, t) {
+    const nod = Math.sin(t * 1.3) * 0.06, ear = (t % 3.1) < 0.2 ? -0.3 : 0;
+    c.save(); c.translate(x, y); c.rotate(nod);
+    c.fillStyle = "#3d2416"; c.beginPath(); c.moveTo(-40, 10); c.quadraticCurveTo(-34, -70, 4, -96); c.lineTo(34, -80); c.quadraticCurveTo(26, -20, 34, 10); c.fill();
+    c.fillStyle = "#170e09"; c.beginPath(); c.moveTo(-40, 6); c.quadraticCurveTo(-38, -66, 2, -98); c.lineTo(-8, -86); c.quadraticCurveTo(-30, -60, -30, 6); c.fill();
+    c.fillStyle = "#47291a"; c.beginPath(); c.moveTo(-6, -96); c.quadraticCurveTo(30, -104, 44, -80); c.lineTo(58, -10); c.quadraticCurveTo(56, 12, 36, 14); c.quadraticCurveTo(18, 12, 16, -6); c.lineTo(0, -60); c.closePath(); c.fill();
+    c.fillStyle = "rgba(200,190,175,.5)"; c.beginPath(); c.moveTo(30, -86); c.lineTo(38, -86); c.lineTo(46, -10); c.lineTo(36, -8); c.fill();
+    c.fillStyle = "#140b06"; c.beginPath(); c.ellipse(40, 4, 4, 2.5, 0.3, 0, 7); c.fill();
+    c.beginPath(); c.ellipse(16, -70, 5, 4, 0, 0, 7); c.fill(); c.fillStyle = "rgba(220,230,255,.8)"; c.beginPath(); c.arc(17.5, -71.5, 1.3, 0, 7); c.fill();
+    c.fillStyle = "#3d2416";
+    for (const [ex, r0, r1] of [[8, -0.3, ear], [26, 0.15, ear * 0.5]]) { c.save(); c.translate(ex, -100); c.rotate(r0 + r1); c.beginPath(); c.moveTo(-6, 0); c.lineTo(0, -21); c.lineTo(6, 0); c.fill(); c.restore(); }
+    c.restore();
+  }
+  // a slow look round, left to right; lightning through the window once
+  function paintPan(c, t, p, back) {
+    const px = cutEase(Math.min(1, t / 7.2)) * 600;
+    c.save(); c.translate(-px, 0); c.drawImage(back, 0, 0, 1400, 450);
+    drawHorse(c, 487, 290, t);
+    c.save(); c.beginPath(); c.rect(1063, 83, 104, 84); c.clip(); c.strokeStyle = "rgba(200,215,235,.35)"; c.lineWidth = 1; c.beginPath();
+    for (let i = 0; i < 14; i++) { const x = 1063 + cutR(i + 60) * 104, y = 83 + ((cutR(i + 80) * 84 + t * (40 + cutR(i) * 60)) % 84); c.moveTo(x, y); c.lineTo(x, y + 7); }
+    c.stroke(); c.restore(); c.restore();
+    const fl = t > 4.5 && t < 5.1 ? (t < 4.58 || (t > 4.66 && t < 4.74) ? 0.3 : Math.max(0, 0.16 - (t - 4.74) * 0.5)) : 0;
+    if (fl > 0) { c.fillStyle = `rgba(190,205,240,${fl})`; c.fillRect(0, 0, 800, 450); }
+    cutVignette(c, 0.7);
+  }
+  // shot 3, the workbench (drawn lit; the dark goes over it): the post with the light switch, a shelf of jars, tools on
+  // the wall, the bench with its vise, shavings, a hammer and mallet, and the notebook taped "for Riley"
+  function benchBack(c) {
+    c.fillStyle = "#5c4130"; c.fillRect(0, 0, 800, 450);
+    c.strokeStyle = "rgba(0,0,0,.25)"; c.lineWidth = 2; for (let x = 0; x < 800; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 450); c.stroke(); }
+    c.fillStyle = "#3b2a1d"; c.fillRect(80, 0, 40, 450); c.fillStyle = "#777"; c.fillRect(98, 0, 4, 214);
+    c.fillStyle = "#8d8f90"; cutRR(c, 90, 214, 20, 32, 3); c.fill(); c.fillStyle = "#2b2b2b"; c.fillRect(97, 222, 6, 10);
+    c.fillStyle = "#3e2b1d"; c.fillRect(170, 150, 470, 12);
+    for (let i = 0; i < 9; i++) {
+      const x = 185 + i * 50;
+      if (i % 3 === 2) { c.fillStyle = "#6f6a5e"; c.fillRect(x, 118, 28, 32); c.fillStyle = "#8a2d22"; c.fillRect(x, 126, 28, 10); continue; }
+      c.fillStyle = "rgba(190,200,190,.5)"; c.fillRect(x, 108, 26, 42); c.fillStyle = "#6a6a6a"; c.fillRect(x - 1, 104, 28, 6);
+      c.fillStyle = i % 2 ? "#7a7d80" : "#a07a4a"; c.fillRect(x + 2, 128, 22, 20);
+    }
+    c.fillStyle = "#9a9c9e"; c.beginPath(); c.moveTo(230, 182); c.lineTo(340, 190); c.lineTo(340, 214); c.lineTo(236, 210); c.fill();
+    c.fillStyle = "#8a5a2c"; cutRR(c, 196, 178, 40, 34, 8); c.fill();
+    for (let i = 0; i < 6; i++) { const x = 380 + i * 22; c.fillStyle = "#a0703d"; c.fillRect(x, 176, 8, 26); c.fillStyle = "#9a9c9e"; c.fillRect(x + 2, 202, 4, 24); }
+    c.strokeStyle = "#9a9c9e"; c.lineWidth = 6; c.beginPath(); c.moveTo(560, 178); c.lineTo(560, 250); c.lineTo(610, 250); c.stroke();
+    c.fillStyle = "#2a1c12"; c.fillRect(175, 350, 22, 100); c.fillRect(603, 350, 22, 100);
+    c.fillStyle = "#9a7048"; c.beginPath(); c.moveTo(140, 330); c.lineTo(660, 330); c.lineTo(620, 272); c.lineTo(180, 272); c.fill();
+    c.strokeStyle = "rgba(90,60,30,.35)"; c.lineWidth = 1; for (let i = 1; i < 6; i++) { const y = 272 + i * 10; c.beginPath(); c.moveTo(180 - (y - 272) * 0.69, y); c.lineTo(620 + (y - 272) * 0.69, y); c.stroke(); }
+    c.fillStyle = "#6e4c30"; c.fillRect(140, 330, 520, 22);
+    c.fillStyle = "#4a4a4c"; c.fillRect(600, 340, 40, 26); c.strokeStyle = "#7a7a7c"; c.lineWidth = 3; c.beginPath(); c.moveTo(620, 366); c.lineTo(620, 392); c.moveTo(604, 392); c.lineTo(636, 392); c.stroke();
+    c.strokeStyle = "#d8b27a"; c.lineWidth = 2;
+    for (let i = 0; i < 18; i++) { const x = 190 + cutR(i + 2000) * 420, y = 284 + cutR(i + 2100) * 40; if (x > 320 && x < 480) continue; c.beginPath(); c.arc(x, y, 4 + cutR(i + 2200) * 4, 0, 4.5); c.stroke(); }
+    c.save(); c.translate(232, 304); c.rotate(-0.25); c.fillStyle = "#8a5a2c"; c.fillRect(0, -3, 70, 6); c.fillStyle = "#4a4a4c"; c.fillRect(64, -11, 12, 22); c.restore();
+    c.fillStyle = "#a57a48"; c.fillRect(530, 290, 46, 18); c.fillStyle = "#7a5530"; c.fillRect(576, 295, 34, 7);
+    c.fillStyle = "#2a1a10"; c.beginPath(); c.moveTo(336, 318); c.lineTo(468, 318); c.lineTo(456, 282); c.lineTo(346, 282); c.fill();
+    c.fillStyle = "#7b5434"; c.beginPath(); c.moveTo(334, 314); c.lineTo(466, 314); c.lineTo(454, 280); c.lineTo(344, 280); c.fill();
+    c.fillStyle = "#efe4c8"; c.beginPath(); c.moveTo(466, 314); c.lineTo(469, 318); c.lineTo(457, 283); c.lineTo(454, 280); c.fill();
+    c.strokeStyle = "#2a1a12"; c.lineWidth = 4; c.beginPath(); c.moveTo(440, 280); c.lineTo(445, 314); c.stroke();
+    c.fillStyle = "#e9e3cf"; c.beginPath(); c.moveTo(356, 290); c.lineTo(424, 290); c.lineTo(426, 303); c.lineTo(354, 303); c.fill();
+    c.fillStyle = "#151515"; c.font = '600 9px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; c.textAlign = "center"; c.fillText("for Riley", 390, 300); c.textAlign = "left";
+    c.fillStyle = "#1c140e"; c.fillRect(0, 352, 140, 98); c.fillRect(660, 352, 140, 98);
+  }
+  // dark; a hand to the switch: click, the lamp flickers on over the bench; then both hands reach for the notebook
+  function paintBench(c, t, p, back) {
+    c.drawImage(back, 0, 0, 800, 450);
+    const on = t < 1.35 ? 0 : t < 1.7 ? (Math.floor(t * 28) % 3 ? 1 : 0.25) : 1;
+    if (t > 0.3 && t < 1.9) { const k = t < 1.15 ? cutEase(Math.min(1, (t - 0.3) / 0.7)) : 1 - cutEase(Math.min(1, Math.max(0, (t - 1.3) / 0.6))); cutArm(c, 40, 520, cutLerp(40, 100, k), cutLerp(520, 236, k), true); }
+    if (t > 2.9) { const k = cutEase(Math.min(1, (t - 2.9) / 1.2)); cutArm(c, 300, 540, cutLerp(300, 362, k), cutLerp(540, 322, k), true); cutArm(c, 500, 540, cutLerp(500, 440, k), cutLerp(540, 322, k), true); }
+    if (on < 1) { c.fillStyle = `rgba(3,4,7,${0.8 * (1 - on)})`; c.fillRect(0, 0, 800, 450); }
+    if (on > 0) {
+      const g = c.createRadialGradient(400, 290, 50, 400, 290, 470); g.addColorStop(0, "rgba(3,4,7,0)"); g.addColorStop(0.4, "rgba(3,4,7,.3)"); g.addColorStop(1, "rgba(3,4,7,.93)");
+      c.globalAlpha = on; c.fillStyle = g; c.fillRect(0, 0, 800, 450); c.globalAlpha = 1;
+    }
+    c.strokeStyle = "#111"; c.lineWidth = 2; c.beginPath(); c.moveTo(400, 0); c.lineTo(400, 70); c.stroke();
+    c.fillStyle = "#151515"; c.beginPath(); c.ellipse(400, 104, 62, 34, 0, Math.PI, 0); c.fill(); c.fillRect(392, 66, 16, 8);
+    if (on > 0) {
+      c.globalAlpha = on; const g = c.createRadialGradient(400, 106, 2, 400, 106, 90); g.addColorStop(0, "rgba(255,240,200,.9)"); g.addColorStop(1, "rgba(255,200,120,0)");
+      c.fillStyle = g; c.fillRect(300, 100, 200, 100); c.fillStyle = "#fff4d0"; c.beginPath(); c.ellipse(400, 106, 16, 6, 0, 0, 7); c.fill(); c.globalAlpha = 1;
+    }
+  }
+  // shot 4, the notebook up close (shown whole): it rises, its cover swings open; the last entry is written across the
+  // two pages (left: the first part and a pencil sketch of the Pneuman; right: the rest), held in Riley's hands
+  function bookBack(c) {
+    c.fillStyle = "#1c130d"; c.fillRect(0, 0, 800, 450);
+    const g = c.createRadialGradient(400, 0, 20, 400, 0, 500); g.addColorStop(0, "rgba(255,200,130,.25)"); g.addColorStop(1, "rgba(255,200,130,0)"); c.fillStyle = g; c.fillRect(0, 0, 800, 450);
+  }
+  function bookPage(c, x0, x1) {
+    c.fillStyle = "#efe4c8"; c.fillRect(x0, 36, x1 - x0, 378);
+    c.strokeStyle = "rgba(90,120,170,.18)"; c.lineWidth = 1; for (let y = 72; y < 410; y += 25) { c.beginPath(); c.moveTo(x0 + 6, y + 5); c.lineTo(x1 - 6, y + 5); c.stroke(); }
+  }
+  function pneumanSketch(c, x, y) {
+    c.strokeStyle = "rgba(50,50,70,.7)"; c.lineWidth = 1.4; c.lineCap = "round";
+    c.beginPath(); c.moveTo(x, y - 80); c.lineTo(x + 3, y + 70); c.moveTo(x - 7, y - 80); c.lineTo(x - 4, y + 70); c.stroke();
+    c.beginPath(); c.moveTo(x - 60, y - 54); c.lineTo(x + 56, y - 58); c.moveTo(x - 60, y - 46); c.lineTo(x + 56, y - 50); c.stroke();
+    c.strokeRect(x - 15, y + 10, 26, 58); c.beginPath(); c.arc(x + 28, y + 32, 9, 0, 7); c.moveTo(x + 28, y + 32); c.lineTo(x + 33, y + 26); c.stroke();
+    c.beginPath(); c.moveTo(x + 64, y + 50); c.quadraticCurveTo(x + 58, y + 34, x + 40, y + 34); c.moveTo(x + 46, y + 30); c.lineTo(x + 40, y + 34); c.lineTo(x + 46, y + 38); c.stroke();
+    c.fillStyle = "rgba(50,50,70,.8)"; c.font = '600 12px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+    c.fillText("PSI?", x + 50, y + 66); c.fillText("practice!!", x - 128, y - 70); c.beginPath(); c.moveTo(x - 128, y - 64); c.lineTo(x - 60, y - 64); c.stroke();
+    c.lineCap = "butt";
+  }
+  function paintBook(c, t, p, back) {
+    c.drawImage(back, 0, 0, 800, 450);
+    const rise = cutEase(Math.min(1, t / 0.7)), fk = Math.max(0, Math.min(1, (t - 0.8) / 0.75)), flip = Math.cos(Math.PI * cutEase(fk));
+    c.save(); c.translate(0, (1 - rise) * 440 + Math.sin(t * 1.4) * 2);
+    c.fillStyle = "#6a4529"; cutRR(c, 396, 22, 374, 406, 14); c.fill();
+    bookPage(c, 404, 752);
+    if (flip >= 0) {
+      // (the cover still over the right page, swinging up about the spine)
+      c.save(); c.translate(400, 0); c.scale(Math.max(0.001, flip), 1);
+      c.fillStyle = "#7b5434"; cutRR(c, 0, 22, 370, 406, 14); c.fill();
+      c.strokeStyle = "#c9a678"; c.setLineDash([6, 5]); c.lineWidth = 1.5; cutRR(c, 10, 32, 350, 386, 10); c.stroke(); c.setLineDash([]);
+      c.fillStyle = "#2a1a12"; c.fillRect(330, 22, 9, 406);
+      c.fillStyle = "#e9e3cf"; c.save(); c.translate(165, 180); c.rotate(-0.04); c.fillRect(-90, -24, 180, 48);
+      c.fillStyle = "#151515"; c.font = '600 26px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("for Riley", 0, 2);
+      c.restore(); c.restore(); c.textAlign = "left"; c.textBaseline = "alphabetic";
+    } else {
+      // (open: the left half laid down, the left page)
+      const w = -flip;
+      c.fillStyle = "#6a4529"; cutRR(c, 400 - 374 * w, 22, 374 * w, 406, 14); c.fill();
+      bookPage(c, 400 - 352 * w, 396);
+    }
+    if (fk >= 1) {
+      c.strokeStyle = "#c9a678"; c.setLineDash([6, 5]); c.lineWidth = 1.5; cutRR(c, 36, 28, 728, 394, 10); c.stroke(); c.setLineDash([]);
+      bookPage(c, 48, 396); bookPage(c, 404, 752);
+      const g = c.createLinearGradient(370, 0, 430, 0); g.addColorStop(0, "rgba(60,40,20,0)"); g.addColorStop(0.5, "rgba(60,40,20,.35)"); g.addColorStop(1, "rgba(60,40,20,0)"); c.fillStyle = g; c.fillRect(370, 36, 60, 378);
+      c.fillStyle = "#2a1a12"; c.fillRect(738, 36, 7, 378);
+      pneumanSketch(c, 236, 320);
+      c.font = CUT_HAND; c.fillStyle = "#26263a"; c.textAlign = "left"; c.textBaseline = "alphabetic";
+      const ys = [72, 72];
+      CUT_SCENES.barn.steps.forEach((q, i) => {
+        if (q.shot !== "book") return;
+        const pg = q.page || 0, x = pg ? 426 : 70, rows = cutWrap(c, q.s, 296), n = i < CUT.step ? q.s.length : i === CUT.step ? Math.floor(CUT.shown) : 0;
+        rows.forEach(([a, b], r) => { if (n > a) c.fillText(q.s.slice(a, Math.min(b, n)), x, ys[pg] + r * 25); });
+        ys[pg] += rows.length * 25 + 14;
+      });
+    }
+    c.restore();
+    if (rise > 0.3) { cutArm(c, 70, 560, 110, 432, true); cutArm(c, 730, 560, 690, 432, true); }
+  }
+  // shot 5, the corner (drawn lit; the dark goes over it): boards meeting in the corner, a coil of rope, slumped sacks,
+  // a rake; the Pneuman leaning on the wall, masking tape on its crossbar; the cart on end with the pump strapped on
+  function cornerBack(c) {
+    c.fillStyle = "#4e3a2b"; c.fillRect(0, 0, 560, 450);
+    c.strokeStyle = "rgba(0,0,0,.3)"; c.lineWidth = 2; for (let x = 0; x < 560; x += 36) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 450); c.stroke(); }
+    c.fillStyle = "#3e2e22"; c.beginPath(); c.moveTo(560, 0); c.lineTo(800, 0); c.lineTo(800, 450); c.lineTo(560, 400); c.fill();
+    for (let j = 1; j < 7; j++) { const x = 560 + j * 40; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 400 + j * 8); c.stroke(); }
+    c.fillStyle = "#2f2419"; c.beginPath(); c.moveTo(0, 400); c.lineTo(560, 400); c.lineTo(800, 450); c.lineTo(0, 450); c.fill();
+    c.strokeStyle = "rgba(170,140,70,.4)"; c.lineWidth = 1; for (let i = 0; i < 60; i++) { const x = cutR(i + 3000) * 800, y = 404 + cutR(i + 3100) * 44; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 9, y - 2 + cutR(i) * 4); c.stroke(); }
+    c.strokeStyle = "#1c140e"; c.lineWidth = 4; c.beginPath(); c.moveTo(560, 0); c.lineTo(560, 400); c.stroke();
+    c.strokeStyle = "#a08a5a"; c.lineWidth = 5; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(160, 175 + i * 3, 34 - i * 2, 44 - i * 2, 0, 0, 7); c.stroke(); }
+    c.fillStyle = "#3a3a3a"; c.fillRect(156, 126, 8, 8);
+    c.fillStyle = "#8a7550"; for (const [x, w] of [[80, 90], [150, 110], [230, 80]]) { c.beginPath(); c.moveTo(x, 410); c.quadraticCurveTo(x + 4, 340, x + w / 2, 336); c.quadraticCurveTo(x + w - 4, 340, x + w, 410); c.fill(); }
+    c.strokeStyle = "#6a5030"; c.lineWidth = 6; c.beginPath(); c.moveTo(330, 410); c.lineTo(356, 90); c.stroke();
+    c.strokeStyle = "#7a7a7a"; c.lineWidth = 3; c.beginPath(); c.moveTo(326, 96); c.lineTo(388, 86); for (let i = 0; i < 7; i++) { c.moveTo(330 + i * 9, 95 - i * 1.4); c.lineTo(332 + i * 9, 112 - i * 1.4); } c.stroke();
+    // the cart, on end against the side wall, the pump strapped to it
+    c.fillStyle = "#8a6a42"; c.fillRect(600, 200, 120, 196); c.strokeStyle = "rgba(60,40,20,.5)"; c.lineWidth = 2; for (let y = 228; y < 396; y += 28) { c.beginPath(); c.moveTo(600, y); c.lineTo(720, y); c.stroke(); }
+    c.strokeStyle = "#5e4428"; c.lineWidth = 4; c.strokeRect(600, 200, 120, 196);
+    for (const x of [612, 708]) { c.fillStyle = "#1e1e1e"; c.beginPath(); c.arc(x, 392, 22, 0, 7); c.fill(); c.fillStyle = "#8a8a8a"; c.beginPath(); c.arc(x, 392, 8, 0, 7); c.fill(); }
+    c.strokeStyle = "#3a6ea5"; c.lineWidth = 16; c.beginPath(); c.moveTo(660, 246); c.lineTo(660, 372); c.stroke();
+    c.strokeStyle = "#222"; c.lineWidth = 6; c.beginPath(); c.moveTo(636, 240); c.lineTo(684, 240); c.moveTo(660, 240); c.lineTo(660, 248); c.stroke();
+    c.lineWidth = 3; c.beginPath(); c.moveTo(668, 368); c.bezierCurveTo(700, 380, 700, 300, 676, 290); c.stroke();
+    c.strokeStyle = "#2a2a2a"; c.lineWidth = 4; c.beginPath(); c.moveTo(600, 280); c.lineTo(720, 280); c.moveTo(600, 340); c.lineTo(720, 340); c.stroke();
+    // the Pneuman, leaning in the corner: a long pipe, its T-bar at the top (taped), the chamber, a valve and gauge
+    c.lineCap = "round";
+    c.strokeStyle = "#d8d3c6"; c.lineWidth = 18; c.beginPath(); c.moveTo(506, 398); c.lineTo(480, 132); c.stroke();
+    c.strokeStyle = "rgba(255,255,255,.5)"; c.lineWidth = 3; c.beginPath(); c.moveTo(500, 396); c.lineTo(475, 134); c.stroke();
+    c.strokeStyle = "#cfcabd"; c.lineWidth = 34; c.beginPath(); c.moveTo(498, 300); c.lineTo(504, 382); c.stroke();
+    c.strokeStyle = "#e4e0d4"; c.lineWidth = 15; c.beginPath(); c.moveTo(424, 140); c.lineTo(536, 126); c.stroke();
+    c.lineCap = "butt";
+    c.fillStyle = "#b08d3c"; c.fillRect(486, 284, 20, 10);
+    c.fillStyle = "#f2efe6"; c.beginPath(); c.arc(526, 330, 11, 0, 7); c.fill(); c.strokeStyle = "#222"; c.lineWidth = 2; c.stroke(); c.beginPath(); c.moveTo(526, 330); c.lineTo(531, 323); c.stroke();
+    c.save(); c.translate(480, 134); c.rotate(-0.125); c.fillStyle = "#e8d9a6"; c.fillRect(-44, -10, 88, 20);
+    c.fillStyle = "#111"; c.font = 'bold 12px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("The Pneuman", 0, 1);
+    c.restore(); c.textAlign = "left"; c.textBaseline = "alphabetic";
+  }
+  // the notebook lowered; a look left, then right; a glint in the corner; closer; the phone's light finds it (the chord)
+  function paintCorner(c, t, p, back) {
+    const look = t < 0.6 ? 0 : t < 1.8 ? -Math.sin(cutEase((t - 0.6) / 1.2) * Math.PI) * 40 : t < 3 ? Math.sin(cutEase((t - 1.8) / 1.2) * Math.PI) * 40 : 0;
+    const zk = cutEase(Math.max(0, Math.min(1, (t - 3.2) / 1.2))), jolt = t > 5.3 ? Math.exp(-(t - 5.3) * 5) * 0.04 : 0;
+    const z = 1.1 + 0.12 * zk + jolt, cx = cutLerp(400, 490, zk), cy = cutLerp(250, 220, zk);
+    const scr = (x, y) => [400 + look + z * (x - cx), 260 + z * (y - cy)];
+    c.save(); c.translate(400 + look, 260); c.scale(z, z); c.translate(-cx, -cy); c.drawImage(back, 0, 0, 800, 450); c.restore();
+    const lit = t > 4.3 ? cutEase(Math.min(1, (t - 4.3) / 0.9)) : 0;
+    if (!lit) { c.fillStyle = "rgba(3,4,8,.78)"; c.fillRect(0, 0, 800, 450); }
+    else {
+      const [tx, ty] = scr(492, 250), bx = cutLerp(300, tx, lit), by = cutLerp(340, ty, lit);
+      const g = c.createRadialGradient(bx, by, 30, bx, by, 250); g.addColorStop(0, "rgba(3,4,8,0)"); g.addColorStop(0.55, "rgba(3,4,8,.4)"); g.addColorStop(1, "rgba(3,4,8,.92)");
+      c.fillStyle = g; c.fillRect(0, 0, 800, 450);
+      const w = c.createRadialGradient(bx, by, 0, bx, by, 150); w.addColorStop(0, "rgba(230,240,255,.14)"); w.addColorStop(1, "rgba(230,240,255,0)"); c.fillStyle = w; c.fillRect(0, 0, 800, 450);
+    }
+    if (t > 2.2 && t < 4.4) {
+      const [gx, gy] = scr(526, 330), a = Math.max(0, Math.sin((t - 2.2) * 5)) * (t > 3.9 ? (4.4 - t) * 2 : 1), r = 9 * a + 2;
+      c.fillStyle = `rgba(255,250,230,${0.85 * a})`; c.beginPath(); c.moveTo(gx, gy - r * 2); c.lineTo(gx + r * 0.3, gy - r * 0.3); c.lineTo(gx + r * 2, gy); c.lineTo(gx + r * 0.3, gy + r * 0.3); c.lineTo(gx, gy + r * 2); c.lineTo(gx - r * 0.3, gy + r * 0.3); c.lineTo(gx - r * 2, gy); c.lineTo(gx - r * 0.3, gy - r * 0.3); c.fill();
+    }
+    if (t < 0.7) { const k = cutEase(t / 0.7), y = 250 + k * 240; c.fillStyle = "#6a4529"; cutRR(c, 50, y, 700, 400, 14); c.fill(); c.fillStyle = "#efe4c8"; c.fillRect(64, y + 12, 672, 400); }
+    if (t > 4) {
+      const k = cutEase(Math.min(1, (t - 4) / 0.5)), hx = cutLerp(660, 590, k), hy = cutLerp(560, 410, k);
+      cutArm(c, 680, 580, hx, hy, false);
+      c.save(); c.translate(hx - 4, hy - 26); c.rotate(-0.35); c.fillStyle = "#16181c"; cutRR(c, -16, -34, 32, 60, 6); c.fill();
+      if (lit) { c.fillStyle = "#ffffff"; c.beginPath(); c.arc(-8, -27, 3, 0, 7); c.fill(); c.fillStyle = "rgba(255,255,255,.25)"; c.beginPath(); c.arc(-8, -27, 12, 0, 7); c.fill(); }
+      c.restore();
+    }
+    cutVignette(c, 0.5);
+  }
+
   // ================= go =================
   // a shared link (?level=culdesac) opens on that level's start card, ready to play
   const linked = Math.max(0, LEVELS.findIndex((L) => L.id === new URLSearchParams(location.search).get("level")));
@@ -15091,7 +15842,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // on a blank field; what went wrong shows once, so it can be reported)
     requestAnimationFrame(frame);
     // (the intro steps its own scripted rounds, at a fixed rate, so its shots go the same way every time)
-    try { const t0 = performance.now(); if (INTRO.on) introFrame(dt); else { update(dt); draw(); } drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
+    try { const t0 = performance.now(); if (INTRO.on) introFrame(dt); else if (CUT.on) cutFrame(dt); else { update(dt); draw(); irisDraw(dt); } drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
       console.error(err);
       if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
     }
