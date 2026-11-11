@@ -205,6 +205,15 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .modebtn { flex: 1 1 100%; display: grid; gap: 2px; text-align: left; padding-block: 10px; }
 .modebtn small { font-size: .78rem; font-weight: 700; opacity: .8; }
 .cardbtns .back { background: var(--paper); }
+/* (Nov 10 2026) while "Which mode?" or the Story mode card is up, only the card and the settings gear on the green: no
+   field (Pasture) behind it, no HUD, title or launcher tray. Keyed off the card itself, so any card or screen that
+   replaces it brings everything back */
+.wrap:has(#overlay:not([hidden]) > .card:is(.modes, .story)) :is(.hud, .tray, header .title),
+.wrap:has(#overlay:not([hidden]) > .card:is(.modes, .story)) .stage > :not(.overlay) { visibility: hidden; }
+.wrap:has(#overlay:not([hidden]) > .card:is(.modes, .story)) .stage { background: transparent; border-color: transparent; }
+.wrap:has(#overlay:not([hidden]) > .card:is(.modes, .story)) .overlay { background: none; }
+.card.story { max-width: 24rem; }
+.card.story #ovBody { font-size: 1.05rem; }
 .camprow { display: flex; flex-wrap: wrap; gap: 4px; }
 .camprow span { font-size: .75rem; font-weight: 800; padding: 2px 7px; border: 2px solid var(--ink); border-radius: 8px; background: #fff1cf; }
 .camprow span.done { background: #bfe8b8; }
@@ -2387,7 +2396,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.camp) {
       const r = S.camp, n = r.order.length, k = r.order.indexOf(L.id);
       r.tries[L.id] = (r.tries[L.id] || 0) + 1; campSave(r);
-      showCard(`Campaign ${k + 1}/${n} · ${L.name} · ${r.diff}`, title, body, counts, `<button id="ovGo" type="button">Try again</button><button id="ovPick" class="back" type="button">Save &amp; quit</button>`, () => startLevel(S.level));
+      showCard(`Story mode ${k + 1}/${n} · ${L.name} · ${r.diff}`, title, body, counts, `<button id="ovGo" type="button">Try again</button><button id="ovPick" class="back" type="button">Save &amp; quit</button>`, () => startLevel(S.level));
       $("ovPick").onclick = () => { audio(); showCampaign(); };
     } else {
       showCard(`${S.level + 1} · ${L.name}`, title, body, counts, `<button id="ovGo" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`, () => startLevel(S.level));
@@ -2526,7 +2535,7 @@ body.lab .stage > :not(canvas) { display: none; }
     leaveChallenge(); campOff(); menuAt = "modes";
     if (S.phase !== "title") { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(startPick); }
     showCard("", "Pneuman", "Which mode?", "",
-      `<button id="ovGo" class="modebtn" type="button">Campaign<small>All ${CAMP_ORDER.length} levels in a row, one total. Clear each one to move on.</small></button>` +
+      `<button id="ovGo" class="modebtn" type="button">Story mode<small>Help Riley unravel the mystery left by a favourite uncle.</small></button>` +
       `<button id="ovFree" class="modebtn" type="button">Free play<small>Any level, any difficulty, as often as you like.</small></button>` +
       `<button id="ovHowto" class="back" type="button">How to play</button>`, () => showCampaign());
     document.querySelector(".card").classList.add("modes");
@@ -2585,17 +2594,18 @@ body.lab .stage > :not(canvas) { display: none; }
     leaveChallenge(); campOff(); menuAt = "camp";
     const r = campSaved(), order = r ? r.order : CAMP_ORDER, at = r ? Math.min(campNext(r), order.length - 1) : 0;
     if (S.phase !== "title" || S.level !== levelIx(order[at])) { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(levelIx(order[at])); }
-    const body = r
-      ? `Run in progress on ${r.diff}: ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far, ${campTries(r)} ${campTries(r) === 1 ? "try" : "tries"}.`
-      : `All ${order.length} levels in a row, one total. Clear a level (hit every colour) to move on. Replay a level as often as you like: your best clear counts.`;
-    const cont = r ? `<button id="ovCont" type="button">${campNext(r) >= r.order.length ? "Finish run" : `Continue: ${LEVELS[levelIx(r.order[campNext(r)])].name}`}</button>` : "";
-    showCard("", "Campaign", body, `<div class="camprow">${campChips(r)}</div>` + campTable(campPick, mark),
-      cont + `<div class="diffsw" role="group" aria-label="Difficulty for a new run">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === campPick ? "on" : ""}" aria-pressed="${k === campPick}">${k}</button>`).join("")}</div>` +
-      `<button id="ovGo" type="button"${r ? ' class="back"' : ""}>New run</button><button id="ovBack" class="back" type="button">‹ Modes</button>`,
+    // (Nov 10 2026: Story mode. The story, the difficulty and the way back to the modes; nothing about levels (no
+    // chips, no progress line, no top 10 here: the finish card still shows the table). Pasture hidden behind it (CSS))
+    const body = "Help Riley unravel the mystery left by a favourite uncle. How could a simple experiment go SO wrong!";
+    const cont = r ? `<button id="ovCont" type="button">${campNext(r) >= r.order.length ? "Finish" : "Continue"}</button>` : "";
+    showCard("", "Story mode", body, "",
+      cont + `<div class="diffsw" role="group" aria-label="Difficulty for a new story">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === campPick ? "on" : ""}" aria-pressed="${k === campPick}">${k}</button>`).join("")}</div>` +
+      `<button id="ovGo" type="button"${r ? ' class="back"' : ""}>New story</button><button id="ovBack" class="back" type="button">‹ Modes</button>`,
       () => {
         if (!r) { campNew(); return; }
-        confirmAsk("New run?", `A new run on ${campPick} ends the one in progress (${r.diff}, ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far).`, "New run", "Keep it", campNew);
+        confirmAsk("New story?", `A new story on ${campPick} ends the one in progress (${r.diff}, ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far).`, "New story", "Keep it", campNew);
       });
+    document.querySelector(".card").classList.add("story");
     for (const b of document.querySelectorAll(".diffsw button")) b.onclick = () => {
       audio(); campPick = b.dataset.d; try { localStorage.setItem("pneuman-camp-diff", campPick); } catch (e) {} showCampaign();
     };
@@ -2619,12 +2629,12 @@ body.lab .stage > :not(canvas) { display: none; }
     if (clearedNow) { r.cleared[id] = true; if (was == null || tot > was) r.best[id] = tot; }
     campSave(r);
     const n = r.order.length, k = r.order.indexOf(id), nx = campNext(r), total = campTotal(r);
-    const progress = `Run total ${total} (${campDone(r)} of ${n} cleared).`;
+    const progress = `Story total ${total} (${campDone(r)} of ${n} cleared).`;
     let title, body, btns, go;
     if (r.cleared[id]) {
       title = !clearedNow ? "Not cleared this time" : was == null ? `${L.name} cleared!` : tot > was ? "New best clear!" : "Cleared again";
       body = `${was != null && !(clearedNow && tot > was) ? `Your best clear here stays ${was}. ` : ""}${progress}`;
-      btns = `<button id="ovGo" type="button">${nx >= n ? "Finish run" : `Next: ${LEVELS[levelIx(r.order[nx])].name}`}</button><button id="ovRetry" type="button">Replay ${L.name}</button>`;
+      btns = `<button id="ovGo" type="button">${nx >= n ? "Finish story" : `Next: ${LEVELS[levelIx(r.order[nx])].name}`}</button><button id="ovRetry" type="button">Replay ${L.name}</button>`;
       go = () => campPlay(r);
     } else {
       title = "Not cleared yet";
@@ -2632,7 +2642,7 @@ body.lab .stage > :not(canvas) { display: none; }
       btns = `<button id="ovGo" type="button">Try again</button>`;
       go = () => startLevel(S.level);
     }
-    showCard(`Campaign ${k + 1}/${n} · ${L.name} · ${r.diff}`, title, body, counts, btns + `<button id="ovPick" class="back" type="button">Save &amp; quit</button>`, go);
+    showCard(`Story mode ${k + 1}/${n} · ${L.name} · ${r.diff}`, title, body, counts, btns + `<button id="ovPick" class="back" type="button">Save &amp; quit</button>`, go);
     if (!r.cleared[id]) $("ovBody").classList.add("campnote"); // (the hint stands out; showCard's next use clears it)
     $("ovPick").onclick = () => { audio(); showCampaign(); };
   }
@@ -2640,7 +2650,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function campFinish(r) {
     campOff(); menuAt = "camp";
     const total = campTotal(r), tries = campTries(r), top = campTop(r.diff), rank = top.filter((e) => e.total > total || (e.total === total && e.tries <= tries)).length;
-    showCard(`Campaign · ${r.diff}`, "Campaign complete!",
+    showCard(`Story mode · ${r.diff}`, "Story complete!",
       `All ${r.order.length} levels cleared: ${total} in ${tries} tries.${rank < 10 ? ` That's #${rank + 1} on the ${r.diff} table!` : ""}`,
       `<label class="sharename">Your name <input id="campName" maxlength="20" value="${esc(playerName())}" placeholder="For the high-score table" autocomplete="nickname"></label>` + campTable(r.diff),
       `<button id="ovGo" type="button">Save my score</button>`, () => {
@@ -2697,7 +2707,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   function showCard(eyebrow, title, body, legendHtml, btnsHtml, go) {
     $("tally").hidden = true; $("extras").hidden = true; $("levels").hidden = true; // (the pictures and level cards are for the start card)
-    document.querySelector(".card").classList.remove("start", "modes");
+    document.querySelector(".card").classList.remove("start", "modes", "story");
     $("ovEyebrow").textContent = eyebrow; $("ovEyebrow").hidden = !eyebrow; $("ovTitle").textContent = title; $("ovBody").textContent = body; $("ovBody").hidden = !body; $("ovBody").classList.remove("campnote");
     $("legend").innerHTML = legendHtml; $("ovBtns").innerHTML = btnsHtml;
     $("ovGo").onclick = () => { audio(); go(); };
@@ -2707,7 +2717,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   // ================= hud =================
   function hud() {
-    $("lvlOut").textContent = S.camp ? `Campaign ${campStep() + 1}/${S.camp.order.length} · ${lvl().name} · ${S.diff}` : `${S.level + 1} · ${lvl().name} · ${S.diff}`;
+    $("lvlOut").textContent = S.camp ? `Story ${campStep() + 1}/${S.camp.order.length} · ${lvl().name} · ${S.diff}` : `${S.level + 1} · ${lvl().name} · ${S.diff}`;
     updateBonusStrip(); placeBonusStrip();
     document.body.classList.toggle("osblock", osbLock()); // (the angle and rotation greyed out while held on the arc)
     // (the One Shot Bonus done: Carry on up, the launcher's controls greyed out till it's pressed)
@@ -14855,7 +14865,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const kk = Math.max(kick(puffs[1] == null ? -1 : t - puffs[1]), kick(puffs[2] == null ? -1 : t - puffs[2]));
     ctx.save(); ctx.translate(mx, my); ctx.scale(-1, 1); drawMP10(ctx, -Math.cos(ma) * kk, -Math.sin(ma) * kk, ma, ML); ctx.restore();
     const w = ML * 0.085, tip = (o) => ({ x: mx - (Math.cos(ma) * ML - Math.sin(ma) * o * w), y: my + Math.sin(ma) * ML + Math.cos(ma) * o * w });
-    const mz = [cart.muzzle, tip(-0.3), tip(0.3)];
+    // (tip(0.3) is the barrel on the left as it's drawn, tip(-0.3) the right: left to "pressure", right to "patience",
+    // so the two lines don't cross)
+    const mz = [cart.muzzle, tip(0.3), tip(-0.3)];
     mz.forEach((m, i) => puffs[i] != null && m && introPuff(m.x, m.y, t - puffs[i], s));
     return mz;
   }
@@ -14876,8 +14888,10 @@ body.lab .stage > :not(canvas) { display: none; }
       TAG_AT.forEach((a, i) => {
         if (t < a) return;
         introOnce(`fire${i}`, () => { sfx.fire(); INTRO.fx.from[i] = mz[i]; });
-        const p0 = INTRO.fx.from[i] || mz[i], p2 = L.slots[i], c = { x: (p0.x + p2.x) / 2, y: Math.min(p0.y, p2.y) - H * 0.2 }, u = clamp((t - a) / TAG_FLY, 0, 1);
-        // the dotted arc, traced as far as the word has got
+        // (the cart's spud lobs "potatoes" up on an arc; the MP 10's mini spuds fly "pressure" and "patience" straight
+        // out of its barrels: a control point on the line itself makes the curve a straight line)
+        const p0 = INTRO.fx.from[i] || mz[i], p2 = L.slots[i], c = { x: (p0.x + p2.x) / 2, y: i ? (p0.y + p2.y) / 2 : Math.min(p0.y, p2.y) - H * 0.2 }, u = clamp((t - a) / TAG_FLY, 0, 1);
+        // the dotted path, traced as far as the word has got
         ctx.save(); ctx.setLineDash([3, 7]); ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(255,250,240,.75)"; ctx.beginPath(); ctx.moveTo(p0.x, p0.y);
         for (let k = 1; k <= 24; k++) { const q = qpt(p0, c, p2, (u * k) / 24); ctx.lineTo(q.x, q.y); }
         ctx.stroke(); ctx.restore();
