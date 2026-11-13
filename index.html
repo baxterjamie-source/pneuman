@@ -766,7 +766,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.38</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.39</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2650,11 +2650,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // on to the run's first level not cleared yet (or, all cleared, its finish)
   function campPlay(r) {
     const k = campNext(r);
-    if (k >= r.order.length) { campFinish(r); return; }
+    // (batch H: the end scene first, then "Story complete!")
+    if (k >= r.order.length) { playCut("victory", () => campFinish(r)); return; }
     campOn(r);
     // (a level with a page in the Uncle's notebook opens on it first: after Next, and on Continue)
-    const id = r.order[k], go = () => startLevel(levelIx(id));
-    if (CUT_SCENES[`note_${id}`]) playCut(`note_${id}`, go); else go();
+    // (batch H: Downtown opens on the Aunt's call instead)
+    const id = r.order[k], go = () => startLevel(levelIx(id)), sc = id === "downtown" ? "auntcall" : `note_${id}`;
+    if (CUT_SCENES[sc]) playCut(sc, go); else go();
   }
   // the end of a level in a run: its try counted, its best clear kept; on only once it's cleared
   function campEndCard(L, tot, clearedNow, counts) {
@@ -15346,11 +15348,44 @@ body.lab .stage > :not(canvas) { display: none; }
     culdesac: [[0, "Riley, you need to practice in different environments. You need to build your reflexes. You will only get one chance."]],
     skeetza: [[0, "I left 20 acres to your Uncle Buzz, who agreed to let you use his factory. He is suspicious though, and may try to monitor you. Buzz and his drones!"],
       [0, "Hitting flying objects is essential. That is what I designed the MP 10 for!"]],
-    lake: [], milling: [], harvest: [], reservoir: [], downtown: [],
+    // (batch H, Nov 12 2026: drafts for the user to revise; the story's three points (the scarecrows, guns don't work,
+    // why potatoes) spread through them, the backstory on the right-hand page)
+    lake: [[0, "Wind over open water moves everything, Riley. Watch the waves, read the flags, and lead your shots."],
+      [0, "Leave the fisher and the loons be. They have done nothing wrong."],
+      [1, "How it started: I built scarecrows from field waste. Stalks, squash, rotten pumpkins. Something in the fermentation set off a chain reaction. One morning they were gone from their posts."]],
+    milling: [[0, "Cold hands, steady aim. The MP 10 again. Short bursts, Riley."],
+      [1, "I tried my old rifle first. The bullet passed right through, and the squash just grew back around the hole! Conventional guns do not work."]],
+    harvest: [[0, "Long shots across open fields. Wind, distance, patience."],
+      [1, "Why potatoes? The same cellulose as a squash, but built differently: its structure, the cell wall matrix around it, somehow neutralizes them. I don't fully understand it, but it works. The more potato, the more damage."]],
+    reservoir: [[0, "The MP 15: three barrels, and they fly in threes. Clear each pull before the next."],
+      [1, "They are gathering, Riley. More every night, and bigger. I fear the town is next."]],
+    // (Downtown has no page: the Aunt's call takes its place, the user's call)
   };
   for (const id in CUT_NOTES) CUT_SCENES[`note_${id}`] = { iris: true, lower: true,
     shots: { book: { fit: true, back: bookBack, paint: paintNote, cues: [[0.35, () => noise(0.35, 900, 0.1, 400)]] } },
     steps: [{ shot: "book", delay: 0.9, notes: CUT_NOTES[id] }] };
+  // (batch H, Nov 12 2026, the user's design) the Aunt's call before Downtown, in place of its notebook page: on black
+  // after the Reservoir's cameo, her, bust on, phone to her ear, hair coming loose, glancing this way and that, on the
+  // night main street (her truck with its hood up, people running far off, the clock tower at the end); her words type
+  // out as on the porch; at "What is that?!" she stares off front and left, horrified, and something roars far off.
+  // Riley says nothing
+  CUT_SCENES.auntcall = {
+    shots: { call: { back: callBack, paint: paintCall, cx: 470, cues: [[0.1, () => noise(1.2, 320, 0.05, 160)]] } },
+    steps: [
+      { shot: "call", who: "Aunt", delay: 0.9, mood: "frantic", s: "Riley, I'm downtown and I don't know what is happening!" },
+      { shot: "call", who: "Aunt", mood: "frantic", s: "My truck won't start, but hardly anyone is here. People are running!" },
+      { shot: "call", who: "Aunt", mood: "frantic", s: "This is very weird." },
+      { shot: "call", who: "Aunt", mood: "horrified", look: -1, s: "Oh NO! What is that?!" },
+      { shot: "call", who: "Aunt", mood: "horrified", look: -1, s: "Come get me in front of the clock tower, and please hurry!" },
+    ],
+  };
+  // the end (after Squash Head, before "Story complete!"): Riley from behind at the end of the main street at dawn,
+  // the sun peeking out from behind the clock tower, light dappling the street, the Pneuman (off its cart) pumped high
+  // in the air; no words; the street gone quiet, birds, a rising chord with the pumps
+  CUT_SCENES.victory = {
+    shots: { dawn: { back: dawnBack, paint: paintDawn, cx: 400, mid: true, cues: [[0.2, () => cutBirds()], [1.25, cutCheer]] } },
+    steps: [{ shot: "dawn", dur: 7.5 }],
+  };
   // (a steady "random" for the scenery, so it's the same every frame)
   const cutR = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
   const cutRR = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
@@ -16283,6 +16318,27 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // ?cameo: a list of them; ?cameo=pasture: that one on its own, round after round (shut and open as in the game);
   // ?cameo=harvest-tomato / reservoir-tomato: the stray tomato, every few seconds on a live round (no other wait)
+  // (batch H) ?note: a list of the story's scenes between levels; ?note=lake: that level's notebook page, played as in
+  // a story (its iris, the page, a tap or Skip lowers it onto the level), then again a few seconds later. Any other
+  // scene in the list (the Aunt's call, the end) by its own name
+  const NOTE_EXTRA = { auntcall: "The Aunt's call (before Downtown)", victory: "The end (after Squash Head)" };
+  function notePreview(id) {
+    const notes = Object.keys(CUT_NOTES), extra = Object.keys(NOTE_EXTRA).filter((k) => CUT_SCENES[k]);
+    const scene = notes.includes(id) ? `note_${id}` : extra.includes(id) ? id : null;
+    if (!scene) {
+      showCard("Preview", "Story scenes", "The Uncle's notebook page before each level, and the story's other scenes, each played as in a story, over and over.", "",
+        [...notes.map((k, i) => `<button type="button"${i === 0 ? ' id="ovGo"' : ""} onclick="location.search='?note=${k}'">${LEVELS[levelIx(k)].name}${CUT_NOTES[k].length ? "" : " (blank)"}</button>`),
+          ...extra.map((k) => `<button type="button" onclick="location.search='?note=${k}'">${NOTE_EXTRA[k]}</button>`)].join(""), () => { location.search = `?note=${notes[0]}`; });
+      return;
+    }
+    const tag = document.createElement("div");
+    tag.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:2147483646;background:rgba(20,24,30,.8);color:#f6f0e4;font:600 13px system-ui,sans-serif;padding:6px 10px;border-radius:8px";
+    tag.innerHTML = `Story scene preview: ${NOTE_EXTRA[id] || LEVELS[levelIx(id)].name} · <a href="?note" style="color:#f0c070">all scenes</a>`;
+    document.body.appendChild(tag);
+    const lv = notes.includes(id) ? levelIx(id) : levelIx(id === "victory" ? "squashhead" : "downtown");
+    const round = () => playCut(scene, () => { startLevel(lv); setTimeout(round, 2500); });
+    startLevel(lv); round();
+  }
   function cameoPreview(id) {
     const all = ["pasture", "culdesac", "skeetza", "lake", "milling", "harvest", "reservoir"], toms = Object.keys(STRAYS).map((k) => `${k}-tomato`);
     const tom = id && id.endsWith("-tomato") && STRAYS[id.slice(0, -7)] ? id.slice(0, -7) : null;
@@ -16414,16 +16470,20 @@ body.lab .stage > :not(canvas) { display: none; }
     try { drawAunt(c, t, ax); } finally { c.restore(); }
     drawRileyLegs(c, t);
   }
-  function drawAunt(c, t, ax) {
-    const L = (CUT.on && cutStep()) || {}, mood = L.mood || "warm", look = L.look || 0;
+  // (bust, batch H: the Aunt's call: no rocker, lap or hands on its arms; her hand holds a phone to her ear, her hair
+  // coming loose. Moods frantic (glancing this way and that) and horrified (eyes wide, mouth open, staring off))
+  function drawAunt(c, t, ax, bust = false) {
+    const L = (CUT.on && cutStep()) || {}, mood = L.mood || "warm", look = mood === "frantic" ? Math.sin(t * 1.9) * 0.8 + Math.sin(t * 4.3) * 0.2 : L.look || 0;
     const skin = "#b9805c", skinD = "#94603f", hair = "#221815", wood = "#3f2c1f", woodH = "#5b4130";
     const br = Math.sin(t * 1.6) * 1.2, hx = ax + look * 3, hy = 188 + br * 0.4;
     // the rocker's back
+    if (!bust) {
     c.fillStyle = wood; c.fillRect(ax - 104, 150, 14, 300); c.fillRect(ax + 90, 150, 14, 300);
     c.beginPath(); c.arc(ax - 97, 143, 9, 0, 7); c.arc(ax + 97, 143, 9, 0, 7); c.fill();
     c.beginPath(); c.moveTo(ax - 92, 160); c.quadraticCurveTo(ax, 138, ax + 92, 160); c.lineTo(ax + 92, 186); c.quadraticCurveTo(ax, 164, ax - 92, 186); c.closePath(); c.fill();
     c.fillStyle = woodH; for (let i = -3; i <= 3; i++) c.fillRect(ax + i * 24 - 3, 178, 6, 130);
     c.fillRect(ax - 104, 150, 3, 300); c.fillRect(ax + 90, 150, 3, 300);
+    }
     // her hair at the back, and the bun
     c.fillStyle = hair; c.beginPath(); c.ellipse(hx + 1, hy - 6, 42, 49, 0, 0, 7); c.fill();
     c.beginPath(); c.arc(hx + 16, hy - 50, 19, 0, 7); c.fill();
@@ -16432,7 +16492,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // neck
     c.fillStyle = skinD; c.fillRect(hx - 15, hy + 26, 30, 44);
     // jeans in her lap
-    c.fillStyle = "#283043"; c.beginPath(); c.moveTo(ax - 82, 388); c.lineTo(ax + 82, 388); c.lineTo(ax + 124, 452); c.lineTo(ax - 124, 452); c.fill();
+    if (!bust) { c.fillStyle = "#283043"; c.beginPath(); c.moveTo(ax - 82, 388); c.lineTo(ax + 82, 388); c.lineTo(ax + 124, 452); c.lineTo(ax - 124, 452); c.fill(); }
     // the maroon tee, then the open plaid flannel over it
     const torso = () => { c.beginPath(); c.moveTo(ax - 24, 248 + br); c.quadraticCurveTo(ax - 72, 250 + br, ax - 92, 274 + br); c.lineTo(ax - 82, 396); c.lineTo(ax + 82, 396); c.lineTo(ax + 92, 274 + br); c.quadraticCurveTo(ax + 72, 250 + br, ax + 24, 248 + br); c.closePath(); };
     torso(); c.fillStyle = "#6a2330"; c.fill();
@@ -16454,6 +16514,7 @@ body.lab .stage > :not(canvas) { display: none; }
       c.strokeStyle = "#353c44"; c.lineWidth = 32; c.beginPath(); c.moveTo(ax + sd * 84, 282 + br); c.lineTo(ax + sd * 110, 342); c.stroke();
       c.strokeStyle = "rgba(160,140,115,.35)"; c.lineWidth = 3; c.beginPath(); c.moveTo(ax + sd * 76, 290 + br); c.lineTo(ax + sd * 100, 344); c.stroke();
     }
+    if (!bust) {
     c.fillStyle = wood; cutRR(c, ax - 158, 364, 76, 13, 5); c.fill(); cutRR(c, ax + 82, 364, 76, 13, 5); c.fill();
     c.fillRect(ax - 152, 376, 11, 80); c.fillRect(ax + 141, 376, 11, 80);
     for (const sd of [-1, 1]) {
@@ -16464,6 +16525,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     c.fillStyle = "#3a3026"; c.fillRect(ax + 118, 356, 9, 8); c.fillStyle = "#efe8d8"; c.beginPath(); c.arc(ax + 122.5, 360, 2.6, 0, 7); c.fill();
     c.strokeStyle = "#d8cbb0"; c.lineWidth = 1.6; for (const d of [0, 4]) { c.beginPath(); c.moveTo(ax - 116 - d, 352 + d); c.lineTo(ax - 124 - d, 360 + d); c.stroke(); }
+    }
     // her head: ears, face, features, then the hair at the front
     c.fillStyle = skin;
     c.beginPath(); c.ellipse(hx - 33, hy + 4, 6, 10, 0, 0, 7); c.ellipse(hx + 33, hy + 4, 6, 10, 0, 0, 7); c.fill();
@@ -16471,7 +16533,7 @@ body.lab .stage > :not(canvas) { display: none; }
     c.fillStyle = "rgba(120,60,40,.18)"; c.beginPath(); c.ellipse(hx, hy + 30, 26, 12, 0, 0, Math.PI); c.fill();
     c.fillStyle = "#ece6da"; c.beginPath(); c.arc(hx - 33, hy + 15, 2.2, 0, 7); c.arc(hx + 33, hy + 15, 2.2, 0, 7); c.fill();
     c.fillStyle = "rgba(205,95,75,.16)"; c.beginPath(); c.arc(hx - 18, hy + 12, 7, 0, 7); c.arc(hx + 18, hy + 12, 7, 0, 7); c.fill();
-    const fx = hx + look * 4, blink = (t % 4.3) < 0.12, squint = mood === "laugh" ? 0.6 : mood === "worried" ? 1.2 : 1, ix = look * 2.4;
+    const fx = hx + look * 4, blink = (t % 4.3) < 0.12, squint = mood === "laugh" ? 0.6 : mood === "worried" ? 1.2 : mood === "frantic" ? 1.35 : mood === "horrified" ? 1.75 : 1, ix = look * 2.4;
     for (const sd of [-1, 1]) {
       const ex = fx + sd * 14, ey = hy - 2;
       if (blink) { c.strokeStyle = "#2a1a14"; c.lineWidth = 1.6; c.beginPath(); c.moveTo(ex - 7, ey); c.quadraticCurveTo(ex, ey + 2, ex + 7, ey); c.stroke(); }
@@ -16484,12 +16546,12 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       // brows: raised in the middle when grave, one up when wry
       // (worried, batch E: the inner ends drawn well up and together, the outer ends down, a crease between)
-      const inner = mood === "worried" ? -7 : mood === "grave" || mood === "soft" ? -3 : 0, wry = mood === "wry" && sd === 1 ? -3 : 0, outer = mood === "worried" ? 2 : 0;
+      const inner = mood === "worried" || mood === "frantic" ? -7 : mood === "horrified" ? -10 : mood === "grave" || mood === "soft" ? -3 : 0, wry = mood === "wry" && sd === 1 ? -3 : 0, outer = mood === "worried" || mood === "frantic" ? 2 : mood === "horrified" ? -3 : 0;
       c.strokeStyle = "#241814"; c.lineWidth = 2.6; c.beginPath(); c.moveTo(ex - sd * (mood === "worried" ? 5 : 6), ey - 9 + inner + wry); c.quadraticCurveTo(ex + sd * 1, ey - 12 + wry + outer * 0.5, ex + sd * 8, ey - 9 + wry + outer); c.stroke();
     }
-    if (mood === "worried") { c.strokeStyle = "rgba(110,60,40,.45)"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(fx - 2, hy - 18); c.lineTo(fx - 1, hy - 11); c.moveTo(fx + 2, hy - 18); c.lineTo(fx + 1, hy - 11); c.stroke(); }
+    if (mood === "worried" || mood === "frantic" || mood === "horrified") { c.strokeStyle = "rgba(110,60,40,.45)"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(fx - 2, hy - 18); c.lineTo(fx - 1, hy - 11); c.moveTo(fx + 2, hy - 18); c.lineTo(fx + 1, hy - 11); c.stroke(); }
     c.strokeStyle = skinD; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fx + 1, hy + 2); c.lineTo(fx + 3, hy + 14); c.quadraticCurveTo(fx, hy + 17, fx - 4, hy + 15); c.stroke();
-    const m = cutMouth(), my = hy + 25;
+    const m = mood === "horrified" ? Math.max(0.6, cutMouth()) : cutMouth(), my = hy + 25;
     if (m > 0.05) {
       const mw = mood === "laugh" ? 9 : 7;
       c.fillStyle = "#5b1f22"; c.beginPath(); c.ellipse(fx, my, mw, 1.5 + 6 * m, 0, 0, 7); c.fill();
@@ -16498,7 +16560,7 @@ body.lab .stage > :not(canvas) { display: none; }
     } else {
       c.strokeStyle = "#8e3f3a"; c.lineWidth = 2.2; c.beginPath();
       if (mood === "grave") { c.moveTo(fx - 8, my + 1); c.quadraticCurveTo(fx, my - 1, fx + 8, my + 1); }
-      else if (mood === "worried") { c.moveTo(fx - 7, my + 2); c.quadraticCurveTo(fx, my - 3, fx + 7, my + 2); }
+      else if (mood === "worried" || mood === "frantic") { c.moveTo(fx - 7, my + 2); c.quadraticCurveTo(fx, my - 3, fx + 7, my + 2); }
       else if (mood === "wry") { c.moveTo(fx - 7, my); c.quadraticCurveTo(fx + 2, my + 2, fx + 10, my - 3); }
       else { const k = mood === "soft" ? 2.5 : 4.5; c.moveTo(fx - 10, my - 1); c.quadraticCurveTo(fx, my + k + 1, fx + 10, my - 1); }
       c.stroke();
@@ -16508,7 +16570,177 @@ body.lab .stage > :not(canvas) { display: none; }
     c.strokeStyle = hair; c.lineWidth = 2;
     c.beginPath(); c.moveTo(hx - 31, hy - 20); c.quadraticCurveTo(hx - 38, hy + 4, hx - 31, hy + 28); c.stroke();
     c.beginPath(); c.moveTo(hx + 30, hy - 20); c.quadraticCurveTo(hx + 37, hy + 2, hx + 33, hy + 22); c.stroke();
+    if (bust) auntPhone(c, t, ax, hx, hy, br, hair, skin, skinD);
     c.lineCap = "butt";
+  }
+  // ---- (batch H) the Aunt's call: her hair coming loose, and her hand holding the phone to her ear (her right, the
+  // screen's left), the flannel's sleeve up from her shoulder
+  function auntPhone(c, t, ax, hx, hy, br, hair, skin, skinD) {
+    c.strokeStyle = hair; c.lineWidth = 1.6; c.lineCap = "round";
+    for (const [x0, y0, x1, y1, bx] of [[-20, -40, -30, 14, -6], [14, -42, 26, 30, 10], [30, -30, 44, 34, 8], [-6, -44, -16, -12, -10], [22, -58, 40, -70, 6]]) {
+      c.beginPath(); c.moveTo(hx + x0, hy + y0); c.quadraticCurveTo(hx + (x0 + x1) / 2 + bx, hy + (y0 + y1) / 2, hx + x1, hy + y1 + Math.sin(t * 2 + x0) * 1.5); c.stroke();
+    }
+    // the sleeve up to the hand at her ear
+    const sh = { x: ax - 84, y: 284 + br }, el = { x: ax - 112, y: 300 }, wr = { x: hx - 46, y: hy + 34 };
+    c.strokeStyle = "#353c44"; c.lineWidth = 30; c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(el.x, el.y); c.lineTo(wr.x, wr.y); c.stroke();
+    c.strokeStyle = "rgba(160,140,115,.35)"; c.lineWidth = 3; c.beginPath(); c.moveTo(el.x + 6, el.y - 4); c.lineTo(wr.x + 8, wr.y - 2); c.stroke();
+    // the phone against her ear, then her hand round it
+    c.save(); c.translate(hx - 36, hy + 6); c.rotate(-0.25);
+    c.fillStyle = "#16181c"; cutRR(c, -8, -20, 16, 40, 4); c.fill(); c.fillStyle = "rgba(120,170,220,.25)"; c.fillRect(-6, -17, 3, 30);
+    c.restore();
+    c.fillStyle = skin; c.beginPath(); c.ellipse(hx - 44, hy + 16, 12, 17, -0.3, 0, 7); c.fill();
+    c.strokeStyle = skinD; c.lineWidth = 1.2; for (let f = 0; f < 3; f++) { c.beginPath(); c.moveTo(hx - 50 + f * 4, hy + 4 + f * 3); c.lineTo(hx - 40 + f * 3, hy + 2 + f * 3); c.stroke(); }
+  }
+  // the night main street behind her, still: from the kerb looking down it to the clock tower at the end (a little
+  // left of her), brick fronts both sides with a few lit windows, lamps, her red pickup at the kerb with its hood up
+  function callBack(c) {
+    let g = c.createLinearGradient(0, 0, 0, 300); g.addColorStop(0, "#0b1020"); g.addColorStop(1, "#1d2436"); c.fillStyle = g; c.fillRect(0, 0, 800, 450);
+    const vx = 250, vy = 262;
+    // the street and pavements, toward the end of the street
+    c.fillStyle = "#1b1d22"; c.beginPath(); c.moveTo(vx - 18, vy); c.lineTo(vx + 18, vy); c.lineTo(900, 450); c.lineTo(-300, 450); c.fill();
+    c.fillStyle = "#2a2a2c"; c.beginPath(); c.moveTo(vx - 18, vy); c.lineTo(vx - 30, vy); c.lineTo(-400, 450); c.lineTo(-300, 450); c.fill();
+    c.beginPath(); c.moveTo(vx + 18, vy); c.lineTo(vx + 30, vy); c.lineTo(1000, 450); c.lineTo(900, 450); c.fill();
+    c.strokeStyle = "rgba(220,190,80,.5)"; c.lineWidth = 2; c.setLineDash([10, 14]); c.beginPath(); c.moveTo(vx, vy); c.lineTo(vx + 150, 450); c.stroke(); c.setLineDash([]);
+    // the clock tower at the end, its face lit
+    c.fillStyle = "#151a26"; c.fillRect(vx - 14, vy - 96, 28, 96); c.beginPath(); c.moveTo(vx - 17, vy - 96); c.lineTo(vx, vy - 124); c.lineTo(vx + 17, vy - 96); c.fill();
+    c.fillStyle = "#151a26"; c.fillRect(vx - 50, vy - 34, 100, 34);
+    c.fillStyle = "#f2dc9a"; c.beginPath(); c.arc(vx, vy - 74, 8, 0, 7); c.fill(); c.strokeStyle = "#3a2c14"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(vx, vy - 74); c.lineTo(vx, vy - 80); c.moveTo(vx, vy - 74); c.lineTo(vx + 4, vy - 72); c.stroke();
+    // the brick fronts down both sides (each a band toward the end), a few windows lit
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 6; i++) {
+        const k0 = i / 6, k1 = (i + 1) / 6, ease = (k) => 1 - Math.pow(1 - k, 2.2);
+        const xa = side < 0 ? cutLerp(-420, vx - 32, ease(k0)) : cutLerp(1150, vx + 32, ease(k0)), xb = side < 0 ? cutLerp(-420, vx - 32, ease(k1)) : cutLerp(1150, vx + 32, ease(k1));
+        const ha = cutLerp(560, 70, ease(k0)), hb = cutLerp(560, 70, ease(k1)), ya = cutLerp(450, vy, ease(k0)), yb = cutLerp(450, vy, ease(k1));
+        c.fillStyle = i % 2 ? "#3a2420" : "#43291f"; c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.lineTo(xb, yb - hb * (0.82 + 0.1 * cutR(i + side * 7))); c.lineTo(xa, ya - ha * (0.82 + 0.1 * cutR(i + side * 7))); c.fill();
+        for (let w = 0; w < 2; w++) for (let r = 0; r < 2; r++) {
+          const u = 0.25 + w * 0.4, xw = cutLerp(xa, xb, u), yw = cutLerp(ya, yb, u) - cutLerp(ha, hb, u) * (0.45 + r * 0.22), sw = Math.abs(xb - xa) * 0.16, sh = cutLerp(ha, hb, u) * 0.1;
+          c.fillStyle = cutR(i * 9 + w * 3 + r + side * 31) < 0.3 ? "rgba(240,190,110,.75)" : "rgba(20,24,34,.85)"; c.fillRect(xw - sw / 2, yw - sh, sw, sh);
+        }
+      }
+    }
+    // lamp posts and their glow
+    for (const [x, y, h] of [[90, 400, 210], [-10, 440, 260], [610, 380, 170], [700, 410, 210], [205, 300, 70], [300, 296, 62]]) {
+      c.fillStyle = "#0e1014"; c.fillRect(x - 2, y - h, 4, h);
+      const gr = c.createRadialGradient(x, y - h, 0, x, y - h, h * 0.35); gr.addColorStop(0, "rgba(255,214,140,.65)"); gr.addColorStop(1, "rgba(255,214,140,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y - h, h * 0.35, 0, 7); c.fill();
+      c.fillStyle = "#ffe3a8"; c.beginPath(); c.arc(x, y - h, Math.max(2, h * 0.025), 0, 7); c.fill();
+    }
+    // her pickup at the kerb behind her, left: dark red, its hood up
+    c.save(); c.translate(70, 392);
+    c.fillStyle = "#4a1414"; cutRR(c, -60, -46, 190, 44, 8); c.fill(); c.fillStyle = "#3a0f0f"; cutRR(c, 40, -84, 70, 40, 8); c.fill();
+    c.fillStyle = "rgba(120,150,180,.35)"; c.fillRect(48, -78, 54, 26);
+    c.fillStyle = "#5a1a1a"; c.beginPath(); c.moveTo(110, -46); c.lineTo(132, -98); c.lineTo(178, -94); c.lineTo(150, -44); c.fill();
+    c.fillStyle = "#0c0c0e"; for (const x of [-30, 96]) { c.beginPath(); c.arc(x, 0, 18, 0, 7); c.fill(); }
+    c.restore();
+  }
+  function paintCall(c, t, p, back) {
+    c.drawImage(back, 0, 0, 800, 450);
+    // people running far down the street, from left to right and away (tiny, dark, arms going)
+    for (let i = 0; i < 4; i++) {
+      const u = ((t * 0.09 + i * 0.27) % 1), x = 200 + u * 120 + i * 6, y = 266 + i * 2, s = 9 - i, ph = t * 12 + i;
+      c.strokeStyle = "rgba(8,10,14,.9)"; c.lineWidth = 1.6; c.lineCap = "round";
+      c.beginPath(); c.moveTo(x, y - s); c.lineTo(x, y - s * 0.45); c.moveTo(x, y - s * 0.45); c.lineTo(x + Math.sin(ph) * s * 0.3, y); c.moveTo(x, y - s * 0.45); c.lineTo(x - Math.sin(ph) * s * 0.3, y);
+      c.moveTo(x, y - s * 0.85); c.lineTo(x + Math.cos(ph) * s * 0.35, y - s * 0.55); c.stroke();
+      c.fillStyle = "rgba(8,10,14,.9)"; c.beginPath(); c.arc(x, y - s * 1.1, s * 0.17, 0, 7); c.fill();
+    }
+    // (at "What is that?!", something far off roars)
+    if (CUT.step === 3 && !CUT.cued.roar && CUT.st > 0.4) { CUT.cued.roar = true; tone(70, 42, 1.6, 0.2, "sawtooth"); noise(1.3, 320, 0.14, 110); }
+    // her, bust on, bigger than on the porch, a little right of the middle
+    const ax = 470;
+    c.save(); c.translate(ax, 226); c.scale(1.5, 1.5); c.translate(-ax, -188);
+    try { drawAunt(c, t, ax, true); } finally { c.restore(); }
+  }
+  // ---- (batch H) the end: dawn at the end of the main street
+  function dawnBack(c) {
+    let g = c.createLinearGradient(0, 0, 0, 280); g.addColorStop(0, "#334a7a"); g.addColorStop(0.55, "#c58a78"); g.addColorStop(1, "#f6c27a"); c.fillStyle = g; c.fillRect(0, 0, 800, 450);
+    const vx = 400, vy = 270;
+    // the sun, low, behind the clock tower (peeking out at its right), its rays
+    const sg = c.createRadialGradient(vx + 26, 200, 0, vx + 26, 200, 220); sg.addColorStop(0, "rgba(255,240,190,.95)"); sg.addColorStop(0.2, "rgba(255,210,140,.5)"); sg.addColorStop(1, "rgba(255,190,120,0)");
+    c.fillStyle = sg; c.fillRect(0, 0, 800, 450);
+    c.fillStyle = "rgba(255,236,190,.16)"; for (let i = 0; i < 9; i++) { const a = -2.6 + i * 0.32; c.beginPath(); c.moveTo(vx + 26, 200); c.lineTo(vx + 26 + Math.cos(a) * 520, 200 + Math.sin(a) * 520); c.lineTo(vx + 26 + Math.cos(a + 0.09) * 520, 200 + Math.sin(a + 0.09) * 520); c.fill(); }
+    c.fillStyle = "#fff6dc"; c.beginPath(); c.arc(vx + 26, 200, 26, 0, 7); c.fill();
+    // the hall and its tower at the end, dark against it, a warm rim
+    c.fillStyle = "#3b3140"; c.fillRect(vx - 90, vy - 46, 180, 46); c.fillRect(vx - 18, vy - 150, 36, 104);
+    c.beginPath(); c.moveTo(vx - 22, vy - 150); c.lineTo(vx, vy - 186); c.lineTo(vx + 22, vy - 150); c.fill();
+    c.fillStyle = "rgba(255,210,150,.55)"; c.fillRect(vx + 16, vy - 150, 2.5, 104);
+    c.fillStyle = "#e8d6a8"; c.beginPath(); c.arc(vx, vy - 122, 10, 0, 7); c.fill();
+    // the street, its pavements, the line down the middle
+    c.fillStyle = "#4a4448"; c.beginPath(); c.moveTo(vx - 26, vy); c.lineTo(vx + 26, vy); c.lineTo(1000, 450); c.lineTo(-200, 450); c.fill();
+    c.fillStyle = "#6a6062"; c.beginPath(); c.moveTo(vx - 26, vy); c.lineTo(vx - 40, vy); c.lineTo(-420, 450); c.lineTo(-200, 450); c.fill(); c.beginPath(); c.moveTo(vx + 26, vy); c.lineTo(vx + 40, vy); c.lineTo(1220, 450); c.lineTo(1000, 450); c.fill();
+    c.strokeStyle = "rgba(230,200,110,.7)"; c.lineWidth = 3; c.setLineDash([16, 18]); c.beginPath(); c.moveTo(vx, vy); c.lineTo(vx, 450); c.stroke(); c.setLineDash([]);
+    // the fronts down both sides, in shade, their tops catching the light
+    for (const side of [-1, 1]) for (let i = 0; i < 6; i++) {
+      const ease = (k) => 1 - Math.pow(1 - k, 2.2), k0 = ease(i / 6), k1 = ease((i + 1) / 6);
+      const xa = side < 0 ? cutLerp(-420, vx - 44, k0) : cutLerp(1220, vx + 44, k0), xb = side < 0 ? cutLerp(-420, vx - 44, k1) : cutLerp(1220, vx + 44, k1);
+      const ya = cutLerp(450, vy, k0), yb = cutLerp(450, vy, k1), ha = cutLerp(600, 80, k0) * (0.85 + 0.12 * cutR(i + side * 5)), hb = cutLerp(600, 80, k1) * (0.85 + 0.12 * cutR(i + side * 5));
+      c.fillStyle = i % 2 ? "#4a3036" : "#55363a"; c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.lineTo(xb, yb - hb); c.lineTo(xa, ya - ha); c.fill();
+      c.strokeStyle = "rgba(255,200,140,.45)"; c.lineWidth = 2; c.beginPath(); c.moveTo(xa, ya - ha); c.lineTo(xb, yb - hb); c.stroke();
+    }
+  }
+  // the rising chord as Riley pumps the Pneuman
+  function cutCheer() { [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, f, 1.1, 0.06, "triangle", i * 0.12)); tone(261.6, 261.6, 1.6, 0.05, "sine"); }
+  function paintDawn(c, t, p, back) {
+    c.drawImage(back, 0, 0, 800, 450);
+    // light dappling the street, drifting a little (through the trees along it, out of sight)
+    c.save(); c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 14; i++) {
+      const x = 120 + cutR(i + 3) * 560 + Math.sin(t * 0.4 + i) * 6, y = 320 + cutR(i + 40) * 120, r = 14 + cutR(i + 9) * 26;
+      c.fillStyle = `rgba(255,190,110,${0.08 + 0.06 * Math.sin(t * 0.7 + i * 1.7)})`; c.beginPath(); c.ellipse(x, y, r, r * 0.3, 0, 0, 7); c.fill();
+    }
+    c.restore();
+    // (smaller, and left of the middle, so the Pneuman stays in on a wide field and the sun and the tower show beside
+    // the raised arm)
+    c.save(); c.translate(300, 394); c.scale(0.62, 0.62); c.translate(-400, -440);
+    try { drawRileyBack(c, t); } finally { c.restore(); }
+  }
+  // Riley from behind, standing at the end of the street: no clear gender (shaggy brown hair, the teal hoodie, jeans,
+  // sneakers); the left fist down at the side, the right arm up and out with the Pneuman (the upside-down T: the black
+  // barrel, the white chamber across its foot with the gauge and the blue valve), pumped three times, the torso and
+  // shoulders tilting toward it; backlit by the sun, a warm rim on the hair and shoulders
+  function drawRileyBack(c, t) {
+    const x0 = 400, foot = 440;
+    // (the pumps: three, from 1.25 s; each a dip of the arm and back up, then held high)
+    let pump = 0; for (const at of [1.25, 2.05, 2.85]) { const u = (t - at) / 0.7; if (u > 0 && u < 1) pump = Math.sin(u * Math.PI); }
+    const lean = 0.07 + pump * 0.03, rise = Math.min(1, t / 0.9);
+    // its long shadow, toward you (the sun's behind it)
+    c.fillStyle = "rgba(40,24,30,.35)"; c.beginPath(); c.moveTo(x0 - 40, foot); c.lineTo(x0 + 40, foot); c.lineTo(x0 + 80, 450 + 40); c.lineTo(x0 - 80, 450 + 40); c.fill();
+    c.save(); c.translate(x0, foot); c.rotate(lean * 0.4); c.lineCap = "round"; c.lineJoin = "round";
+    // legs and sneakers
+    c.strokeStyle = "#2b3348"; c.lineWidth = 30;
+    c.beginPath(); c.moveTo(-18, -150); c.lineTo(-30, -18); c.stroke(); c.beginPath(); c.moveTo(18, -150); c.lineTo(34, -18); c.stroke();
+    c.fillStyle = "#e8e4dc"; c.beginPath(); c.ellipse(-32, -8, 20, 10, 0, 0, 7); c.ellipse(36, -8, 20, 10, 0, 0, 7); c.fill();
+    c.fillStyle = "#9a8f86"; c.fillRect(-52, -4, 40, 4); c.fillRect(16, -4, 40, 4);
+    // the torso, leaning toward the raised arm
+    c.save(); c.translate(0, -150); c.rotate(lean);
+    const hood = "#2a8584", hoodD = "#1f6665";
+    c.fillStyle = hood; c.beginPath(); c.moveTo(-46, -118); c.quadraticCurveTo(0, -132, 46, -118); c.lineTo(50, 6); c.lineTo(-50, 6); c.closePath(); c.fill();
+    c.fillStyle = hoodD; c.fillRect(-50, -6, 100, 12);
+    // the hood down on its back
+    c.beginPath(); c.moveTo(-26, -120); c.quadraticCurveTo(0, -70, 26, -120); c.quadraticCurveTo(0, -112, -26, -120); c.fill();
+    // the left arm down, fist at the side
+    c.strokeStyle = hood; c.lineWidth = 24; c.beginPath(); c.moveTo(-44, -110); c.quadraticCurveTo(-62, -60, -58, -12); c.stroke();
+    c.fillStyle = "#b07a5a"; c.beginPath(); c.arc(-58, -4, 11, 0, 7); c.fill();
+    // the right arm up and out to the side (it dips with each pump), and the Pneuman in its hand
+    const reach = cutLerp(0.25, 1, rise) - pump * 0.35, sh = { x: 42, y: -112 }, a1 = -0.7 - reach * 0.5, el = { x: sh.x + Math.cos(a1) * 62, y: sh.y + Math.sin(a1) * 62 };
+    const a2 = a1 - 0.25 + pump * 0.6, hd = { x: el.x + Math.cos(a2) * 58, y: el.y + Math.sin(a2) * 58 };
+    c.strokeStyle = hood; c.lineWidth = 24; c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(el.x, el.y); c.lineTo(hd.x, hd.y); c.stroke();
+    c.save(); c.translate(hd.x, hd.y); c.rotate(0.35 - pump * 0.5);
+    // (barrel up and back, from the hand; the chamber across its foot at the hand)
+    c.strokeStyle = "#1c1d20"; c.lineWidth = 11; c.beginPath(); c.moveTo(0, 0); c.lineTo(-10, -150); c.stroke();
+    c.strokeStyle = "#3a3c42"; c.lineWidth = 3; c.beginPath(); c.moveTo(-3, -4); c.lineTo(-12, -146); c.stroke();
+    c.fillStyle = "#e9e5da"; c.strokeStyle = "#8f8a80"; c.lineWidth = 1.5; cutRR(c, -40, -8, 80, 18, 8); c.fill(); c.stroke();
+    c.fillStyle = "#e7e2d8"; c.beginPath(); c.arc(-26, -14, 9, 0, 7); c.fill(); c.strokeStyle = "#555"; c.lineWidth = 1.2; c.stroke(); c.beginPath(); c.moveTo(-26, -14); c.lineTo(-22, -19); c.stroke();
+    c.fillStyle = "#2c6fd0"; c.fillRect(22, -16, 16, 6);
+    c.restore();
+    c.fillStyle = "#b07a5a"; c.beginPath(); c.arc(hd.x, hd.y, 12, 0, 7); c.fill();
+    // the head, from behind: neck, ears, shaggy hair; the sun's rim on the hair and the shoulders
+    c.fillStyle = "#9a6a4c"; c.fillRect(-10, -138, 20, 18);
+    c.fillStyle = "#a87252"; c.beginPath(); c.ellipse(-26, -158, 6, 10, 0, 0, 7); c.ellipse(26, -158, 6, 10, 0, 0, 7); c.fill();
+    c.fillStyle = "#4a2f1e"; c.beginPath(); c.ellipse(0, -164, 27, 32, 0, 0, 7); c.fill();
+    for (let i = 0; i < 9; i++) { const a = -2.9 + i * 0.35; c.beginPath(); c.ellipse(Math.cos(a) * 24, -164 + Math.sin(a) * 28, 9, 7, a, 0, 7); c.fill(); }
+    c.beginPath(); c.moveTo(-22, -142); c.lineTo(-14, -128); c.lineTo(-4, -140); c.lineTo(6, -127); c.lineTo(16, -140); c.lineTo(22, -130); c.lineTo(24, -150); c.lineTo(-24, -150); c.fill();
+    c.strokeStyle = "rgba(255,200,130,.6)"; c.lineWidth = 2.5; c.beginPath(); c.arc(0, -166, 30, -2.6, -0.5); c.stroke();
+    c.beginPath(); c.moveTo(-46, -118); c.quadraticCurveTo(0, -132, 46, -118); c.stroke();
+    c.restore(); c.restore();
   }
   // Riley: knees and sneakers at the bottom of the frame, one foot tapping now and then, the other shifting
   function drawRileyLegs(c, t) {
@@ -17069,10 +17301,12 @@ body.lab .stage > :not(canvas) { display: none; }
   // (v2.18: no link, "Which mode?" first)
   // (batch E: ?cameo previews the minion cameos, see cameoPreview)
   const cameoQ = new URLSearchParams(location.search).get("cameo");
-  const dest = cameoQ != null ? () => cameoPreview(cameoQ) : challenge ? () => showChallenge(challenge) : new URLSearchParams(location.search).has("level") ? () => showStart(linked) : showModes;
+  // (batch H: ?note previews the story's scenes between levels, see notePreview)
+  const noteQ = new URLSearchParams(location.search).get("note");
+  const dest = noteQ != null ? () => notePreview(noteQ) : cameoQ != null ? () => cameoPreview(cameoQ) : challenge ? () => showChallenge(challenge) : new URLSearchParams(location.search).has("level") ? () => showStart(linked) : showModes;
   // (v2.20: a device's first visit plays the intro first; ?nointro skips it)
   let seen = true; try { seen = localStorage.getItem(INTRO_KEY) === "1"; } catch (e) {}
-  if (!seen && cameoQ == null && !new URLSearchParams(location.search).has("nointro")) playIntro(dest); else dest();
+  if (!seen && cameoQ == null && noteQ == null && !new URLSearchParams(location.search).has("nointro")) playIntro(dest); else dest();
   let last = performance.now(), oops = false;
   // the speed test's readout, bottom right of the field: frames a second, and how long each frame's own work takes
   // (over 16 ms and it can't keep up with 60), averaged over the last half second or so
