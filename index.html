@@ -12192,6 +12192,9 @@ body.lab .stage > :not(canvas) { display: none; }
         if (++run >= runN) { z += TOWN.alley; run = 0; runN = 2 + Math.floor(R() * 3); } // (an alley)
       }
     }
+    // (batch I, Nov 13 2026, the user: the shops in plain view in the Aunt's call (the right side, 36-61 m down) lit,
+    // their wares showing, as in the levels; set here so it's the same town in all of them)
+    for (const b of blds) if (b.side > 0 && b.z1 >= 36 && b.z2 <= 61) b.lit = true;
     // the houses along the back lanes: clapboard, a gable roof, a porch light, a lit window or two
     const SIDING = ["#4a4f55", "#5a5248", "#3e4a44", "#56463c", "#454a5a", "#6a6458"], ROOFS = ["#26221f", "#2c2a2a", "#3a2a24", "#232a2e"];
     const houses = [];
@@ -12223,11 +12226,22 @@ body.lab .stage > :not(canvas) { display: none; }
     // (batch F, Nov 12 2026, the user: parked facing the way traffic goes on each side, so the left side's show you
     // their headlights; fwd: which way along the street its front is. On Squash Head's night the second car back on
     // each side has its lights on (lit), and that's where the screamers hide)
+    // (batch I, Nov 13 2026, the user: the Aunt's broken-down pickup, dark red, hood up, by the left kerb, the same in
+    // her call, Downtown, Squash Head and the end. The car that stood there is gone; the white pickup in front of it is
+    // moved nearer (to 19 m) so it doesn't hide the truck in the call, and the green car before that up to make room.
+    // It never has its lights on; its steam is drawn live (truckSteam))
+    const auntTruck = { side: -1, x: -(TOWN.kerb - 1.15), z: 31.6, len: 5.6, col: "#6e1c1a", pickup: true, hood: true, aunt: true };
+    for (let i = cars.length - 1; i >= 0; i--) { const c = cars[i]; if (c.side < 0 && c.z < auntTruck.z + auntTruck.len + 1.4 && c.z + c.len > auntTruck.z - 1) cars.splice(i, 1); }
+    { const before = cars.filter((c) => c.side < 0 && c.z < auntTruck.z).sort((a, b) => b.z - a.z);
+      if (before[0]) before[0].z = 19; if (before[1]) before[1].z = Math.min(before[1].z, 19 - 1.6 - before[1].len); }
+    cars.push(auntTruck);
     for (const c of cars) c.fwd = c.side < 0 ? -1 : 1;
-    if (!DT) for (const side of [-1, 1]) { const v = cars.filter((c) => c.side === side && c.z > CAR_SEEN).sort((a, b) => a.z - b.z); if (v[1]) v[1].lit = true; }
+    if (!DT) for (const side of [-1, 1]) { const v = cars.filter((c) => c.side === side && c.z > CAR_SEEN && !c.aunt).sort((a, b) => a.z - b.z); if (v[1]) v[1].lit = true; }
     // (the night sky by direction, all the way round, so it holds still as the view changes: stars, the moon, slow dark clouds)
     const stars = [...Array(160)].map(() => ({ az: (R() - 0.5) * Math.PI * 2, el: 0.03 + R() * 0.7, a: 0.3 + R() * 0.6 }));
     const clouds = [...Array(10)].map(() => ({ az: (R() - 0.5) * Math.PI * 2, el: 0.06 + R() * 0.22, w: 0.16 + R() * 0.22, h: 0.022 + R() * 0.026, v: 0.004 + R() * 0.006 }));
+    // (batch I: a cloud lying flat across the moon's new place, moved off to the side so the moon is clear)
+    for (const c of clouds) if (Math.abs(c.az - 0.12) < c.w / 2 + 0.06 && Math.abs(c.el - 0.26) < 0.07) c.az += c.w / 2 + 0.2;
 
     // ---- sound: the test page's synthesised stomps, roars, creaks and splats, through the game's audio (silent when
     // muted: audio() gives nothing then), with its own reverb for the street
@@ -12511,7 +12525,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     function standPose() {
       const big = B.bigWalk && B.walking, lm = big ? 1.6 : 1;
-      const br = Math.sin(T * 1.25) * 0.07, cr = B.walking ? Math.abs(Math.sin(B.walkPh)) * (big ? 0.4 : 0.25) : 0;
+      const br = Math.sin(T * (B.breathW || 1.25)) * 0.07 * (B.breathK || 1), cr = B.walking ? Math.abs(Math.sin(B.walkPh)) * (big ? 0.4 : 0.25) : 0;
       const sway = big ? Math.sin(B.walkPh) * 0.35 : 0, bx = B.lean * 1.2 + sway, tilt = roarTilt();
       // (legs 50% longer than at first: hips at 7.95 m, everything above raised to match)
       const body = { x: bx, y: 11.55 + br - cr, r: -B.lean * 0.6 - sway * 0.05 };
@@ -13649,7 +13663,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (batch H: the end scene's dawn: a sky going from deep blue to gold at the horizon, the sun low behind the clock
     // tower peeking out at its right, clouds lit pink underneath, the hills dusky; set only by townShot)
     let DAWN = false;
-    const SUN = { az: 0.03, el: 0.2 };
+    // (batch I: lower, el 0.2 → 0.14, beside the tower's foot rather than its clock)
+    const SUN = { az: 0.03, el: 0.14 };
     function drawDawnSky() {
       const hz = Math.max(0, HZ), g = ctx.createLinearGradient(0, Math.min(0, hz - H), 0, hz + 1);
       g.addColorStop(0, "#2e3f74"); g.addColorStop(0.5, "#8a6a8a"); g.addColorStop(0.82, "#e09a74"); g.addColorStop(1, "#f8cf8a");
@@ -13680,7 +13695,9 @@ body.lab .stage > :not(canvas) { display: none; }
       const g = ctx.createLinearGradient(0, Math.min(0, hz - H), 0, hz + 1); g.addColorStop(0, "#04050a"); g.addColorStop(0.6, "#0b0f1a"); g.addColorStop(1, "#1f1a1c");
       ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, hz + 41);
       for (const s of stars) { const q = dirP(s.az, s.el); if (q.behind || q.y > hz || q.x < 0 || q.x > W) continue; ctx.fillStyle = `rgba(220,225,240,${s.a * 0.6})`; ctx.fillRect(q.x, q.y, 1.2, 1.2); }
-      const m = dirP(0.42, 0.22);
+      // (batch I, Nov 13 2026, the user: the moon more over the middle of the sky, the same in the call and both levels;
+      // was az 0.42, el 0.22. el kept low enough to stay in Downtown's narrow view)
+      const m = dirP(0.12, 0.26);
       if (!m.behind && m.y < hz) {
         const r = Math.max(10, F * 0.03), mg = ctx.createRadialGradient(m.x, m.y, r * 0.5, m.x, m.y, r * 4.7);
         mg.addColorStop(0, "rgba(200,205,220,0.18)"); mg.addColorStop(1, "rgba(200,205,220,0)"); ctx.fillStyle = mg; ctx.fillRect(m.x - r * 5, m.y - r * 5, r * 10, r * 10);
@@ -14011,6 +14028,9 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.restore();
     }
     function drawScreamers() { if (scr) for (const o of [...scr.list].sort((a, b) => b.z - a.z)) drawPerson(o); }
+    // (batch I) the steam off the Aunt's truck, from its engine bay under the raised hood; drawn live, among the cars and
+    // Squash Head by distance (just nearer than the truck, so it's over it)
+    const steamItem = { x: auntTruck.x, z: auntTruck.z + 0.8, draw: () => { const q = P(auntTruck.x, 1.0, auntTruck.z + 0.8); if (!q.behind) drawSteam(ctx, q.x, q.y, q.s, T); } };
     function drawBarns() { for (const b of barns) drawBarn(b); }
     // everything of the town that stands up, for the game to draw far to near (and leave out what's in the way of an
     // arc view); the boss is added each frame (see dyn)
@@ -14526,8 +14546,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // (the town's pictures in use: nothing to sort, just the nearer picture over Squash Head, last of all)
       // (Downtown: the parked cars stay live, sorted with the minions, who step out from behind them)
       get standing() { return BK.on ? (DT ? carItems : []) : visItems(); },
-      dyn: () => (DT ? mins.map((m) => ({ x: m.x, z: m.z, draw: () => drawMin(m) }))
-        : [...(B.state === "dead" ? [] : [{ x: B.x, z: B.z, draw: () => { drawBoss(); shakeT(); } }]), ...(BK.on ? [{ x: CAM.x, z: CAM.z, draw: () => blit(1) }] : [])]),
+      dyn: () => (DT ? [...mins.map((m) => ({ x: m.x, z: m.z, draw: () => drawMin(m) })), steamItem]
+        : [steamItem, ...(B.state === "dead" ? [] : [{ x: B.x, z: B.z, draw: () => { drawBoss(); shakeT(); } }]), ...(BK.on ? [{ x: CAM.x, z: CAM.z, draw: () => blit(1) }] : [])]),
       back: street,
       front() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.save(); ctx.translate(shx, shy);
@@ -14550,6 +14570,26 @@ body.lab .stage > :not(canvas) { display: none; }
       // (batch H) the whole town, from wherever the camera's been put (renderTown): the sky, the ground, everything
       // standing far to near, extra things of a cutscene's among them (its own cars), each lamp's glow; dawn: the end
       // scene's sky and a warm low light over it all, the sun blooming round the tower. Returns where the sun is
+      // (batch I) for the cutscenes: the Aunt's truck, a far-off roar (vol 1 is Squash Head's own), and a minion stepping
+      // out to tx and standing there breathing, its face lit, drawn as Downtown's are into ctx (an offscreen canvas k
+      // device pixels a unit, its transform left at identity) from wherever the camera's been put (townDo)
+      truck: auntTruck,
+      roarFar: (v, pan) => sRoar(v, pan),
+      newCutMin: (x, z) => newB({ small: true, sc: DTN.sc, x, z, state: "walk", hc: DTN_COLS[1], mottle: false, alpha: 1, breathK: 4, breathW: 1.4 }),
+      cutMin(m, t, dt, tx, k) {
+        T = t;
+        asMin(m, () => {
+          B.cand = candle();
+          const d = tx - B.x, mv = Math.abs(d) > 0.04;
+          if (mv) B.x += Math.sign(d) * Math.min(Math.abs(d), 0.5 * dt);
+          updWalk(dt, mv, 1.7); B.pose = standPose();
+        });
+        const o = P(m.x, 0, m.z); if (o.behind) return;
+        const s = o.s * m.sc, a = P(m.x, 0, m.z - 0.6), b = P(m.x, 0, m.z + 0.6);
+        ctx.setTransform(k, 0, 0, k, 0, 0); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, 4 * s, Math.max(1, (a.y - b.y) / 2), 0, 0, 7); ctx.fill();
+        if (!m.cv) { m.cv = document.createElement("canvas"); m.cv.width = m.cv.height = 8; m.cx = m.cv.getContext("2d"); }
+        asMin(m, () => { const bx = paintBossBody(m.cv, m.cx, k, o.x, o.y, s, m.pose, fogAt(m.z), true); if (bx) paintBossOn(ctx, m.cv, k, o.x, o.y, s, m.pose, bx); });
+      },
       townShot(dawn, extra = []) {
         DAWN = !!dawn; postOnly = false;
         try {
@@ -14558,10 +14598,11 @@ body.lab .stage > :not(canvas) { display: none; }
           for (const s of items.sort((a, b) => d(b) - d(a))) { try { s.draw(s); } catch (e) {} }
           ctx.globalCompositeOperation = "source-over";
           if (dawn) {
-            ctx.globalCompositeOperation = "screen"; ctx.fillStyle = "rgba(255,150,100,.26)"; ctx.fillRect(-40, -40, W + 80, H + 80);
-            ctx.globalCompositeOperation = "soft-light"; ctx.fillStyle = "rgba(255,170,110,.35)"; ctx.fillRect(-40, -40, W + 80, H + 80);
+            // (batch I, the user: a little less light: the washes and the bloom about a third weaker)
+            ctx.globalCompositeOperation = "screen"; ctx.fillStyle = "rgba(255,150,100,.17)"; ctx.fillRect(-40, -40, W + 80, H + 80);
+            ctx.globalCompositeOperation = "soft-light"; ctx.fillStyle = "rgba(255,170,110,.24)"; ctx.fillRect(-40, -40, W + 80, H + 80);
             const s = dirP(SUN.az, SUN.el);
-            if (!s.behind) { const r = F * 0.5, g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r); g.addColorStop(0, "rgba(255,226,170,.5)"); g.addColorStop(1, "rgba(255,200,140,0)"); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.fillRect(s.x - r, s.y - r, 2 * r, 2 * r); }
+            if (!s.behind) { const r = F * 0.5, g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r); g.addColorStop(0, "rgba(255,226,170,.36)"); g.addColorStop(1, "rgba(255,200,140,0)"); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.fillRect(s.x - r, s.y - r, 2 * r, 2 * r); }
             ctx.globalCompositeOperation = "source-over";
             return s;
           }
@@ -15434,15 +15475,18 @@ body.lab .stage > :not(canvas) { display: none; }
       { shot: "call", who: "Aunt", mood: "frantic", s: "My truck won't start, but hardly anyone is here. People are running!" },
       { shot: "call", who: "Aunt", mood: "frantic", s: "This is very weird." },
       { shot: "call", who: "Aunt", mood: "horrified", look: -1, s: "Oh NO! What is that?!" },
-      { shot: "call", who: "Aunt", mood: "horrified", look: -1, s: "Come get me in front of the clock tower, and please hurry!" },
+      { shot: "call", who: "Aunt", mood: "horrified", look: -1, s: "Come get me, Main St. near the clock tower!" },
     ],
   };
   // the end (after Squash Head, before "Story complete!"): Riley from behind at the end of the main street at dawn,
   // the sun peeking out from behind the clock tower, light dappling the street, the Pneuman (off its cart) pumped high
   // in the air; no words; the street gone quiet, birds, a rising chord with the pumps
-  CUT_SCENES.victory = {
-    shots: { dawn: { back: dawnBack, paint: paintDawn, cx: 400, mid: true, cues: [[0.2, () => cutBirds()], [1.25, cutCheer]] } },
-    steps: [{ shot: "dawn", dur: 7.5 }],
+  // (batch I, Nov 13 2026, the user: twice as long (15 s), fading in at half the speed (1.8 s); the Aunt walks in from
+  // the right pumping her arms). RILEY_PUMPS: when Riley's pumps start (s); AUNT_PUMPS: hers
+  const RILEY_PUMPS = [2.4, 3.3, 4.2], AUNT_PUMPS = [6.2, 8.4];
+  CUT_SCENES.victory = { fadeIn: 1.8,
+    shots: { dawn: { back: dawnBack, paint: paintDawn, cx: 400, mid: true, cues: [[0.2, () => cutBirds()], [RILEY_PUMPS[0], cutCheer]] } },
+    steps: [{ shot: "dawn", dur: 15 }],
   };
   // (a steady "random" for the scenery, so it's the same every frame)
   const cutR = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -15607,7 +15651,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     const go = CUT.go ? (CUT.go < 0.3 ? CUT.go / 0.3 : Math.max(0, 1 - (CUT.go - 0.3) / 0.3)) : 0;
     // (it comes in from black: a fade, or an iris for a notebook scene)
-    const a = Math.max(sc.iris ? 0 : Math.max(0, 1 - CUT.t / 0.9), go, CUT.out ? Math.min(1, CUT.out / CUT.outDur) : 0);
+    const a = Math.max(sc.iris ? 0 : Math.max(0, 1 - CUT.t / (sc.fadeIn || 0.9)), go, CUT.out ? Math.min(1, CUT.out / CUT.outDur) : 0);
     if (a > 0) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, W, H); }
     if (sc.iris && CUT.t < 1.45) irisMask(Math.max(0, (CUT.t - 0.25) / 1.2));
     if (CUT.out && CUT.out >= CUT.outDur + 0.15) endCut();
@@ -16656,16 +16700,34 @@ body.lab .stage > :not(canvas) { display: none; }
   // camera put where a cutscene wants it (cam: x, y, z, yaw, pitch, F, cy, in the scene's 800 × 450 units), into the
   // scene's still picture c; extra: its own cars; dawn: the end scene's light. Returns where the sun is, if it's dawn
   function renderTown(c, cam, dawn, extra) {
+    return townDo(c, cam, (sc) => sc.townShot(dawn, extra));
+  }
+  // (batch I) the same camera set-up round anything of the town's: fn(the Downtown scene), then the camera put back; cam.at
+  // (points [x, y, z]) each get q, where it is on the picture
+  function townDo(c, cam, fn) {
     const sc = sceneFor({ scene: "downtown" }); if (!sc.townShot) return null;
     const keep = { ctx, W, H, F, CY, HZ, cp, sp, cyw, syw }, camK = { ...CAM };
-    let sun = null;
+    let out = null;
     ctx = c; W = 800; H = 450;
     Object.assign(CAM, { x: cam.x, y: cam.y, z: cam.z, yaw: cam.yaw, pitch: cam.pitch || 0 });
     cyw = Math.cos(CAM.yaw); syw = Math.sin(CAM.yaw); cp = Math.cos(CAM.pitch); sp = Math.sin(CAM.pitch); F = cam.F; CY = cam.cy; HZ = CY - F * Math.tan(CAM.pitch);
-    try { c.save(); sun = sc.townShot(dawn, extra); c.restore(); if (cam.at) cam.at.forEach((w) => { w.q = P(...w.p); }); }
+    try { c.save(); out = fn(sc); c.restore(); if (cam.at) cam.at.forEach((w) => { w.q = P(...w.p); }); }
     catch (e) { console.error(e); }
     finally { ({ ctx, W, H, F, CY, HZ, cp, sp, cyw, syw } = keep); Object.assign(CAM, camK); }
-    return sun;
+    return out;
+  }
+  // (batch I) steam off the Aunt's broken-down truck: soft puffs rising from its engine bay, drifting a little and
+  // thinning out as they go; (x, y) the bay on the picture, s its pixels a metre there, t seconds
+  function drawSteam(c, x, y, s, t) {
+    if (!(s > 0.3)) return;
+    const hsh = (i) => { const v = Math.sin(i * 91.7 + 13.1) * 43758.5453; return v - Math.floor(v); };
+    for (let i = 0; i < 10; i++) {
+      const u = (t * 0.3 + i / 10) % 1, k = hsh(i);
+      const px = x + (Math.sin(t * 0.8 + i * 2.1) * 0.12 + (k - 0.4) * 0.3 + u * (0.4 + k * 0.5)) * s, py = y - (0.1 + u * 2.6) * s, r = (0.2 + u * 0.8) * s;
+      const al = 0.45 * Math.min(1, u * 5) * (1 - u);
+      const g = c.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, `rgba(225,226,232,${al})`); g.addColorStop(0.6, `rgba(212,213,220,${al * 0.5})`); g.addColorStop(1, "rgba(205,206,215,0)");
+      c.fillStyle = g; c.beginPath(); c.arc(px, py, r, 0, 7); c.fill();
+    }
   }
   // (a picture's own soft focus: the background behind a close-up, a touch out of focus, and its corners darker)
   function cutSoften(c, px, vig) {
@@ -16675,27 +16737,91 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the Aunt's call: on the pavement of the real main street at night, looking down it toward the hall and its clock
   // tower (a little left of her); her own pickup, dark red, stopped by the kerb behind her with its hood up
-  const CALL = { vp: null, cam: { x: -5.4, y: 1.62, z: 14, yaw: 0.27, pitch: -0.03, F: 620, cy: 248 } };
-  const AUNT_TRUCK = { side: -1, x: -7.6, z: 31, len: 5.6, col: "#6e1c1a", pickup: true, fwd: -1, hood: true };
+  // (batch I, Nov 13 2026: her truck is now the town's own (sc.truck, in the levels too), so it isn't added here)
+  const CALL = { vp: null, steam: null, glow: null, min: null, minT: 0, mc: null, roarT: -1,
+    cam: { x: -5.4, y: 1.62, z: 14, yaw: 0.27, pitch: -0.03, F: 620, cy: 248 },
+    // (the minion's alley: the gap on the right side of the street 33-37 m down; it starts in it, behind the corner,
+    // and steps out to its mouth, at the shopfronts' line)
+    alley: { x0: 16.4, x1: 13.2, z: 35 } };
   function callBack(c) {
-    const at = [{ p: [0, 0, 104] }];
-    renderTown(c, { ...CALL.cam, at }, false, [AUNT_TRUCK]);
-    CALL.vp = at[0].q;
+    const tr = sceneFor({ scene: "downtown" }).truck;
+    // (where things are on the picture: the runners' spot, the truck's engine bay, the glow's spot down the left cross
+    // street, and the near corner of the minion's alley, foot and top)
+    const at = [{ p: [0, 0, 104] }, { p: tr ? [tr.x, 1.0, tr.z + 0.8] : [-8.85, 1, 32.4] }, { p: [-12, 4, 96] }, { p: [13.5, 0, CALL.alley.z - 2] }, { p: [13.5, 12, CALL.alley.z - 2] }];
+    renderTown(c, { ...CALL.cam, at }, false, []);
+    CALL.vp = at[0].q; CALL.steam = at[1].q; CALL.glow = at[2].q; CALL.corner = [at[3].q, at[4].q];
     cutSoften(c, 1.1, 0.45);
+  }
+  // a runner far off, side on, running right: the head, a body leaning into it, both legs and both arms bent at the
+  // elbow and swinging, each arm with the opposite leg (x, y: the feet's line; s: about the height; ph: the stride)
+  function cutRunner(c, x, y, s, ph) {
+    const sw = Math.sin(ph), hip = { x, y: y - s * 0.5 }, sh = { x: x + s * 0.09, y: y - s * 0.9 };
+    const at = (o, a, l) => ({ x: o.x + Math.sin(a) * l, y: o.y + Math.cos(a) * l }); // (a from straight down, + forward)
+    c.strokeStyle = c.fillStyle = "rgba(8,10,14,.9)"; c.lineCap = "round"; c.lineJoin = "round";
+    // legs: the thigh swinging, the knee bending most as it comes through
+    for (const k of [1, -1]) {
+      const a = k * sw * 0.7, bend = 0.25 + 1.1 * Math.max(0, k * Math.cos(ph)), kn = at(hip, a, s * 0.26), ft = at(kn, a - bend, s * 0.26);
+      c.lineWidth = Math.max(1.4, s * 0.1); c.beginPath(); c.moveTo(hip.x, hip.y); c.lineTo(kn.x, kn.y); c.lineTo(ft.x, ft.y); c.stroke();
+    }
+    c.lineWidth = Math.max(1.8, s * 0.15); c.beginPath(); c.moveTo(hip.x, hip.y); c.lineTo(sh.x, sh.y); c.stroke();
+    // arms: each swung against its leg, bent about square at the elbow, the forearm forward and up
+    for (const k of [1, -1]) {
+      const a = -k * sw * 0.85, el = at(sh, a, s * 0.2), hd = at(el, a + 1.45, s * 0.18);
+      c.lineWidth = Math.max(1.2, s * 0.085); c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(el.x, el.y); c.lineTo(hd.x, hd.y); c.stroke();
+    }
+    c.beginPath(); c.arc(x + s * 0.14, y - s * 1.08, s * 0.14, 0, 7); c.fill();
   }
   function paintCall(c, t, p, back) {
     c.drawImage(back, 0, 0, 800, 450);
-    // people running far down the real street (about 100 m off, where CALL.vp is), across it and away, arms going
+    // people running far down the real street (about 100 m off, where CALL.vp is), across it and away
+    // (batch I, the user: bent arms, swinging one forward as the other goes back)
     const vp = CALL.vp || { x: 250, y: 266, s: 6 };
     for (let i = 0; i < 4; i++) {
-      const u = ((t * 0.09 + i * 0.27) % 1), x = vp.x - 14 * vp.s + u * 28 * vp.s + i * 4, y = vp.y + i * 1.5, s = vp.s * (1.75 - i * 0.12), ph = t * 12 + i;
-      c.strokeStyle = "rgba(8,10,14,.9)"; c.lineWidth = 1.6; c.lineCap = "round";
-      c.beginPath(); c.moveTo(x, y - s); c.lineTo(x, y - s * 0.45); c.moveTo(x, y - s * 0.45); c.lineTo(x + Math.sin(ph) * s * 0.3, y); c.moveTo(x, y - s * 0.45); c.lineTo(x - Math.sin(ph) * s * 0.3, y);
-      c.moveTo(x, y - s * 0.85); c.lineTo(x + Math.cos(ph) * s * 0.35, y - s * 0.55); c.stroke();
-      c.fillStyle = "rgba(8,10,14,.9)"; c.beginPath(); c.arc(x, y - s * 1.1, s * 0.17, 0, 7); c.fill();
+      const u = ((t * 0.09 + i * 0.27) % 1), x = vp.x - 14 * vp.s + u * 28 * vp.s + i * 4, y = vp.y + i * 1.5, s = vp.s * (1.75 - i * 0.12);
+      cutRunner(c, x, y, s * 1.2, t * 10 + i * 1.7);
     }
-    // (at "What is that?!", something far off roars)
-    if (CUT.step === 3 && !CUT.cued.roar && CUT.st > 0.4) { CUT.cued.roar = true; tone(70, 42, 1.6, 0.2, "sawtooth"); noise(1.3, 320, 0.14, 110); }
+    // (batch I) the steam off her truck, live
+    if (CALL.steam && !CALL.steam.behind) drawSteam(c, CALL.steam.x, CALL.steam.y, CALL.steam.s, t);
+    // (batch I, the user's design) from "This is very weird." on, a minion steps slowly out of the alley behind her and
+    // stands at its mouth, its face lit, breathing, as on Downtown (back a line before that, and it's gone again)
+    if (CUT.step >= 2) {
+      const k = c.getTransform().a, cw = Math.ceil(800 * k), ch = Math.ceil(450 * k), sc = sceneFor({ scene: "downtown" });
+      if (!CALL.mc) CALL.mc = document.createElement("canvas");
+      if (CALL.mc.width !== cw || CALL.mc.height !== ch) { CALL.mc.width = cw; CALL.mc.height = ch; }
+      const mx = CALL.mc.getContext("2d"); mx.setTransform(1, 0, 0, 1, 0, 0); mx.clearRect(0, 0, cw, ch);
+      if (!CALL.min && sc.newCutMin) { CALL.min = sc.newCutMin(CALL.alley.x0, CALL.alley.z); CALL.minT = t; }
+      if (CALL.min) {
+        const dt = Math.min(0.05, Math.max(0, t - (CALL.min.lastT ?? t))); CALL.min.lastT = t;
+        townDo(mx, CALL.cam, (s2) => s2.cutMin(CALL.min, t, dt, CALL.alley.x1, k));
+        // (the backdrop's darker corners over it too, and what's behind the near corner of the alley hidden)
+        mx.setTransform(k, 0, 0, k, 0, 0); mx.globalCompositeOperation = "source-atop";
+        const vg = mx.createRadialGradient(400, 230, 160, 400, 230, 520); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.45)"); mx.fillStyle = vg; mx.fillRect(0, 0, 800, 450);
+        mx.globalCompositeOperation = "source-over";
+        c.save();
+        const e0 = CALL.corner && CALL.corner[0], e1 = CALL.corner && CALL.corner[1];
+        if (e0 && e1 && !e0.behind && !e1.behind) {
+          const xAt = (y) => e0.x + ((e1.x - e0.x) * (y - e0.y)) / (e1.y - e0.y || 1);
+          c.beginPath(); c.moveTo(-50, -50); c.lineTo(xAt(-50), -50); c.lineTo(xAt(500), 500); c.lineTo(-50, 500); c.closePath(); c.clip();
+        }
+        c.drawImage(CALL.mc, 0, 0, 800, 450);
+        c.restore();
+      }
+    } else CALL.min = null;
+    // (at "What is that?!", something far off roars: Squash Head's own roar at half volume, off to the left, and a glow
+    // comes up down the street where she's looking; batch I)
+    if (CUT.step === 3 && !CUT.cued.roar && CUT.st > 0.4) { CUT.cued.roar = true; CALL.roarT = t; const sc = sceneFor({ scene: "downtown" }); if (sc.roarFar) sc.roarFar(0.5, -0.6); }
+    if (CUT.step >= 3 && CALL.roarT >= 0 && CALL.glow && !CALL.glow.behind) {
+      const g0 = Math.min(1, (t - CALL.roarT) / 0.5), fl = 0.75 + 0.15 * Math.sin(t * 7.3) + 0.1 * Math.sin(t * 13.1 + 1), q = CALL.glow;
+      c.save(); c.globalCompositeOperation = "lighter";
+      // (out of the left cross street, about 80 m off: a bright core low down, a wider haze above the roofs)
+      for (const [r, a0, sy] of [[95, 0.34, 0.7], [170, 0.1, 0.8]]) {
+        c.save(); c.translate(q.x, q.y); c.scale(1, sy);
+        const g = c.createRadialGradient(0, 0, 0, 0, 0, r);
+        g.addColorStop(0, `rgba(255,150,60,${a0 * g0 * fl})`); g.addColorStop(0.45, `rgba(240,110,40,${a0 * 0.4 * g0 * fl})`); g.addColorStop(1, "rgba(220,90,30,0)");
+        c.fillStyle = g; c.fillRect(-r, -r, 2 * r, 2 * r); c.restore();
+      }
+      c.restore();
+    } else if (CUT.step < 3) { CALL.roarT = -1; CUT.cued.roar = false; }
     // her, bust on, bigger than on the porch, a little right of the middle
     const ax = 470;
     c.save(); c.translate(ax, 226); c.scale(1.5, 1.5); c.translate(-ax, -188);
@@ -16717,7 +16843,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (soft-edged, each a glow squashed flat onto the road, fainter further off)
     for (let i = 0; i < 16; i++) {
       const y = 345 + cutR(i + 40) * 100, k = (y - 330) / 120, x = 400 + (cutR(i + 3) - 0.5) * 760 * k + Math.sin(t * 0.4 + i) * 5, r = (16 + cutR(i + 9) * 22) * k;
-      const a = (0.07 + 0.05 * Math.sin(t * 0.7 + i * 1.7)) * k;
+      const a = (0.05 + 0.035 * Math.sin(t * 0.7 + i * 1.7)) * k; // (batch I: a little less light, was 0.07 + 0.05)
       c.save(); c.translate(x, y); c.scale(1, 0.28);
       const g = c.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(255,200,120,${a})`); g.addColorStop(1, "rgba(255,200,120,0)");
       c.fillStyle = g; c.beginPath(); c.arc(0, 0, r, 0, 7); c.fill(); c.restore();
@@ -16725,98 +16851,202 @@ body.lab .stage > :not(canvas) { display: none; }
     c.restore();
     // (smaller, and left of the middle, so the Pneuman stays in on a wide field and the sun and the tower show beside
     // the raised arm)
-    c.save(); c.translate(300, 394); c.scale(0.62, 0.62); c.translate(-400, -440);
+    // (batch I: a little smaller again (0.62 → 0.52), a touch further down the street, so the Pneuman drawn to the
+    // game's own proportions stays in the picture)
+    // (batch I, the user's design) the Aunt, already in the street when it opens, walks in from the right toward Riley,
+    // arms up, and pumps them twice; drawn first, as she's a step further off
+    { const e = cutEase(Math.min(1, t / 11)), ax = cutLerp(650, 468, e);
+      c.save(); c.translate(ax, 392); c.scale(0.5, 0.5);
+      try { drawAuntWalk(c, t, 182 * e); } finally { c.restore(); } }
+    c.save(); c.translate(300, 394); c.scale(0.52, 0.52); c.translate(-400, -440);
     try { drawRileyBack(c, t); } finally { c.restore(); }
   }
+  // the Pneuman off its cart, as the game draws it (drawLauncher), laid along a line: x along its axis from the hand
+  // (toward the muzzle), y across it toward its "top" (the side the gauge and the valve's lever are on), turned `turn`
+  // of the way toward us. In the game's units (U to a unit): the T (0.84 across, end caps), the galvanized chamber up
+  // from it (0.7, with the gauge on a short brass fitting 0.315 along it), the brass ball valve (0.16) with its blue
+  // lever (open: lying back along the chamber), the threaded coupler, the black barrel (1.15), masking tape round it.
+  // `at`: where the hand holds it, as a share of the chamber from the T
+  function drawPneuman(c, U, at, turn) {
+    const CHl = 0.7, VAl = 0.16, BAl = 1.15, x0 = -at * CHl * U, xc = (CHl - at * CHl) * U, xv = xc + VAl * U, xb = xv + BAl * U;
+    const ct = Math.cos(turn), st = Math.sin(turn);
+    const seg = (xa, ya, xb2, yb, w, col, cap = "butt") => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = cap; c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb2, yb); c.stroke(); };
+    // the T across the chamber's foot: its bar runs across the axis and partly toward us, so it shows shortened, its
+    // end caps as ends of a pipe
+    const tb = 0.42 * U * st, cap = 0.13 * U / 2;
+    seg(x0, -tb, x0, tb, 0.1 * U, "#a7b0b8", "round"); seg(x0, -tb, x0, tb, 0.03 * U, "#d0d8de");
+    for (const sd of [-1, 1]) { c.fillStyle = "#8f99a1"; c.beginPath(); c.ellipse(x0, sd * tb, cap, cap * ct + 1.5, 0, 0, 7); c.fill(); c.strokeStyle = "#5c666e"; c.lineWidth = 1; c.stroke(); }
+    // the chamber, galvanized, with its shine
+    seg(x0, 0, xc, 0, 0.11 * U, "#b8c2ca", "round"); seg(x0, -0.02 * U, xc, -0.02 * U, 0.035 * U, "#dde4ea");
+    // the gauge: up off the chamber on its brass fitting, its face turned partly toward us (so an oval), the needle
+    // resting at 0
+    const gx = (0.315 - at) * CHl * U, gk = ct;
+    seg(gx, 0.04 * U * gk, gx, 0.1 * U * gk, 0.035 * U, "#c4902a"); seg(gx, 0.05 * U * gk, gx, 0.07 * U * gk, 0.05 * U, "#d9a632");
+    const gy = 0.15 * U * gk, gr = 0.07 * U;
+    c.fillStyle = "#d9a632"; c.beginPath(); c.ellipse(gx, gy, gr * 1.18, gr * 1.18 * st, 0, 0, 7); c.fill();
+    c.fillStyle = "#fffaf0"; c.beginPath(); c.ellipse(gx, gy, gr, gr * st, 0, 0, 7); c.fill();
+    c.strokeStyle = "#e8452c"; c.lineWidth = Math.max(1, gr * 0.18); c.lineCap = "round"; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - gr * 0.55, gy + gr * 0.55 * st); c.stroke();
+    // the brass ball valve, its body a touch wider
+    seg(xc, 0, xv, 0, 0.15 * U, "#d9a632"); seg(xc + 0.04 * U, 0, xv - 0.04 * U, 0, 0.17 * U, "#c4902a");
+    // the barrel (black) from the valve, its coupler's bands at the foot, a soft shine, the muzzle; masking tape round it
+    seg(xv, 0, xb, 0, 0.17 * U, "#2a2a2e"); seg(xv + 0.15 * U, -0.035 * U, xb, -0.035 * U, 0.05 * U, "#3c3c43");
+    for (let i = 0; i < 4; i++) seg(xv + (0.02 + i * 0.035) * U, 0, xv + (0.035 + i * 0.035) * U, 0, 0.2 * U, i % 2 ? "#2a2a2e" : "#4a4a52");
+    { const tx = xv + 0.42 * U; c.fillStyle = "#d8cba4"; c.fillRect(tx, -0.085 * U, 0.2 * U, 0.17 * U); c.strokeStyle = "rgba(120,100,60,.5)"; c.lineWidth = 1; c.strokeRect(tx, -0.085 * U, 0.2 * U, 0.17 * U); }
+    c.fillStyle = "#121214"; c.beginPath(); c.ellipse(xb, 0, 0.03 * U, 0.085 * U, 0, 0, 7); c.fill();
+    // the blue lever, open: from its stem on top of the valve, lying back along the chamber
+    const lv = xc + VAl * U / 2, ly = 0.09 * U * gk;
+    seg(lv, ly, lv - 0.3 * U, ly, 0.1 * U, "#1f4f9e", "round"); seg(lv, ly, lv - 0.3 * U, ly, 0.075 * U, "#2f6fd0", "round");
+    c.fillStyle = "#c0c6cc"; c.beginPath(); c.arc(lv, ly, 0.04 * U, 0, 7); c.fill();
+    c.lineCap = "butt";
+  }
   // Riley from behind, standing at the end of the street: no clear gender (shaggy brown hair, the teal hoodie, jeans,
-  // sneakers); the left fist down at the side, the right arm up and out with the Pneuman (the upside-down T: the black
-  // barrel, the white chamber across its foot with the gauge and the blue valve), pumped three times, the torso and
-  // shoulders tilting toward it; backlit by the sun, a warm rim on the hair and shoulders
+  // sneakers); the left fist down at the side, the right arm up with the Pneuman, pumped three times
+  // (batch I, Nov 13 2026, the user: thinner through the body; the Pneuman drawn as the game's (drawPneuman), held just
+  // below its gauge on the steel chamber, the forearm, hand and Pneuman one straight line (no wrist bend) pointing up
+  // and to the left; each pump bends the elbow only, the hand pulled back down that line and thrust up it again; the
+  // shoulders tilt as it goes up, the right up and the left down, about 20° at the most)
   function drawRileyBack(c, t) {
     const x0 = 400, foot = 440;
-    // (the pumps: three, from 1.25 s; each a dip of the arm and back up, then held high)
-    let pump = 0; for (const at of [1.25, 2.05, 2.85]) { const u = (t - at) / 0.7; if (u > 0 && u < 1) pump = Math.sin(u * Math.PI); }
-    const lean = 0.07 + pump * 0.03, rise = Math.min(1, t / 0.9);
-    // a limb as one tapering shape along A → B → C (widths at each), with rounded ends: no straight-line stick limbs
+    // (each pump: the hand drawn back down its line (0 → 1), then thrust up it again; the shoulders' tilt (tl, 0–1) rises
+    // with the thrust and settles after)
+    let pump = 0, tl = 0;
+    for (const at of RILEY_PUMPS) {
+      const u = (t - at) / 0.9; if (u <= 0 || u >= 1) continue;
+      pump = u < 0.4 ? cutEase(u / 0.4) : u < 0.6 ? 1 - cutEase((u - 0.4) / 0.2) : 0;
+      tl = u < 0.4 ? 0 : Math.sin(Math.PI * Math.min(1, (u - 0.4) / 0.6));
+    }
+    const lean = 0.03, d = 15 * tl; // (d: how far each shoulder moves up or down, ~20° across the shoulders at the most)
     const limb = (A, B2, C, w0, w1, w2, fill) => {
-      const side = (P0, P1, w, k) => { const dx = P1.x - P0.x, dy = P1.y - P0.y, l = Math.hypot(dx, dy) || 1; return { x: -dy / l * w * k, y: dx / l * w * k }; };
-      const nA = side(A, B2, w0 / 2, 1), nB1 = side(A, B2, w1 / 2, 1), nB2 = side(B2, C, w1 / 2, 1), nC = side(B2, C, w2 / 2, 1);
+      const side = (P0, P1, w) => { const dx = P1.x - P0.x, dy = P1.y - P0.y, l = Math.hypot(dx, dy) || 1; return { x: -dy / l * w, y: dx / l * w }; };
+      const nA = side(A, B2, w0 / 2), nB1 = side(A, B2, w1 / 2), nB2 = side(B2, C, w1 / 2), nC = side(B2, C, w2 / 2);
       c.fillStyle = fill; c.beginPath();
       c.moveTo(A.x + nA.x, A.y + nA.y); c.quadraticCurveTo(B2.x + (nB1.x + nB2.x) / 2 * 1.05, B2.y + (nB1.y + nB2.y) / 2 * 1.05, C.x + nC.x, C.y + nC.y);
       c.lineTo(C.x - nC.x, C.y - nC.y); c.quadraticCurveTo(B2.x - (nB1.x + nB2.x) / 2 * 1.05, B2.y - (nB1.y + nB2.y) / 2 * 1.05, A.x - nA.x, A.y - nA.y); c.closePath(); c.fill();
       c.beginPath(); c.arc(A.x, A.y, w0 / 2, 0, 7); c.arc(C.x, C.y, w2 / 2, 0, 7); c.fill();
     };
     const skin = "#b07a5a", skinD = "#8d5c40", jean = "#2b3550", jeanD = "#1f2740", hood = "#2a8584", hoodD = "#1d6463", rim = "rgba(255,206,140,.7)";
-    // its long shadow, toward you (the sun's behind it), soft at the edges
     c.save(); c.translate(x0, foot + 2); c.scale(1, 2.4);
-    const sg = c.createRadialGradient(0, 14, 4, 0, 14, 60); sg.addColorStop(0, "rgba(40,22,26,.45)"); sg.addColorStop(1, "rgba(40,22,26,0)"); c.fillStyle = sg; c.beginPath(); c.ellipse(0, 14, 46, 28, 0, 0, 7); c.fill();
+    const sg = c.createRadialGradient(0, 14, 4, 0, 14, 52); sg.addColorStop(0, "rgba(40,22,26,.42)"); sg.addColorStop(1, "rgba(40,22,26,0)"); c.fillStyle = sg; c.beginPath(); c.ellipse(0, 14, 38, 26, 0, 0, 7); c.fill();
     c.restore();
     c.save(); c.translate(x0, foot); c.rotate(lean * 0.4); c.lineCap = "round"; c.lineJoin = "round";
-    // legs: jeans tapering to the ankle, a little apart, the right knee easing with each pump; the seams down the back
-    const kneeR = 4 * pump;
-    limb({ x: -20, y: -158 }, { x: -27, y: -84 }, { x: -31, y: -22 }, 36, 29, 25, jean);
-    limb({ x: 20, y: -158 }, { x: 28 + kneeR, y: -86 }, { x: 34, y: -22 }, 36, 29, 25, jean);
-    c.strokeStyle = jeanD; c.lineWidth = 1.6; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 21, -150); c.quadraticCurveTo(s * 27, -86, s * 32, -26); c.stroke(); }
-    c.fillStyle = jeanD; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 32, -24, 13, 4, 0, 0, 7); c.fill(); }
-    // sneakers, from behind: the heel counter, the sole, a stripe
+    // legs: slimmer jeans, a little apart, the seams down the back
+    limb({ x: -15, y: -158 }, { x: -20, y: -84 }, { x: -24, y: -22 }, 29, 23, 20, jean);
+    limb({ x: 15, y: -158 }, { x: 21 + 2 * pump, y: -86 }, { x: 26, y: -22 }, 29, 23, 20, jean);
+    c.strokeStyle = jeanD; c.lineWidth = 1.5; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 16, -150); c.quadraticCurveTo(s * 21, -86, s * 25, -26); c.stroke(); }
+    c.fillStyle = jeanD; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 25, -24, 11, 4, 0, 0, 7); c.fill(); }
     for (const s of [-1, 1]) {
-      const fx = s * 33;
-      c.fillStyle = "#ece8e0"; c.beginPath(); c.moveTo(fx - 16, -4); c.quadraticCurveTo(fx - 17, -24, fx, -25); c.quadraticCurveTo(fx + 17, -24, fx + 16, -4); c.closePath(); c.fill();
-      c.fillStyle = "#b9b2a8"; cutRR(c, fx - 18, -6, 36, 7, 3); c.fill();
-      c.fillStyle = "#2a8584"; c.fillRect(fx - 3, -22, 6, 12);
+      const fx = s * 26;
+      c.fillStyle = "#ece8e0"; c.beginPath(); c.moveTo(fx - 14, -4); c.quadraticCurveTo(fx - 15, -23, fx, -24); c.quadraticCurveTo(fx + 15, -23, fx + 14, -4); c.closePath(); c.fill();
+      c.fillStyle = "#b9b2a8"; cutRR(c, fx - 16, -6, 32, 7, 3); c.fill();
+      c.fillStyle = "#2a8584"; c.fillRect(fx - 3, -21, 6, 11);
     }
-    // the torso, leaning toward the raised arm
+    // the torso; its shoulders tilting with the thrust (right up, left down)
     c.save(); c.translate(0, -150); c.rotate(lean);
-    // the hoodie: rounded shoulders, roomy, its ribbed hem over the hips; shaded on the side away from the sun
-    const body = () => { c.beginPath(); c.moveTo(-30, -126); c.quadraticCurveTo(-52, -124, -54, -100); c.quadraticCurveTo(-58, -50, -52, 8); c.quadraticCurveTo(0, 14, 52, 8); c.quadraticCurveTo(58, -50, 54, -100); c.quadraticCurveTo(52, -124, 30, -126); c.quadraticCurveTo(0, -132, -30, -126); c.closePath(); };
-    const bg = c.createLinearGradient(-56, 0, 56, 0); bg.addColorStop(0, hoodD); bg.addColorStop(0.55, hood); bg.addColorStop(1, "#3a9a96");
+    const shL = { x: -36, y: -110 + d }, shR = { x: 36, y: -110 - d }, nk = 0.55 * d;
+    const body = () => { c.beginPath(); c.moveTo(-22, -127 + nk); c.quadraticCurveTo(-40, -125 + d, -43, -102 + d); c.quadraticCurveTo(-46, -50, -42, 8); c.quadraticCurveTo(0, 13, 42, 8); c.quadraticCurveTo(46, -50, 43, -102 - d); c.quadraticCurveTo(40, -125 - d, 22, -127 - nk); c.quadraticCurveTo(0, -132, -22, -127 + nk); c.closePath(); };
+    const bg = c.createLinearGradient(-46, 0, 46, 0); bg.addColorStop(0, hoodD); bg.addColorStop(0.55, hood); bg.addColorStop(1, "#3a9a96");
     body(); c.fillStyle = bg; c.fill();
-    c.fillStyle = hoodD; c.beginPath(); c.moveTo(-52, -6); c.quadraticCurveTo(0, 0, 52, -6); c.lineTo(52, 8); c.quadraticCurveTo(0, 14, -52, 8); c.closePath(); c.fill();
-    c.strokeStyle = "rgba(10,40,40,.35)"; c.lineWidth = 1.4; for (let x = -46; x <= 46; x += 7) { c.beginPath(); c.moveTo(x, -4); c.lineTo(x, 9); c.stroke(); }
-    // creases where the back pulls toward the raised arm
+    c.fillStyle = hoodD; c.beginPath(); c.moveTo(-42, -6); c.quadraticCurveTo(0, 0, 42, -6); c.lineTo(42, 8); c.quadraticCurveTo(0, 13, -42, 8); c.closePath(); c.fill();
+    c.strokeStyle = "rgba(10,40,40,.35)"; c.lineWidth = 1.3; for (let x = -37; x <= 37; x += 6.5) { c.beginPath(); c.moveTo(x, -4); c.lineTo(x, 9); c.stroke(); }
     c.strokeStyle = "rgba(10,40,40,.3)"; c.lineWidth = 2;
-    for (const [a, b] of [[-20, -40], [-8, -70], [6, -95]]) { c.beginPath(); c.moveTo(a, b); c.quadraticCurveTo(a + 18, b - 12, a + 40, b - 30); c.stroke(); }
-    // the hood lying on its back, its lining in shadow
-    c.fillStyle = hoodD; c.beginPath(); c.moveTo(-30, -126); c.quadraticCurveTo(-34, -84, 0, -74); c.quadraticCurveTo(34, -84, 30, -126); c.quadraticCurveTo(0, -116, -30, -126); c.fill();
-    c.fillStyle = "#17504f"; c.beginPath(); c.moveTo(-22, -124); c.quadraticCurveTo(0, -92, 22, -124); c.quadraticCurveTo(0, -118, -22, -124); c.fill();
-    // the left arm down, the fist at the side
-    limb({ x: -46, y: -112 }, { x: -60, y: -60 }, { x: -58, y: -16 }, 26, 22, 19, hoodD);
-    c.fillStyle = hoodD; cutRR(c, -68, -22, 20, 10, 4); c.fill();
-    c.fillStyle = skin; c.beginPath(); c.ellipse(-58, -6, 10, 12, 0, 0, 7); c.fill(); c.strokeStyle = skinD; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-64, -6); c.lineTo(-52, -6); c.stroke();
-    // the right arm up and out to the side (it dips with each pump), and the Pneuman in its hand
-    const reach = cutLerp(0.25, 1, rise) - pump * 0.35, sh = { x: 42, y: -112 }, a1 = -0.7 - reach * 0.5, el = { x: sh.x + Math.cos(a1) * 62, y: sh.y + Math.sin(a1) * 62 };
-    const a2 = a1 - 0.25 + pump * 0.6, hd = { x: el.x + Math.cos(a2) * 58, y: el.y + Math.sin(a2) * 58 };
-    limb(sh, el, hd, 27, 22, 19, hood);
-    c.strokeStyle = rim; c.lineWidth = 2; c.beginPath(); c.moveTo(sh.x + 10, sh.y - 6); c.quadraticCurveTo(el.x + 10, el.y, hd.x + 8, hd.y + 4); c.stroke();
-    c.save(); c.translate(hd.x, hd.y); c.rotate(0.35 - pump * 0.5);
-    // (the Pneuman, off its cart: the black barrel up and back from the hand, the white chamber across its foot with
-    // the gauge and the blue valve handle; a shine down the barrel)
-    c.strokeStyle = "#17181b"; c.lineWidth = 11; c.lineCap = "butt"; c.beginPath(); c.moveTo(0, 0); c.lineTo(-10, -150); c.stroke();
-    c.strokeStyle = "rgba(255,210,150,.45)"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(3, -6); c.lineTo(-6, -146); c.stroke();
-    c.fillStyle = "#22242a"; c.fillRect(-17, -156, 14, 8);
-    c.lineCap = "round";
-    const cg = c.createLinearGradient(0, -8, 0, 10); cg.addColorStop(0, "#fbf8f0"); cg.addColorStop(1, "#c9c3b6");
-    c.fillStyle = cg; c.strokeStyle = "#8f8a80"; c.lineWidth = 1.5; cutRR(c, -42, -9, 84, 18, 9); c.fill(); c.stroke();
-    c.fillStyle = "#f2efe8"; c.beginPath(); c.arc(-26, -16, 9, 0, 7); c.fill(); c.strokeStyle = "#4a4a4a"; c.lineWidth = 1.4; c.stroke(); c.beginPath(); c.moveTo(-26, -16); c.lineTo(-21, -21); c.stroke();
-    c.fillStyle = "#2c6fd0"; cutRR(c, 20, -18, 20, 6, 3); c.fill(); c.fillStyle = "#555"; c.fillRect(27, -13, 4, 5);
+    for (const [a, b] of [[-16, -40], [-6, -70], [5, -95]]) { c.beginPath(); c.moveTo(a, b); c.quadraticCurveTo(a + 15, b - 12 - d * 0.3, a + 32, b - 28 - d * 0.6); c.stroke(); }
+    // the hood lying on its back
+    c.fillStyle = hoodD; c.beginPath(); c.moveTo(-24, -126 + nk); c.quadraticCurveTo(-28, -84, 0, -75); c.quadraticCurveTo(28, -84, 24, -126 - nk); c.quadraticCurveTo(0, -117, -24, -126 + nk); c.fill();
+    c.fillStyle = "#17504f"; c.beginPath(); c.moveTo(-18, -124 + nk); c.quadraticCurveTo(0, -93, 18, -124 - nk); c.quadraticCurveTo(0, -118, -18, -124 + nk); c.fill();
+    // the left arm down, the fist at the side (it drops with its shoulder)
+    limb({ x: shL.x - 2, y: shL.y + 2 }, { x: -48, y: -60 + d }, { x: -47, y: -18 + d }, 22, 19, 16, hoodD);
+    c.fillStyle = hoodD; cutRR(c, -55, -24 + d, 17, 9, 4); c.fill();
+    c.fillStyle = skin; c.beginPath(); c.ellipse(-47, -8 + d, 9, 11, 0, 0, 7); c.fill(); c.strokeStyle = skinD; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-52, -8 + d); c.lineTo(-42, -8 + d); c.stroke();
+    // the right arm: the hand on a line up and to the left of the shoulder (pulled back down it by the pump); the elbow
+    // found from the arm's two lengths, bending out to the right
+    const UA = 60, FA = 54, up = { x: Math.cos(-1.75), y: Math.sin(-1.75) }, along = { x: Math.cos(-2.09), y: Math.sin(-2.09) };
+    const hd = { x: shR.x + up.x * 104 - along.x * 40 * pump, y: shR.y + up.y * 104 - along.y * 40 * pump };
+    const dx = hd.x - shR.x, dy = hd.y - shR.y, dl = Math.min(Math.hypot(dx, dy), UA + FA - 1), th = Math.atan2(dy, dx);
+    const al = Math.acos(Math.max(-1, Math.min(1, (UA * UA + dl * dl - FA * FA) / (2 * UA * dl)))), el = { x: shR.x + Math.cos(th + al) * UA, y: shR.y + Math.sin(th + al) * UA };
+    const vl = Math.hypot(hd.x - el.x, hd.y - el.y) || 1, v = { x: (hd.x - el.x) / vl, y: (hd.y - el.y) / vl }, n = { x: -v.y, y: v.x };
+    // (the Pneuman first: the forearm's sleeve goes over the T and the chamber below the fist, which runs just beside
+    // the wrist; the fist over all)
+    c.save(); c.translate(hd.x + n.x * 6, hd.y + n.y * 6); c.rotate(Math.atan2(v.y, v.x));
+    drawPneuman(c, 150, 0.17, 0.8);
     c.restore();
-    c.fillStyle = hood; cutRR(c, hd.x - 11, hd.y + 4, 22, 10, 4); c.fill();
-    c.fillStyle = skin; c.beginPath(); c.ellipse(hd.x, hd.y, 11, 12, 0, 0, 7); c.fill(); c.strokeStyle = skinD; c.lineWidth = 1.2; c.beginPath(); c.moveTo(hd.x - 7, hd.y + 2); c.lineTo(hd.x + 7, hd.y - 2); c.stroke();
-    // the head, from behind: the neck in shadow, ears, then shaggy hair in layers of tufts; the sun's rim along the top
-    // of the hair and across the shoulders
-    c.fillStyle = skinD; c.beginPath(); c.moveTo(-11, -122); c.lineTo(-10, -140); c.lineTo(10, -140); c.lineTo(11, -122); c.quadraticCurveTo(0, -118, -11, -122); c.fill();
-    c.fillStyle = skin; c.beginPath(); c.ellipse(-25, -160, 5.5, 10, -0.15, 0, 7); c.ellipse(25, -160, 5.5, 10, 0.15, 0, 7); c.fill();
+    limb({ x: shR.x - 2, y: shR.y + 2 }, el, { x: hd.x - v.x * 14, y: hd.y - v.y * 14 }, 23, 19, 17, hood);
+    c.strokeStyle = rim; c.lineWidth = 2; c.beginPath(); c.moveTo(shR.x + 8, shR.y - 5); c.quadraticCurveTo(el.x + 9, el.y, hd.x + n.x * 8, hd.y + n.y * 8); c.stroke();
+    c.save(); c.translate(hd.x - v.x * 12, hd.y - v.y * 12); c.rotate(Math.atan2(v.y, v.x)); c.fillStyle = hood; cutRR(c, -6, -10, 10, 20, 4); c.fill(); c.restore();
+    // the fist round the chamber, from behind: the back of the hand, the knuckles across the pipe
+    c.save(); c.translate(hd.x + n.x * 3, hd.y + n.y * 3); c.rotate(Math.atan2(v.y, v.x));
+    c.fillStyle = skin; c.beginPath(); c.ellipse(0, 0, 10, 12, 0, 0, 7); c.fill();
+    c.strokeStyle = skinD; c.lineWidth = 1.2; for (const k of [-4, 0, 4]) { c.beginPath(); c.moveTo(k + 3, -9); c.lineTo(k + 3, 9); c.stroke(); }
+    c.restore();
+    // the head, from behind (tipping a little with the shoulders): the neck in shadow, ears, shaggy hair in tufts; the
+    // sun's rim along the top of the hair and across the shoulders
+    c.save(); c.translate(0, -130); c.rotate(-0.12 * tl); c.translate(0, 130);
+    c.fillStyle = skinD; c.beginPath(); c.moveTo(-10, -122); c.lineTo(-9, -140); c.lineTo(9, -140); c.lineTo(10, -122); c.quadraticCurveTo(0, -118, -10, -122); c.fill();
+    c.fillStyle = skin; c.beginPath(); c.ellipse(-24, -160, 5.5, 10, -0.15, 0, 7); c.ellipse(24, -160, 5.5, 10, 0.15, 0, 7); c.fill();
     const hairD = "#3a2416", hair = "#5a3a24";
-    c.fillStyle = hairD; c.beginPath(); c.ellipse(0, -166, 26, 31, 0, 0, 7); c.fill();
+    c.fillStyle = hairD; c.beginPath(); c.ellipse(0, -166, 25, 30, 0, 0, 7); c.fill();
     for (let i = 0; i < 14; i++) {
-      const a = -3.05 + i * 0.235, rr = 25 + (i % 3) * 3, tx = Math.cos(a) * rr, ty = -166 + Math.sin(a) * rr * 1.15;
+      const a = -3.05 + i * 0.235, rr = 24 + (i % 3) * 3, tx = Math.cos(a) * rr, ty = -166 + Math.sin(a) * rr * 1.15;
       c.fillStyle = i % 2 ? hairD : hair; c.beginPath(); c.moveTo(tx * 0.5, ty * 0.5 - 83); c.quadraticCurveTo(tx * 1.1 + Math.sin(i) * 4, ty + 2, tx * 1.15, ty + 9); c.quadraticCurveTo(tx * 0.8, ty + 4, tx * 0.45, ty * 0.5 - 80); c.fill();
     }
-    c.fillStyle = hair; c.beginPath(); c.moveTo(-23, -150); c.quadraticCurveTo(-18, -132, -12, -136); c.quadraticCurveTo(-6, -127, 0, -134); c.quadraticCurveTo(7, -126, 13, -135); c.quadraticCurveTo(19, -130, 23, -150); c.closePath(); c.fill();
-    c.strokeStyle = "rgba(30,18,10,.5)"; c.lineWidth = 1.2; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 5, -194); c.quadraticCurveTo(i * 7 + 3, -168, i * 6, -140); c.stroke(); }
-    c.strokeStyle = rim; c.lineWidth = 2.5; c.beginPath(); c.arc(0, -168, 29, -2.5, -0.55); c.stroke();
-    c.lineWidth = 2; c.beginPath(); c.moveTo(-30, -126); c.quadraticCurveTo(0, -133, 30, -126); c.quadraticCurveTo(50, -124, 54, -100); c.stroke();
+    c.fillStyle = hair; c.beginPath(); c.moveTo(-22, -150); c.quadraticCurveTo(-17, -132, -11, -136); c.quadraticCurveTo(-6, -127, 0, -134); c.quadraticCurveTo(7, -126, 12, -135); c.quadraticCurveTo(18, -130, 22, -150); c.closePath(); c.fill();
+    c.strokeStyle = "rgba(30,18,10,.5)"; c.lineWidth = 1.2; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 5, -193); c.quadraticCurveTo(i * 7 + 3, -168, i * 6, -140); c.stroke(); }
+    c.strokeStyle = rim; c.lineWidth = 2.5; c.beginPath(); c.arc(0, -168, 28, -2.5, -0.55); c.stroke();
+    c.restore();
+    c.strokeStyle = rim; c.lineWidth = 2; c.beginPath(); c.moveTo(-24, -127 + nk); c.quadraticCurveTo(0, -133, 24, -127 - nk); c.quadraticCurveTo(40, -125 - d, 43, -102 - d); c.stroke();
     c.restore(); c.restore();
+  }
+  // (batch I, Nov 13 2026, the user's design) the Aunt at the end, whole, walking in from the right toward Riley:
+  // jeans and boots, the maroon tee under the open plaid flannel, her dark hair up in its bun, grinning; both arms up,
+  // pumped twice (AUNT_PUMPS): each pump from the lowered Vs (fists up by her shoulders, elbows down and out) up into one
+  // big V over her head (images/cutscenes/victory-pump-lowered-Vs, victory-pump-upperV), the second held. Backlit like
+  // Riley: her front in the shade, a warm rim on top. Feet at 0, about 330 tall; walked: how far she's come (for her steps)
+  function drawAuntWalk(c, t, walked) {
+    const skin = "#9c6a4c", skinD = "#7c5038", hair = "#1c1412", tee = "#5a1e29", fl = "#2e343b", jean = "#232a3a", boot = "#2e2219", rim = "rgba(255,206,140,.6)";
+    // her arms: 0 the lowered Vs, 1 the big V up
+    let arm = 0;
+    AUNT_PUMPS.forEach((at, i) => { const u = t - at; if (u <= 0) return; const up = cutEase(Math.min(1, u / 0.35)); const down = i < AUNT_PUMPS.length - 1 && u > 0.8 ? cutEase(Math.min(1, (u - 0.8) / 0.35)) : 0; arm = up * (1 - down); });
+    const moving = t < 11, ph = walked / 5, bob = moving ? Math.abs(Math.sin(ph)) * 3 : 0;
+    // her shadow, toward us
+    c.save(); c.scale(1, 2.2); const sg = c.createRadialGradient(0, 8, 3, 0, 8, 46); sg.addColorStop(0, "rgba(40,22,26,.4)"); sg.addColorStop(1, "rgba(40,22,26,0)"); c.fillStyle = sg; c.beginPath(); c.ellipse(0, 8, 34, 22, 0, 0, 7); c.fill(); c.restore();
+    c.lineCap = "round"; c.lineJoin = "round";
+    // legs, stepping: each foot lifts in turn and comes down a stride to the left
+    for (const [i, s] of [[0, -1], [1, 1]]) {
+      const lift = moving ? Math.max(0, Math.sin(ph + i * Math.PI)) : 0, fx = s * 13 - lift * 7, fy = -lift * 14, kx = s * 15 - lift * 5;
+      c.strokeStyle = jean; c.lineWidth = 25; c.beginPath(); c.moveTo(s * 13, -150 + bob); c.quadraticCurveTo(kx, -80 - lift * 10, fx, fy - 14); c.stroke();
+      c.fillStyle = boot; c.beginPath(); c.ellipse(fx - 4, fy - 6, 15, 9, 0, 0, 7); c.fill();
+    }
+    c.save(); c.translate(0, bob);
+    // the torso: the tee, the open flannel either side, its hem over the hips
+    c.fillStyle = tee; c.beginPath(); c.moveTo(-30, -264); c.quadraticCurveTo(-40, -200, -32, -150); c.lineTo(32, -150); c.quadraticCurveTo(40, -200, 30, -264); c.closePath(); c.fill();
+    for (const s of [-1, 1]) {
+      c.fillStyle = fl; c.beginPath(); c.moveTo(s * 14, -266); c.quadraticCurveTo(s * 40, -268, s * 40, -248); c.quadraticCurveTo(s * 42, -190, s * 36, -140); c.lineTo(s * 12, -140); c.quadraticCurveTo(s * 16, -200, s * 14, -266); c.closePath(); c.fill();
+      c.save(); c.clip(); c.fillStyle = "rgba(150,130,105,.3)"; for (let x = -44; x < 44; x += 11) c.fillRect(x, -270, 2, 132); for (let y = -268; y < -138; y += 11) c.fillRect(-44, y, 88, 2); c.restore();
+    }
+    c.fillStyle = "#283043"; c.fillRect(-32, -152, 64, 6);
+    // the arms: shoulder, elbow, fist, moving from the lowered Vs to the big V
+    const ea = cutEase(arm);
+    for (const s of [-1, 1]) {
+      const sh = { x: s * 34, y: -260 }, el = { x: s * cutLerp(66, 54, ea), y: cutLerp(-206, -322, ea) }, fs = { x: s * cutLerp(72, 80, ea), y: cutLerp(-270, -384, ea) };
+      c.strokeStyle = fl; c.lineWidth = 19; c.beginPath(); c.moveTo(sh.x, sh.y); c.lineTo(el.x, el.y); c.lineTo(fs.x - s * 2, fs.y + 10); c.stroke();
+      c.strokeStyle = "rgba(150,130,105,.3)"; c.lineWidth = 2; c.beginPath(); c.moveTo(sh.x, sh.y + 4); c.lineTo(el.x, el.y + 4); c.stroke();
+      c.fillStyle = skin; c.beginPath(); c.ellipse(fs.x, fs.y, 10, 11, 0, 0, 7); c.fill();
+      c.strokeStyle = skinD; c.lineWidth = 1.2; c.beginPath(); c.moveTo(fs.x - 6, fs.y - 2); c.lineTo(fs.x + 6, fs.y - 2); c.stroke();
+      c.strokeStyle = rim; c.lineWidth = 2; c.beginPath(); c.moveTo(fs.x - 6, fs.y - 9); c.quadraticCurveTo(fs.x, fs.y - 13, fs.x + 6, fs.y - 9); c.stroke();
+    }
+    // neck, head turned a little toward Riley (her right, our left), the hair and bun, a big open grin
+    c.fillStyle = skinD; c.fillRect(-8, -284, 16, 22);
+    const hx = -3, hy = -304;
+    c.fillStyle = hair; c.beginPath(); c.ellipse(hx + 2, hy - 2, 25, 29, 0, 0, 7); c.fill(); c.beginPath(); c.arc(hx + 10, hy - 30, 12, 0, 7); c.fill();
+    c.fillStyle = skin; c.beginPath(); c.ellipse(hx, hy + 2, 20, 25, 0, 0, 7); c.fill();
+    c.fillStyle = hair; c.beginPath(); c.moveTo(hx - 21, hy); c.quadraticCurveTo(hx - 20, hy - 26, hx + 2, hy - 26); c.quadraticCurveTo(hx + 22, hy - 25, hx + 21, hy - 2); c.quadraticCurveTo(hx + 12, hy - 16, hx, hy - 17); c.quadraticCurveTo(hx - 12, hy - 15, hx - 21, hy); c.fill();
+    c.fillStyle = "#1a1210"; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(hx - 4 + s * 8, hy, 2, 2.6, 0, 0, 7); c.fill(); }
+    c.strokeStyle = "#1a1210"; c.lineWidth = 1.6; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(hx - 4 + s * 8 - 4, hy - 7); c.quadraticCurveTo(hx - 4 + s * 8, hy - 10, hx - 4 + s * 8 + 4, hy - 7); c.stroke(); }
+    c.fillStyle = "#4a1a1c"; c.beginPath(); c.moveTo(hx - 12, hy + 9); c.quadraticCurveTo(hx - 4, hy + 23, hx + 5, hy + 9); c.closePath(); c.fill();
+    c.fillStyle = "#e8e0d4"; c.beginPath(); c.moveTo(hx - 11, hy + 9.5); c.lineTo(hx + 4, hy + 9.5); c.lineTo(hx + 3, hy + 12); c.lineTo(hx - 10, hy + 12); c.closePath(); c.fill();
+    c.strokeStyle = rim; c.lineWidth = 2.5; c.beginPath(); c.arc(hx + 2, hy - 2, 26, -2.6, -0.4); c.stroke(); c.beginPath(); c.arc(hx + 10, hy - 30, 12, -2.8, -0.3); c.stroke();
+    c.lineWidth = 2; c.beginPath(); c.moveTo(-34, -262); c.quadraticCurveTo(0, -270, 34, -262); c.stroke();
+    c.restore();
+    c.lineCap = "butt"; c.lineJoin = "miter";
   }
   // Riley: knees and sneakers at the bottom of the frame, one foot tapping now and then, the other shifting
   function drawRileyLegs(c, t) {
