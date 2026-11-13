@@ -779,7 +779,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.36</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.37</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -859,7 +859,8 @@ body.lab .stage > :not(canvas) { display: none; }
     { id: "downtown", name: "Downtown", scene: "downtown", mix: {}, z: [10, 50], wind: [0, 0], props: [], gun: true, downtown: true, noun: "Minions", icon: SQUASH_ICON,
       gunName: "MP 15", barrels: 3, perPull: 3, racks: 3 },
     { id: "squashhead", name: "Squash Head", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: SQUASH_ICON,
-      get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 3, lobs: 5, mapZ: 60 },
+      // (endless, batch F, Nov 12 2026, the user: racks of MP 15s keep coming till it's down, as its sack never runs out)
+      get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 3, endless: true, lobs: 5, mapZ: 60 },
   ];
   // levels planned but not built yet: shown on the start card greyed out, "coming soon!"
   // (v2.29: none for now; Winery and Golf off the list, Downtown built)
@@ -2769,7 +2770,8 @@ body.lab .stage > :not(canvas) { display: none; }
     $("bonusOut").textContent = `+${S.bonus || 0}${osbPts ? ` · OSB +${osbPts}` : ""}`; $("bonusOut").hidden = $("bonusK").hidden = !(S.bonus || osbPts);
     // (more than fifteen, Squash Head's thirty: one spud and a count)
     const nSpuds = spudTotal();
-    $("spudsOut").innerHTML = (nSpuds > 15 ? `<span class="spud"></span> ${S.spudsLeft}/${nSpuds}` : Array.from({ length: nSpuds }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("")) +
+    // (Squash Head's MP 15s never run out: ∞, batch F)
+    $("spudsOut").innerHTML = (lvl().endless && lvl().gun ? `<span class="spud"></span> ∞` : nSpuds > 15 ? `<span class="spud"></span> ${S.spudsLeft}/${nSpuds}` : Array.from({ length: nSpuds }, (_, i) => `<span class="spud${i >= S.spudsLeft ? " used" : ""}"></span>`).join("")) +
       // (the One Shot Bonus's golden spud, an extra, while it's waiting to be launched)
       (S.osb && S.osb.state === "ready" ? `<span class="spud gold" title="the golden spud"></span>` : "");
     // after a shot, the last pressure stays on show as a guide until the next one is fired
@@ -2996,7 +2998,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // (things of the place that move about: Skeetza's pizzas, drone and workers)
       ...(S.scene.dyn ? S.scene.dyn() : []).map((s) => ({ d: dist(s), f: () => s.draw(s) })),
       // (Story mode's minion cameo at the end of a level, batch E)
-      ...(CAMEO.on ? CAMEO.objs : []).map((o) => ({ d: dist(o), f: () => o.draw(o) })),
+      ...(CAMEO.on ? CAMEO.objs.filter((o) => !o.inBack) : []).map((o) => ({ d: dist(o), f: () => o.draw(o) })),
       // (…and the stray tomato's thrower, the tomato, its splat)
       ...STRAY.objs.map((o) => ({ d: dist(o), f: () => o.draw(o) })),
     ];
@@ -3107,9 +3109,11 @@ body.lab .stage > :not(canvas) { display: none; }
     drawStream();
     // tree shadows on the grass, then trees and fence panels together, far to near, so whichever is closer covers the other
     for (const t of trees) groundShadow(t.x, t.z, t.h * 0.42, t.w * 0.5, 0.16);
-    const scene = [...trees.map((t) => ({ d: Math.hypot(t.x - CAM.x, t.z - CAM.z), t })), ...fencePanels.map((p) => ({ d: Math.hypot(p.c[0] - CAM.x, p.c[1] - CAM.z), p }))];
+    // (and the cameo's minion among them (batch F), so the trunk it hides behind covers it and the fence beyond doesn't)
+    const scene = [...trees.map((t) => ({ d: Math.hypot(t.x - CAM.x, t.z - CAM.z), t })), ...fencePanels.map((p) => ({ d: Math.hypot(p.c[0] - CAM.x, p.c[1] - CAM.z), p })),
+      ...pastureCameo().map((m) => ({ d: Math.hypot(m.x - CAM.x, m.z - CAM.z), m }))];
     scene.sort((a, b) => b.d - a.d);
-    for (const o of scene) o.t ? drawTree(o.t) : drawPanel(o.p);
+    for (const o of scene) o.t ? drawTree(o.t) : o.p ? drawPanel(o.p) : o.m.draw(o.m);
     for (const t of tufts) {
       const q = P(t.x, 0, t.z), h = Math.min(9, 0.32 * q.s);
       if (q.behind || h < 1.4 || q.x < -10 || q.x > W + 10 || q.y > H + 10) continue;
@@ -3840,6 +3844,10 @@ body.lab .stage > :not(canvas) { display: none; }
       for (let z = rnd(25, 45); z < 168; z += rnd(16, 30)) add(side * rnd(53, 56.5), z, rnd(0.7, 0.95));
       add(side * rnd(45, 54), rnd(168, 171), rnd(0.7, 0.9));
     }
+    // (batch F, Nov 12 2026, the user's idea: one big oak of its own at the back of the field, well clear of the
+    // fence and beyond the farthest targets (85 m on gnarly), always in the same place: the end-of-round cameo's
+    // minion peeks out from behind its trunk)
+    out.push({ kind: "oak", x: 24, z: 135, h: 19, w: 15, shade: 0, cameo: true });
     return out;
   })();
   // (speed: these two are called thousands of times a frame, by every tree, wall and stone, so each answer is worked
@@ -4115,7 +4123,8 @@ body.lab .stage > :not(canvas) { display: none; }
   const FLAT = { groundY: () => 0, hills: [], flats: [], water: () => false, hides: () => false, wallTargets: () => [], wheels: { range: [-12, 12], stop: "That's as far as it rolls" } };
   const PASTURE = {
     // (its ground, stream, trees and fences don't move: a still picture while the view holds still)
-    ...FLAT, skyline: "#9ad07a", back: () => still("pasture", pastureBack), standing: [], front() {}, update() {}, reset() {},
+    // (not during its cameo: the minion is drawn in among the trees and fences, and moves)
+    ...FLAT, skyline: "#9ad07a", back: () => (pastureCameo().length ? pastureBack() : still("pasture", pastureBack)), standing: [], front() {}, update() {}, reset() {},
     free: () => true, collide: () => null, spots: () => null, roofTargets: () => [], map() {},
   };
   const built = {};
@@ -8360,7 +8369,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (in UP mode it never runs out: nothing's counted. Empty, with the gun still up, a trigger pull is a dry click,
     // so you know its chambers are spent)
     if (!g.upm && (g.shots >= gunBarrels() || S.spudsLeft <= 0)) { if (g.phase === "live" || g.phase === "ready") sfx.dryFire(); return; }
-    if (!g.upm) { g.shots++; S.spudsLeft--; }
+    // (an endless level's count never runs down past 1: Squash Head's MP 15s, batch F)
+    if (!g.upm) { g.shots++; S.spudsLeft = lvl().endless ? Math.max(1, S.spudsLeft - 1) : S.spudsLeft - 1; }
     // (which barrel it was, left to right: the first shot the left one, then the next; in UP mode round and round)
     g.barrel = g.upm ? (g.upCount = (g.upCount || 0) + 1, (g.upCount - 1) % gunBarrels()) : (g.shots - 1) % gunBarrels();
     g.flash = 1; g.kick = 1; sfx.fire(); gunPuff(g);
@@ -8761,11 +8771,13 @@ body.lab .stage > :not(canvas) { display: none; }
       } else g.timer = 0;
     } else if (g.phase === "lower" && g.up <= 0) {
       // (every cabinet used and a rack still to come (Squash Head's two): the old rack scrolls off, the fresh one in)
-      const fresh = !g.guns.some((x) => x.ready) && (g.rack || 0) + 1 < (lvl().racks || 1);
-      if (S.spudsLeft > 0 && g.pulls < GUN.pulls && fresh) {
+      // (endless: one more always, batch F)
+      const more = lvl().endless || (S.spudsLeft > 0 && g.pulls < GUN.pulls);
+      const fresh = !g.guns.some((x) => x.ready) && (lvl().endless || (g.rack || 0) + 1 < (lvl().racks || 1));
+      if (more && fresh) {
         g.rack = (g.rack || 0) + 1; g.oldGuns = g.guns; g.guns = Array.from({ length: GUN.cases }, () => ({ ready: true })); g.scroll = 0; g.phase = "scroll";
         note(`A fresh rack of ${gunName()}s`, 1800); hud();
-      } else if (S.spudsLeft > 0 && g.pulls < GUN.pulls && g.guns.some((x) => x.ready)) { g.phase = "table"; hud(); }
+      } else if (more && g.guns.some((x) => x.ready)) { g.phase = "table"; hud(); }
       else if (!flying && !busy) { g.phase = "over"; S.phase = "settle"; S.timer = 1.2; S.after = endLevel; }
     } else if (g.phase === "scroll" && (g.scroll += dt / 1.2) >= 1) { g.scroll = 1; g.oldGuns = null; g.phase = "table"; hud(); }
     // the skeetzas, the mini spuds, the drone, the workers
@@ -12140,7 +12152,10 @@ body.lab .stage > :not(canvas) { display: none; }
   // Downtown's minions (v2.29): how many, how many at once, their size against Squash Head's, walking speed (m/s, yup),
   // tomato range and hurt, how near before they claw, points (a tomato shot down: tomatoPts), Riley's step
   // (tomatoSlow, v2.30: a tomato's flight time against a squash's, 1 / 0.8: 20% slower)
-  const DTN = { count: 16, maxOn: 4, sc: 0.13, speed: 1.0, range: 40, tomato: 5, reach: 5, claw: 15, pts: 10, headPts: 5, tomatoPts: 5, step: 6.5, stepMax: 5, tomatoSlow: 1.25 };
+  // (batch F, Nov 12 2026, the user's call: 15 / 17 / 19 minions on meh / yup / gnarly (counts), and two body hits put
+  // one down, not three (a head shot still one): about 2.1 spuds a minion at 10% tomatoes, 10% misses, 25% head
+  // shots, so 32 / 36 / 40 of the 45)
+  const DTN = { counts: { meh: 15, yup: 17, gnarly: 19 }, get count() { return this.counts[S.diff] || this.counts.yup; }, hits: 2, headK: 1.1, maxOn: 4, sc: 0.13, speed: 1.0, range: 40, tomato: 5, reach: 5, claw: 15, pts: 10, headPts: 5, tomatoPts: 5, step: 6.5, stepMax: 5, tomatoSlow: 1.25 };
   function buildBoss(mode) {
     // (Downtown (v2.29) is this same town, with the minions instead: DT)
     const DT = mode === "downtown";
@@ -12198,7 +12213,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const lights = [];
     for (let z = -28; z < 150; z += 16) for (const side of [-1, 1]) { const zz = z + (side > 0 ? 8 : 0); if (zz > TOWN.cross[0] - 1 && zz < TOWN.cross[1] + 1) continue; lights.push({ x: side * (TOWN.kerb + 0.6), z: zz, dip: 0, bad: R() < 0.15, ph: R() * 9 }); }
     const CARC = ["#d9d9d4", "#a7abb0", "#16181c", "#7a1a1a", "#1d2a44", "#5a5f66", "#b8a888", "#2d4a3a", "#8c8f94", "#3a1e1e"];
-    const cars = [];
+    const cars = [], CAR_SEEN = 2; // (CAR_SEEN: a car starting past this z is in the MP 15's view)
     for (const side of [-1, 1]) {
       let z = -30 + R() * 4;
       while (z < 146) {
@@ -12207,6 +12222,11 @@ body.lab .stage > :not(canvas) { display: none; }
         z += len + 1.4 + R() * 2.4;
       }
     }
+    // (batch F, Nov 12 2026, the user: parked facing the way traffic goes on each side, so the left side's show you
+    // their headlights; fwd: which way along the street its front is. On Squash Head's night the second car back on
+    // each side has its lights on (lit), and that's where the screamers hide)
+    for (const c of cars) c.fwd = c.side < 0 ? -1 : 1;
+    if (!DT) for (const side of [-1, 1]) { const v = cars.filter((c) => c.side === side && c.z > CAR_SEEN).sort((a, b) => a.z - b.z); if (v[1]) v[1].lit = true; }
     // (the night sky by direction, all the way round, so it holds still as the view changes: stars, the moon, slow dark clouds)
     const stars = [...Array(160)].map(() => ({ az: (R() - 0.5) * Math.PI * 2, el: 0.03 + R() * 0.7, a: 0.3 + R() * 0.6 }));
     const clouds = [...Array(10)].map(() => ({ az: (R() - 0.5) * Math.PI * 2, el: 0.06 + R() * 0.22, w: 0.16 + R() * 0.22, h: 0.022 + R() * 0.026, v: 0.004 + R() * 0.006 }));
@@ -12283,9 +12303,10 @@ body.lab .stage > :not(canvas) { display: none; }
     function resetBoss() {
       // (on the start card it stands at the end of the street, facing you; the round starts it off the side)
       B = newB(DT ? { state: "away" } : {});
-      B.pose = standPose(); B.sack = B.sack0 = BOSS.sack[S.diff] || BOSS.sack.yup;
+      // (batch F: the sack never runs out; sack0 only sets when it steps closer, by how many it's thrown (thrown))
+      B.pose = standPose(); B.sack0 = BOSS.sack[S.diff] || BOSS.sack.yup; B.thrown = 0;
       riley = { hp: 100, x: 0 }; projs = []; parts = []; splats = []; floats = []; msg = { text: "", t: 0 }; book = null; cart = null;
-      shake = flash = hurt = deadT = 0; cartT = -1; T = 0;
+      shake = flash = hurt = deadT = 0; cartT = -1; T = 0; scr = null;
       Object.assign(result, { why: null, hits: 0, downed: 0 });
     }
     function msgSet(text, t) { msg.text = text; msg.t = t; }
@@ -12320,6 +12341,8 @@ body.lab .stage > :not(canvas) { display: none; }
       f2.frequency.setValueAtTime(900, t2); f2.frequency.exponentialRampToValueAtTime(220, t2 + 0.27);
       const g3 = ac.createGain(); env(g3, t2, 0.22 * vol, 0.01, 0.22); n2.connect(f2).connect(g3); out(g3, 0.3, pan);
     }
+    // (batch F: its footsteps are sounds/heavystep.mp3 when that's in, under the street's echo; else the synthesised stomp)
+    function sStep(vol = 1, pan = 0) { if (!play("heavystep", { gain: 0.95 * vol, pan, wet: 0.4 })) sStomp(vol, pan); }
     function distCurve() { if (distCurve.c) return distCurve.c; const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 3); } return (distCurve.c = c); }
     // a deep, breathy roar through a hollow gourd: detuned saws, growl, two resonances, long street echo
     function sRoar(vol = 1, pan = 0, pitch = 1, dur = 2.4) {
@@ -12560,6 +12583,16 @@ body.lab .stage > :not(canvas) { display: none; }
       B.throw = { side: s, i: 0, ph: "reach", p: 0, released: false, holding: false, type: B.small ? "tomato" : pick(TYPES) };
       if (!B.small && Math.random() < 0.22 + B.stage * 0.16) roar(0.75);
     }
+    // the pause before its next throw. (batch F, the user: fastest at the middle stop (stage 1), where the player is all
+    // skeet; up close (stage 2) about half that rate: a whole throw and pause there takes twice as long as at stage 1.
+    // A minion's as before)
+    const throwAnim = (st) => PH.reduce((s, p) => s + p[1], 0) * (1 - st * 0.07) * THROW_PACE / ((dif().pace / DIFF.yup.pace) * 1.25 * (1 + 0.12 * st));
+    const gapAt = (st, r) => (r - Math.min(st, 1) * 0.45) * THROW_PACE / ((dif().pace / DIFF.yup.pace) * 1.25 * (1 + 0.12 * st));
+    function throwGap() {
+      const r = rand(2.4, 4.2);
+      if (B.small || B.stage < 2) return gapAt(B.stage, r);
+      return 2 * (throwAnim(1) + gapAt(1, r)) - throwAnim(2);
+    }
     function updThrow(dt) {
       const th = B.throw;
       if (!th) { B.lean = lerp(B.lean, 0, 0.05); return; }
@@ -12571,7 +12604,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (th.ph === "whip" && !th.released && th.p >= 0.42) { th.released = true; th.holding = false; release(th); }
       if (th.p >= 1) {
         th.i++;
-        if (th.i >= PH.length) { B.throw = null; B.nextThrow = (rand(2.4, 4.2) - B.stage * 0.45) * THROW_PACE / pace(); return; }
+        if (th.i >= PH.length) { B.throw = null; B.nextThrow = throwGap(); return; }
         th.ph = PH[th.i][0]; th.p = 0;
         if (th.ph === "pull") { th.holding = true; sCreak(B.small ? 0.25 : 0.9, th.side * 0.2); }
         if (th.ph === "hold" && !B.small) duck(true);
@@ -12599,17 +12632,20 @@ body.lab .stage > :not(canvas) { display: none; }
       // (v2.30: a minion's tomato 20% slower through the air: DTN.tomatoSlow)
       projs.push(fitArc({ type, r: RAD[type], x0, y0, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(B.small ? DTN.tomatoSlow : 1), h: B.small ? 1 + B.z * 0.03 : 1.2 + B.z * 0.04,
         rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false, dmg: B.small ? DTN.tomato : BOSS.rileyHit }));
-      sLaunch(clamp((x0 - riley.x) / 10, -0.6, 0.6)); if (!B.small) duck(false);
+      // (batch F: sounds/throw.mp3 as it lets go, when that's in)
+      const pn = clamp((x0 - riley.x) / 10, -0.6, 0.6);
+      if (!play("throw", { gain: B.small ? 0.35 : 0.8, pan: pn, wet: 0.35 })) sLaunch(pn);
+      if (!B.small) duck(false);
       if (B.small) return;
       // (from its second stomp closer on, sometimes a second one with it, a little higher and slower, so they come one
       // after the other: two barrels to stop them both)
-      if (B.stage >= 1 && B.sack >= 2 && Math.random() < BOSS.double) {
-        const t2 = pick(TYPES); B.sack--;
+      // (batch F: only at the middle stop, where it throws its fastest; up close it's slower and throws one at a time)
+      if (B.stage === 1 && Math.random() < BOSS.double) {
+        const t2 = pick(TYPES); B.thrown++;
         projs.push(fitArc({ type: t2, r: RAD[t2], x0: x0 - th.side * 1.2, y0: y0 + 0.4, z0, x1: riley.x + rand(-0.35, 0.35), y1: 1.25, z1: 0.9, t: 0, dur: flightTime(1.3), h: 1.6 + B.z * 0.05,
           rot: 0, spin: rand(-5, 5), x: x0, y: y0, z: z0, vx: 0, vy: 0, vz: 0, phase: "fly", dead: false }));
       }
-      // (one fewer in the sack; the last one gone, it throws no more)
-      if (--B.sack <= 0) { B.sack = 0; msgSet("The sack's empty.", 2.5); } hud();
+      B.thrown++; hud();
     }
     // a foot's height through its swing (q 0..1): a slow rise over two-thirds of it, then a stomp down in the last
     // third, twice as fast and speeding up into the ground
@@ -12632,7 +12668,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (onStomp) onStomp(i);
       if (B.small) return; // (a minion's steps make no thunder)
       const near = clamp(1.15 - (B.z - 26) / 40, 0.45, 1.1);
-      sStomp(near, clamp(B.x / 14, -0.9, 0.9)); shake = Math.max(shake, 5 + near * 9); dimLights(26);
+      sStep(near, clamp(B.x / 14, -0.9, 0.9)); shake = Math.max(shake, 5 + near * 9); dimLights(26);
       const ax = B.x + (i ? 1.8 : -1.8);
       for (let k = 0; k < 14; k++) parts.push({ kind: "dust", x: ax + rand(-1.5, 1.5), y: rand(0, 0.4), z: B.z + rand(-1, 1), vx: rand(-1.5, 1.5), vy: rand(0.3, 1.2), vz: rand(-1, 1), life: rand(1.2, 2.2), max: 2.2, size: rand(0.6, 1.4), col: "120,112,100", g: 0 });
     }
@@ -12653,7 +12689,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (B.hp <= 5) { startCrumple(); return; }
     }
     // (time to step forward: the share of the sack thrown from here; only between throws, with nothing in the air)
-    const dueToAdvance = () => B.stage < Z.length - 1 && B.sack0 - B.sack >= Math.round(STAGE_AT[B.stage] * B.sack0) && !B.throw && !projs.some((q) => q.phase === "fly");
+    const dueToAdvance = () => B.stage < Z.length - 1 && B.thrown >= Math.round(STAGE_AT[B.stage] * B.sack0) && !B.throw && !projs.some((q) => q.phase === "fly");
     function candle() {
       let c = 0.8 + 0.1 * Math.sin(T * 5.3) + 0.06 * Math.sin(T * 11.9 + 1.3) + 0.04 * Math.sin(T * 23.7 + 0.7) + (Math.random() - 0.5) * 0.05;
       c *= 1 - B.gutter; c += B.roarGlow * 0.35;
@@ -12666,7 +12702,7 @@ body.lab .stage > :not(canvas) { display: none; }
       B.cand = candle();
       switch (B.state) {
         case "intro": { // heard before it's seen: footsteps and a roar off to the left
-          for (const [tt, v] of [[0.5, 0.35], [1.25, 0.45], [2.0, 0.6], [2.75, 0.75]]) if (B.t - dt < tt && B.t >= tt) { sStomp(v, -0.85); shake = Math.max(shake, 3 + v * 6); dimLights(40); }
+          for (const [tt, v] of [[0.5, 0.35], [1.25, 0.45], [2.0, 0.6], [2.75, 0.75]]) if (B.t - dt < tt && B.t >= tt) { sStep(v, -0.85); shake = Math.max(shake, 3 + v * 6); dimLights(40); }
           if (B.t - dt < 1.6 && B.t >= 1.6) { sRoar(0.7, -0.8); B.roarGlow = 1; }
           updWalk(dt, false);
           if (B.t >= 3.2) { B.state = "enter"; B.t = 0; B.walkPh = 0; }
@@ -12675,15 +12711,28 @@ body.lab .stage > :not(canvas) { display: none; }
         // (v2.28: it comes along the cross street from far off to the left, its head above the rooftops before it's in
         // the open, to the crossroads at the end of the main street)
         // (v2.31: at 40% of its old pace, 5.6 m/s, its stride slowed to match so the feet don't skate)
-        case "enter": updWalk(dt, true, 1.7 / 0.4); B.x += dt * 14 * 0.4; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; } break;
+        case "enter": updWalk(dt, true, 1.7 / 0.4); B.x += dt * 14 * 0.4; if (B.x >= 0) { B.x = 0; B.state = "face"; B.t = 0; }
+          // (batch F: the screamers break cover as it nears the middle, about 2.5 s before it stops, so it isn't left
+          // standing long)
+          if (B.x > -14 && !scr && !DT) startScreamers();
+          break;
         case "face": // it stops dead, stands too still, then turns on you
           updWalk(dt, false);
-          { // (v2.31: first the turn, side on to facing, over TURN_S; then the beats as before, after it)
-            const ft = B.t - TURN_S;
+          // (batch F, Nov 12 2026, the user's design: no turn in sight (it read as a thin cutout). It stands side on while
+          // a man and a woman spring up from behind the two lit cars and run screaming straight at Riley; as they brush
+          // past, filling the view, it turns all at once (turnAt); the roar and the first fire come after they've gone by.
+          // With no screamers (no lit cars) it turns over TURN_S as before)
+          if (B.turnAt == null) {
+            // (they've been and gone without quite hiding it (a very wide field): it turns all at once anyway, as they pass)
+            if (!scr) B.turnAt = B.hadScr ? B.t + 1e-6 : TURN_S;
+            else if (scr.cover) B.turnAt = B.t;
+          }
+          if (B.turnAt != null) {
+            const ft = B.t - B.turnAt;
             if (ft > 0.9 && !B.faceRoar) { B.faceRoar = true; B.roarCD = 0; roar(1); }
             B.flare = ft > 0.9 ? Math.min(1, (ft - 0.9) * 3) * (ft < 2.4 ? 1 : Math.max(0, 1 - (ft - 2.4) * 2)) : 0;
+            if (ft > 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot the squash down. Aim for the head.", 3); openCabinets(); }
           }
-          if (B.t > TURN_S + 3.0) { B.state = "fight"; B.flare = 0; B.nextThrow = 1.2; msgSet("Shoot the squash down. Aim for the head.", 3); openCabinets(); }
           break;
         case "fight":
           updWalk(dt, false);
@@ -12694,7 +12743,7 @@ body.lab .stage > :not(canvas) { display: none; }
           B.twitchT -= dt;
           B.headR = B.twitchT > 0 ? lerp(B.headR, B.twitchA, 0.6) : lerp(B.headR, 0, 0.03);
           if (live() && dueToAdvance()) { startAdvance(); break; }
-          if (live() && !B.throw && B.sack > 0) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
+          if (live() && !B.throw) { B.nextThrow -= dt; if (B.nextThrow <= 0) startThrow(); }
           updThrow(dt);
           break;
         case "advance": {
@@ -12717,15 +12766,16 @@ body.lab .stage > :not(canvas) { display: none; }
         // (v2.27: Riley's end. It takes a step or two toward Riley, stops short and stands there, too still; then all of a
         // sudden it bends down, its face filling the screen, and breathes fire at Riley (drawn in over: drawLoom))
         case "approach": {
-          updWalk(dt, true, 2.4);
-          const k = clamp(B.t / B.advDur, 0, 1); B.z = lerp(B.z0, B.z1, easeIO(k));
-          if (k >= 1) { B.state = "stop"; B.t = 0; }
+          // (slow, heavy steps: batch F)
+          updWalk(dt, true, 3.2);
+          const k = clamp(B.t / B.advDur, 0, 1); B.z = lerp(B.z0, B.z1, k);
+          if (k >= 1) { B.state = "stop"; B.t = 0; B.bigWalk = false; }
           break;
         }
         case "stop":
           updWalk(dt, false); B.headR = lerp(B.headR, 0.12 * Math.sin(T * 0.7), 0.05);
-          // (then, with no warning, its face is there, big, right in front of Riley: a jolt, and silence but the dread)
-          if (B.t >= 1.1) { B.state = "loom"; B.t = 0; B.roarGlow = 0.3; shake = Math.max(shake, 14); sThud(1.3); sStomp(1.1); }
+          // (then, with no warning, its face is there, big, right in front of Riley: a jolt, the roar and the fire)
+          if (B.t >= STOP_HOLD) { B.state = "loom"; B.t = 0; B.roarGlow = 0.3; shake = Math.max(shake, 14); sThud(1.3); sStomp(1.1); }
           break;
         case "loom":
           updWalk(dt, false); B.roarGlow = B.t < LOOM.fire ? 0.3 : 1;
@@ -12774,7 +12824,9 @@ body.lab .stage > :not(canvas) { display: none; }
       for (const i of [0, 1]) { const sh = p.arms[i].sh; if (Math.hypot(lx - sh.x, ly - sh.y) < 1.25) return { part: "carrot", lx, ly }; }
       {
         const h = p.head, dx = lx - h.x, dy = ly - h.y, ca = Math.cos(h.r), sa = Math.sin(h.r), hx = (dx * ca + dy * sa) / HEADSX, hy = (-dx * sa + dy * ca) / (h.sy || 1);
-        if ((hx / 1.85) ** 2 + ((hy + 0.4) / 1.4) ** 2 <= 1 || (Math.abs(hx) < 0.8 && hy > 0.4 && hy < 3.0) || Math.hypot(hx - 0.05, hy - 3.3) < 0.35) return { part: "head", hx, hy, lx, ly };
+        // (a minion's head counts 10% bigger every way (batch F, the user); hk scales the test about the head's middle)
+        const hk = B.small ? DTN.headK : 1, tx = hx / hk, ty = (hy + 0.4) / hk - 0.4;
+        if ((tx / 1.85) ** 2 + ((ty + 0.4) / 1.4) ** 2 <= 1 || (Math.abs(tx) < 0.8 && ty > 0.4 && ty < 3.0) || Math.hypot(tx - 0.05, ty - 3.3) < 0.35) return { part: "head", hx, hy, lx, ly };
       }
       {
         const b = p.body, dx = lx - b.x, dy = ly - b.y, ca = Math.cos(b.r), sa = Math.sin(b.r), bx = dx * ca + dy * sa, by = -dx * sa + dy * ca;
@@ -12853,9 +12905,17 @@ body.lab .stage > :not(canvas) { display: none; }
     // Riley's end, any way it comes (Riley's health gone, the MP 15s all used before it was down, or all five lobs missed
     // and it's up again): it comes for Riley (see approach, stop, loom). The round's end card waits for it (S.timer)
     // (pop: how fast its face snaps into view; fire: when it screams and breathes fire; end: black)
-    const LOOM = { pop: 0.1, fire: 2.0, end: 4.2 };
+    // (batch F, Nov 12 2026, the user: slow heavy steps right up close, so only its feet, legs and tomato knees are in
+    // view, never its body; it stands there 2 s (STOP_HOLD); then its face is there with the roar and the fire at once)
+    const LOOM = { pop: 0.1, fire: 0.3, end: 2.6 }, STOP_HOLD = 2.0;
+    // (how near: where its hips (7.4 m up) are just over the top of the view, so the knees (4.6 m) still show)
+    function closeZ() {
+      for (let z = 30; z > 4; z -= 0.25) { const q = P(B.x, 7.4, z); if (!q.behind && q.y < 0) return clamp(z, 5, 16); }
+      return 8;
+    }
     function startDeath() {
-      B.state = "approach"; B.t = 0; B.z0 = B.z; B.z1 = Math.max(12, B.z - 4.5); B.advDur = 1.5; B.bigWalk = false; B.walkPh = 0; B.prevLift = [0, 0];
+      const zc = closeZ();
+      B.state = "approach"; B.t = 0; B.z0 = B.z; B.z1 = Math.min(B.z, zc); B.advDur = clamp((B.z - B.z1) / 7, 2.4, 7); B.bigWalk = true; B.walkPh = 0; B.prevLift = [0, 0];
       B.throw = null; B.flare = 0; B.fireSnd = false; B.loomDone = false; B.fire = []; B.roarT = 0;
       if (S.phase === "settle") S.timer = 99;
     }
@@ -12958,6 +13018,15 @@ body.lab .stage > :not(canvas) { display: none; }
       };
       // the right-hand page (under the cover when shut): last week's notes until the page turns, then the one that matters
       const showTarget = ph === "read" || ph === "close" || ph === "drop" || (ph === "flip" && k > 0.5);
+      // (batch F, the user: no hands; the leather binding shows round the pages: the back board under the right page,
+      // the open cover's inside under the left, each a little bigger than its page, with its stitching)
+      const leather = (x0, w) => {
+        const g = ctx.createLinearGradient(x0, top, x0 + w, top + bh); g.addColorStop(0, "#7a4a28"); g.addColorStop(0.5, "#6a3d20"); g.addColorStop(1, "#4e2c16");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, top - 4, w, bh + 8, [2, 10, 10, 2]) : ctx.rect(x0, top - 4, w, bh + 8); ctx.fill();
+        ctx.strokeStyle = "rgba(25,12,4,0.6)"; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = "rgba(230,200,150,0.45)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1; ctx.strokeRect(x0 + 3, top - 1, w - 6, bh + 2); ctx.setLineDash([]);
+      };
+      leather(spine, bw + 9);
       paper(spine, bw, showTarget ? target : scribble);
       // the turning page: a leaf swinging over from the right onto the left
       if (ph === "flip") {
@@ -12975,21 +13044,11 @@ body.lab .stage > :not(canvas) { display: none; }
         ctx.strokeStyle = "rgba(230,200,150,0.5)"; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2; ctx.strokeRect(9, top + 9, bw - 18, bh - 18); ctx.setLineDash([]);
         ctx.fillStyle = "#151515"; ctx.fillRect(bw - 30, top, 7, bh);
         ctx.save(); ctx.translate(bw / 2 - 6, top + 70); ctx.rotate(-0.06); ctx.fillStyle = "#e3d6a8"; ctx.fillRect(-48, -16, 96, 32); ctx.fillStyle = "#151515"; ctx.font = '700 18px "Segoe Print", "Comic Sans MS", cursive'; ctx.textAlign = "center"; ctx.fillText("for Riley", 0, 6); ctx.restore();
-      } else paper(0, bw, scribble);
+      } else { leather(0, bw + 9); paper(0, bw, scribble); }
       ctx.restore();
       if (open > 0) { ctx.fillStyle = "#3a2010"; ctx.fillRect(spine - 3, top + 2, 6, bh - 4); }
       // a red ribbon bookmark hanging out of the bottom
       ctx.fillStyle = "#a02420"; ctx.fillRect(spine + bw * 0.6, top + bh - 8, 7, 34);
-      // Riley's hands at the bottom corners, thumbs over the pages
-      const left = spine - bw * Math.max(0, -Math.cos(open * Math.PI)), right = spine + bw;
-      for (const [hx, side] of [[left + 26, -1], [right - 26, 1]]) {
-        const hy = top + bh - 18;
-        ctx.fillStyle = "#3d4733"; ctx.beginPath(); ctx.moveTo(hx - 40, H + 20); ctx.lineTo(hx + side * 4 - 26, hy + 40); ctx.lineTo(hx + side * 4 + 30, hy + 44); ctx.lineTo(hx + 46, H + 20); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#c8916c"; ctx.beginPath(); ctx.ellipse(hx, hy + 22, 30, 22, 0, 0, 7); ctx.fill();
-        ctx.save(); ctx.translate(hx - side * 6, hy + 4); ctx.rotate(side * 0.5); ctx.fillStyle = "#cf9a75"; ctx.strokeStyle = "#8a5c40"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.ellipse(0, -10, 10, 22, 0, 0, 7); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#e9c5ae"; ctx.beginPath(); ctx.ellipse(0, -24, 6, 7, 0, 0, 7); ctx.fill(); ctx.restore();
-      }
       if (ph === "read") {
         const bx = W / 2 - 80, by = top - 46;
         book.btn = { x0: bx, y0: by, x1: bx + 160, y1: by + 32 };
@@ -13503,8 +13562,11 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.beginPath(); ctx.ellipse(o.x, (a.y + b.y) / 2, (B.state === "downed" || B.state === "crumple" ? 7 : 4.5) * s, Math.max(1, ry), 0, 0, 7); ctx.fill();
       // it comes in side on, the sack on its back, then turns to face you (v2.31: over TURN_S, the side figure narrowing
       // to edge on, then the front one widening out of it)
-      let pose = B.state === "enter" ? sidePose() : B.pose;
-      if (B.state === "face" && B.t < TURN_S) {
+      let pose = B.state === "enter" || B.state === "intro" ? sidePose() : B.pose;
+      // (batch F: side on till turnAt; behind the screamers it's facing you from one frame to the next (turnAt is then
+      // the moment, not TURN_S, so the narrowing below never shows))
+      if (B.state === "face" && B.turnAt == null) pose = sidePose();
+      else if (B.state === "face" && B.turnAt === TURN_S && B.t < TURN_S) {
         const k = easeIO(clamp(B.t / TURN_S, 0, 1)), c = Math.cos(k * Math.PI);
         pose = k < 0.5 ? { ...sidePose(), sx: Math.max(0.03, c) } : { ...B.pose, sx: Math.max(0.03, -c) };
       }
@@ -13799,13 +13861,121 @@ body.lab .stage > :not(canvas) { display: none; }
       if (!rbox(cx, cz, hw, hl, 0.5, 0.3, 0.98, shadeRGB(c.col, 0.62))) return;
       rbox(cx, cz, hw * 0.99, hl * 0.99, 0.48, 0.62, 1.0, shadeRGB(c.col, 0.85));
       // the cabin: tinted glass, then its roof in the body colour
-      const ccz = c.pickup ? cz + hl * 0.28 : cz - hl * 0.05, chl = c.pickup ? hl * 0.3 : hl * 0.5;
+      // (the cabin set back from the front (fwd); a pickup's cab at the front, its bed behind)
+      const f = c.fwd || 1, ccz = c.pickup ? cz + f * hl * 0.28 : cz - f * hl * 0.05, chl = c.pickup ? hl * 0.3 : hl * 0.5;
       rbox(cx, ccz, hw * 0.86, chl, 0.35, 0.98, 1.42, "#0b0f15", 0.86);
       rbox(cx, ccz, hw * 0.74, chl * 0.82, 0.3, 1.42, 1.48, shadeRGB(c.col, 1.05));
-      // the tail lights (at the back, toward the camera when it's behind the car) and a faint street-lamp shine on top
-      const back = CAM.z < cz ? -1 : 1, tl = c.pickup ? 0.95 : 0.85;
-      for (const sx of [-1, 1]) { const q = P(cx + sx * hw * 0.72, tl, cz + back * hl * 0.985); if (!q.behind) { ctx.fillStyle = back < 0 ? "rgba(170,25,20,.9)" : "rgba(230,225,200,.55)"; ctx.fillRect(q.x - 0.13 * q.s, q.y - 0.05 * q.s, 0.26 * q.s, 0.1 * q.s); } }
+      // the end toward the camera: its tail lights, or (facing you, batch F) its grille and headlights, off or on
+      const near = CAM.z < cz ? -1 : 1, ez = cz + near * hl * 0.985;
+      if (near !== f) {
+        const tl = c.pickup ? 0.95 : 0.85;
+        for (const sx of [-1, 1]) { const q = P(cx + sx * hw * 0.72, tl, ez); if (!q.behind) { ctx.fillStyle = near < 0 ? "rgba(170,25,20,.9)" : "rgba(230,225,200,.55)"; ctx.fillRect(q.x - 0.13 * q.s, q.y - 0.05 * q.s, 0.26 * q.s, 0.1 * q.s); } }
+        return;
+      }
+      const g = P(cx, 0.68, ez); if (g.behind) return;
+      ctx.fillStyle = "#0c0d10"; ctx.fillRect(g.x - 0.42 * g.s, g.y - 0.09 * g.s, 0.84 * g.s, 0.18 * g.s);
+      if (c.lit) {
+        // (on: a pool of light on the street ahead of it, then the lamps' glow)
+        const p0 = P(cx, 0, ez + near * 4), pr = Math.max(4, 2.6 * p0.s);
+        if (!p0.behind) { const gr = ctx.createRadialGradient(p0.x, p0.y, 0, p0.x, p0.y, pr); gr.addColorStop(0, "rgba(255,240,190,.32)"); gr.addColorStop(1, "rgba(255,240,190,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(p0.x, p0.y, pr, pr * 0.35, 0, 0, 7); ctx.fill(); }
+      }
+      for (const sx of [-1, 1]) {
+        const q = P(cx + sx * hw * 0.66, 0.72, ez); if (q.behind) continue;
+        const r = Math.max(1.2, 0.12 * q.s);
+        if (c.lit) { const gr = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r * 6); gr.addColorStop(0, "rgba(255,246,210,.85)"); gr.addColorStop(0.25, "rgba(255,236,170,.35)"); gr.addColorStop(1, "rgba(255,236,170,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(q.x, q.y, r * 6, 0, 7); ctx.fill(); }
+        ctx.fillStyle = c.lit ? "#fffbe8" : "rgba(205,205,195,.55)"; ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 1.15, r * 0.8, 0, 0, 7); ctx.fill();
+      }
     }
+    // ---- the screamers (batch F, Nov 12 2026, the user's design): as Squash Head stands side on at the end of the
+    // street, a man (from the lit car on the left) and a woman (the lit car on the right), crouched on the pavement side
+    // of their cars, spring up screaming and run round the car's front and straight at Riley, arms waving, brushing
+    // past either side of the view so close they fill it (cover: Squash Head turns then, unseen). Always drawn facing
+    // you, so there's never a thin figure turning. In the world: x across, z down the street, metres
+    let scr = null;
+    function startScreamers() {
+      const lit = [-1, 1].map((s) => cars.find((c) => c.lit && c.side === s));
+      if (!lit[0] || !lit[1]) return;
+      const v = { man: 6.6, woman: 6.2 };
+      const list = lit.map((c, i) => {
+        const s = c.side, who = i ? "woman" : "man", pass = -s; // (the man, from the left, passes on Riley's right)
+        // (the last three from the eye (the MP 15's, 2 m back): toward the middle, straight at it, then past it)
+        const ez = CAM.z, pts = [[s * (Math.abs(c.x) + 1.35), c.z + c.len * 0.55], [s * (Math.abs(c.x) + 0.2), c.z - 0.9], [pass * 0.15, ez + 6.2], [pass * 0.08, ez + 0.3], [pass * 1.7, ez - 0.7]];
+        const lens = pts.slice(1).map((p, k) => Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1]));
+        return { who, car: c, s, pts, lens, v: v[who], h: who === "man" ? 1.78 : 1.66, x: pts[0][0], z: pts[0][1], up: 0, ph: i * 1.7, wait: 0, done: false };
+      });
+      // (the woman's start held back so she comes by right on the man's heels (0.12 s), so between them the middle of the
+      // view stays blotted out; whoever's further starts first)
+      const toW2 = (o) => 0.5 + (o.lens[0] + o.lens[1] + o.lens[2]) / o.v, d = toW2(list[0]) + 0.12 - toW2(list[1]);
+      if (d > 0) list[1].wait = d; else list[0].wait = -d;
+      scr = { t: 0, list, cover: false }; B.hadScr = true;
+    }
+    function tickScreamers(dt) {
+      if (!scr) return;
+      scr.t += dt; scr.cover = false; // (cover: this frame only)
+      for (const o of scr.list) {
+        const t = scr.t - o.wait; if (t < 0 || o.done) continue;
+        if (!o.yelled) { o.yelled = true; play(o.who === "man" ? "manscream" : "womanscream", { gain: 0.9, pan: o.s * 0.5, wet: 0.3 }); }
+        o.up = clamp(t / 0.5, 0, 1);
+        if (t < 0.5) continue;
+        let d = (t - 0.5) * o.v, k = 0;
+        while (k < o.lens.length && d > o.lens[k]) { d -= o.lens[k]; k++; }
+        if (k >= o.lens.length) { o.done = true; continue; }
+        const a = o.pts[k], b = o.pts[k + 1], f = d / o.lens[k];
+        o.x = lerp(a[0], b[0], f); o.z = lerp(a[1], b[1], f); o.ph += dt * o.v * 2.1;
+        // (right in front of the lens, near the middle: it can't be seen past)
+        // (the monster's whole outline on the screen inside this one's body: shoulders to feet, head to the top)
+        if (o.z - CAM.z > 0.1 && o.z - CAM.z < 2) {
+          // (as drawPerson places it: by its chest; the body's width, head to feet)
+          const q = P(o.x, 1.3, o.z), m0 = P(B.x - 4.5, 0, B.z), m1 = P(B.x + 4.5, 21, B.z);
+          if (!q.behind && !m0.behind && q.x - 0.24 * q.s <= m0.x && q.x + 0.24 * q.s >= m1.x && q.y - (o.h - 1.3) * q.s <= m1.y && q.y + 1.3 * q.s >= m0.y) scr.cover = true;
+        }
+      }
+      if (scr.list.every((o) => o.done)) scr = null;
+    }
+    // one of them, facing you: night-dark clothes, the face lit a little, mouth wide open, arms flung up and waving
+    function drawPerson(o) {
+      // (placed and sized by its chest, 1.3 m up, not its feet: right up at the tilted lens the two differ a lot, and the
+      // chest is what has to cover the view)
+      const q = P(o.x, 1.3, o.z); if (q.behind || o.z - CAM.z < 0.12 || o.done) return;
+      const u = q.s, X = q.x, Y = q.y + 1.3 * u, man = o.who === "man"; // (front() has the shake on already)
+      if (X < -u * 2 || X > W + u * 2) return;
+      ctx.save();
+      // (hidden behind its car: only what shows over the car's roof)
+      const c = o.car;
+      if (Math.abs(o.x) > Math.abs(c.x) + 0.6 && o.z > c.z - 0.4) { const r = P(c.x + o.s * 0.66, 1.46, o.z); if (!r.behind) { ctx.beginPath(); ctx.rect(-9999, -9999, 99999, 9999 + r.y); ctx.clip(); } }
+      ctx.translate(X, Y); ctx.scale(u, -u); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      const crouch = 1 - o.up, sink = crouch * 0.6, run = o.up >= 1, sw = Math.sin(o.ph), bob = run ? Math.abs(Math.cos(o.ph)) * 0.05 : 0;
+      ctx.translate(0, -sink + bob);
+      const hipY = 0.95, shY = man ? 1.45 : 1.37, headY = o.h - 0.12, cloth = man ? "#262b33" : "#4a2430", legs = man ? "#1b2433" : "#222026", skin = "#a9826a";
+      // legs: one knee comes up toward you, then the other
+      ctx.strokeStyle = legs; ctx.lineWidth = 0.15;
+      for (const k of [-1, 1]) {
+        const lift = run ? Math.max(0, k * sw) * 0.32 : 0, fx = k * 0.12, fy = lift + Math.max(0, sink - 0.05) * 0.0;
+        ctx.beginPath(); ctx.moveTo(k * 0.1, hipY); ctx.lineTo(k * (0.15 + lift * 0.3), 0.5 + lift * 0.8); ctx.lineTo(fx, fy); ctx.stroke();
+        ctx.fillStyle = "#0d0d10"; ctx.beginPath(); ctx.ellipse(fx, fy + 0.03, 0.08, 0.05, 0, 0, 7); ctx.fill();
+      }
+      // body (a coat flaring a little for her)
+      ctx.fillStyle = cloth; ctx.beginPath();
+      ctx.moveTo(-0.26, shY); ctx.lineTo(0.26, shY); ctx.lineTo(man ? 0.23 : 0.28, hipY - (man ? 0 : 0.12)); ctx.lineTo(man ? -0.23 : -0.28, hipY - (man ? 0 : 0.12)); ctx.closePath(); ctx.fill();
+      // arms flung up and out, waving, out of step with each other
+      ctx.strokeStyle = cloth; ctx.lineWidth = 0.14;
+      for (const k of [-1, 1]) {
+        const wv = 0.5 + 0.5 * Math.sin(T * 10 + k * 1.4 + o.ph * 0.3), a1 = (0.35 + 0.55 * wv) * (run ? 1 : 0.4 + 0.6 * o.up), a2 = a1 + 0.25 + 0.3 * Math.sin(T * 13 + k);
+        const sx = k * 0.24, ex = sx + k * Math.sin(a1) * 0.3, ey = shY + Math.cos(a1) * 0.3, hx = ex + k * Math.sin(a2) * 0.28, hy = ey + Math.cos(a2) * 0.28;
+        ctx.beginPath(); ctx.moveTo(sx, shY - 0.03); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(hx, hy, 0.05, 0, 7); ctx.fill();
+      }
+      // neck, head, hair, the scream
+      ctx.fillStyle = skin; ctx.fillRect(-0.045, shY - 0.02, 0.09, 0.1);
+      if (!man) { ctx.fillStyle = "#3b2416"; ctx.beginPath(); ctx.ellipse(0, headY - 0.07, 0.15, 0.2, 0, 0, 7); ctx.fill(); }
+      ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(0, headY, 0.1, 0.125, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = man ? "#1c1612" : "#3b2416"; ctx.beginPath(); ctx.ellipse(0, headY + 0.07, 0.11, 0.07, 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = "#f2ece0"; for (const k of [-1, 1]) { ctx.beginPath(); ctx.arc(k * 0.038, headY + 0.02, 0.017, 0, 7); ctx.fill(); }
+      ctx.fillStyle = "#1a0a08"; for (const k of [-1, 1]) { ctx.beginPath(); ctx.arc(k * 0.038, headY + 0.02, 0.008, 0, 7); ctx.fill(); }
+      ctx.fillStyle = "#2a0c0a"; ctx.beginPath(); ctx.ellipse(0, headY - 0.06, 0.035, 0.05 * (0.8 + 0.2 * Math.sin(T * 20)), 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    function drawScreamers() { if (scr) for (const o of [...scr.list].sort((a, b) => b.z - a.z)) drawPerson(o); }
     function drawBarns() { for (const b of barns) drawBarn(b); }
     // everything of the town that stands up, for the game to draw far to near (and leave out what's in the way of an
     // arc view); the boss is added each frame (see dyn)
@@ -13911,10 +14081,11 @@ body.lab .stage > :not(canvas) { display: none; }
       T += dt;
       // the round's begun: it's heard before it's seen, off to the left
       // (from well beyond the left edge of the view, however wide the field: v2.28)
-      if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -((W / 2 / F) * B.z + 14); }
+      // (batch F, the user: a stride closer to town than it was (14 m off the edge, now 6: still just out of sight), the same pace)
+      if (B.state === "preview" && S.phase === "gun") { B.state = "intro"; B.t = 0; B.x = -((W / 2 / F) * B.z + 6); }
       if (B.state !== "preview" && S.phase !== "title" && !S.muted && actx && !amb) startAmbient();
       if (DT) { tickMins(dt); }
-      if (S.phase !== "title" && !DT) updBoss(dt);
+      if (S.phase !== "title" && !DT) { updBoss(dt); tickScreamers(dt); }
       if (B.head) B.head.t += dt;
       // (down, it quivers: a little at first, more with every lob; at the last spud, hard)
       const qv = B.state === "downed" ? 0.02 + 0.07 * tension() + (S.spudsLeft === 1 && S.bossCart ? 0.03 : 0) : B.state === "rollback" ? 0.12 : 0;
@@ -14061,7 +14232,8 @@ body.lab .stage > :not(canvas) { display: none; }
           return;
         }
         $("gunOut").innerHTML = `<span class="pz">${SQUASH_ICON} ${Math.ceil(B.hp)}%</span><span class="sep"> · </span>Riley ${riley.hp}%`;
-        $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}<span class="sep">·</span><span>cabinets ${left}</span><span class="sep">·</span><span>sack ${B.sack}</span>`;
+        // (batch F: endless MP 15s and squash, so no cabinet or sack count)
+        $("gunRow").innerHTML = `<span>Barrels</span>${[...Array(gunBarrels()).keys()].map((i) => `<span class="bar${!held || i < g.shots ? " spent" : ""}"></span>`).join("")}`;
       },
     };
 
@@ -14169,13 +14341,13 @@ body.lab .stage > :not(canvas) { display: none; }
       spray(at, head ? ["217,140,60", "235,200,120"] : ["60,25,70", "120,150,70", "200,40,25"], head ? 10 : 6);
       if (head) sHitHead(); else sHitLimb();
       m.hits++; m.dirty = true; // (its new hole shows at once)
-      if (head || m.hits >= 3) {
+      if (head || m.hits >= DTN.hits) {
         const pts = DTN.pts + (head ? DTN.headPts : 0);
         S.score += pts; result.hits++; minSt.down++;
         shot.items.push(head ? `Head shot! +${pts}` : `Down! +${pts}`); shot.scores++; shot.at = shot.at || [at.x, at.y, at.z];
         asMin(m, () => { B.throw = null; B.from = B.pose; B.state = "crumple"; B.t = 0; B.k = 0; });
         sThud(0.35);
-      } else shot.items.push(`Hit (${m.hits} of 3)`);
+      } else shot.items.push(`Hit (${m.hits} of ${DTN.hits})`);
       hud();
     }
     // one that gets to Riley: it claws, and it's gone
@@ -14254,10 +14426,10 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     // the step-aside buttons (v2.30): a ◀ ▶ pair down in each bottom corner, for either thumb (Downtown, while it's
     // on); while the cabinets are up they ride just above them, so a tap on a cabinet still grabs it
+    // (batch F, Nov 12 2026, the user: they stay down under the thumbs, over the cabinets when those are up, and a touch
+    // on one always moves Riley first (S.scene.press runs before the cabinets'); a cabinet is smashed by a tap outside them)
     const stepBtns = () => {
-      const s = clamp(Math.min(W, H) * 0.12, 44, 60), gap = 6, low = H - s - 12, g = S.gun;
-      let y = low;
-      if (g && (g.up || 0) < 1) { const L = caseLayout(); y = Math.min(low, low + ((L.cy - 44 * L.sc - s - 10) - low) * (1 - (g.up || 0)) * (1 - (g.hide || 0))); }
+      const s = clamp(Math.min(W, H) * 0.12, 44, 60), gap = 6, y = H - s - 12;
       return [{ d: -1, x: 8, y, s }, { d: 1, x: 8 + s + gap, y, s }, { d: -1, x: W - 8 - 2 * s - gap, y, s }, { d: 1, x: W - 8 - s, y, s }];
     };
     const showSteps = () => DT && S.phase === "gun" && live();
@@ -14322,7 +14494,7 @@ body.lab .stage > :not(canvas) { display: none; }
       front() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.save(); ctx.translate(shx, shy);
         if (BK.on) for (const L of lights) lampGlow(L);
-        drawFlying(); ctx.restore();
+        drawScreamers(); drawFlying(); ctx.restore();
       },
       over, press, release: releaseStep, collide, landOn, missNote, rise, map,
       // (Re-live it puts it as it was before the lob, and after)
@@ -14336,7 +14508,7 @@ body.lab .stage > :not(canvas) { display: none; }
       reset() { resetGun(); },
       free: () => true, spots: () => null, roofTargets: () => [],
       // (for testing from the console)
-      peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld(), mins, minSt }),
+      peek: () => ({ B, riley, projs, book, cart, result, Z, stem: stemWorld(), mins, minSt, scr }),
       test: { hitBoss, damage, startThrow, release, toCart, closeBook, win, explode, checkStage, startCrumple, makeHeadRoll, roar },
     };
   }
@@ -15550,7 +15722,9 @@ body.lab .stage > :not(canvas) { display: none; }
   // level): celery-stalk limbs with leafy tufts at the joints, warty yellow gourd feet, beefsteak tomato knees, a long
   // eggplant body, carrot shoulders, and the butternut head with its carved face, the candle in it not lit. In the
   // boss's units (feet at 0, the stem's top at about 20.5, y up), scaled to MN_H metres tall
-  const MN_H = 1.85, MN_STALK = ["#7d9a4c", "#86a456", "#6f8c43", "#7a9550", "#8aa85c"];
+  // (MN_PEEK: the ones leaning out past a corner, or the Lake's, drawn this much bigger (batch F, Nov 12 2026, the
+  // user: "too small, scale up"); the ones in windows stay MN_H so the face fits the glass)
+  const MN_H = 1.85, MN_PEEK = 1.6, MN_STALK = ["#7d9a4c", "#86a456", "#6f8c43", "#7a9550", "#8aa85c"];
   const mnRng = (s) => () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const MN_FACE = (() => {
     const r = mnRng(13), eyeR = [[0.28, 0.34], [1.22, 0.8], [1.12, 0.1], [0.62, 0.0], [0.4, 0.05]].map(([x, y]) => [x * 0.85, y - 0.08]);
@@ -15699,7 +15873,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // something), face (0 side on .. 1 at us; only below 0.35 is it drawn side on), back (from behind), tilt (the
   // head's), shade (0 .. 1, in shadow), arm and tomato (throwing), sway (shuffling, its phase), alpha
   function drawMinion(x, y, u, p) {
-    const k = (MN_H / 20.5) * u, R = 24 * k, px = Math.max(8, Math.ceil(2 * R * dpr) + 4);
+    // (sz: bigger than MN_H, batch F: the user's "too small, scale up" for the ones peeking round corners)
+    const k = ((MN_H * (p.sz || 1)) / 20.5) * u, R = 24 * k, px = Math.max(8, Math.ceil(2 * R * dpr) + 4);
     if (px > 2400 || k <= 0) return;
     if (!MN_OFF.cv) { MN_OFF.cv = document.createElement("canvas"); MN_OFF.c = MN_OFF.cv.getContext("2d"); }
     const oc = MN_OFF.cv, c = MN_OFF.c;
@@ -15759,7 +15934,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (on the line from the eye past the corner, depth behind it, then a little in: so it's just hidden, and leaning
     // out takes its head past the edge on the screen however far back it stands)
     const [cx, cy, cz] = corner, k = (cz + depth - CAM.z) / Math.max(0.5, cz - CAM.z), xr = CAM.x + (cx - CAM.x) * k;
-    return { x: xr - side * 0.4, y: cy, z: cz + depth, dir: side, look: Math.random() < 0.5 ? 1 : 2, lean: 0, face: 0.2, shade: 0.25,
+    return { x: xr - side * 0.55, y: cy, z: cz + depth, dir: side, look: Math.random() < 0.5 ? 1 : 2, lean: 0, face: 0.2, shade: 0.25, sz: MN_PEEK,
       clip: { edge: { at: [cx, cy + 1, cz], side } }, draw: cameoMinion, ...pose };
   }
   // ---- Cul de sac's windows: the front ones of the houses, facing the launcher, on screen. A window's glass, in the
@@ -15796,23 +15971,26 @@ body.lab .stage > :not(canvas) { display: none; }
     return { i, w, hy, c: hy.at(i, w.u, (w.y0 + w.y1) / 2 - 0.6), inside: (dz) => { const g = hy.at(i, w.u + dz, hy.floor); return throughGlass(g, 0.7, hy.floor); } };
   }
 
+  // Pasture's cameo minion, drawn by pastureBack among its trees and fences (none when it isn't on)
+  function pastureCameo() { return CAMEO.on && CAMEO.id === "pasture" ? CAMEO.objs.filter((o) => o.inBack) : []; }
   const CAMEOS = {
     // (Nov 11 2026, the user's design: slow, as the minions are on Downtown; it leans out from behind something
     // (only past an outside wall), or shows in a window, and the iris shuts (0.4 s) before it can be made out)
     // Pasture: behind the junker's far end, it leans slowly out past the side
     // (the user, Nov 11 2026: not the junker (it looked odd behind the car): one of the big trees along the side
     // fences, the nearest on the screen with a clear trunk under a high crown, leaning out toward the field)
+    // (batch F, Nov 12 2026, the user's fix: the side-fence trees put it in front of fence rails and it looked the wrong
+    // size; now the big oak standing alone at the back of the field, the minion just behind its trunk, drawn among the
+    // trees and fences (pastureCameo) so the trunk covers it and the far fence stays behind it)
     pasture: {
       spot() {
-        const TW = { oak: 0.1, maple: 0.1, birch: 0.12, pine: 0.08, wpine: 0.06 };
-        const t = trees.filter((t) => TW[t.kind] && t.z > 20).map((t) => ({ t, q: P(t.x, 0, t.z) })).filter(({ q }) => !q.behind && q.x > 60 && q.x < W - 60).sort((a, b) => a.t.z - b.t.z)[0];
-        if (!t) return null;
-        const tr = t.t, side = tr.x > S.lx ? -1 : 1, hw = Math.max(0.2, (tr.w * TW[tr.kind]) / 2), c = [tr.x + side * hw, 0, tr.z];
-        CAMEO.objs = [peeker(c, side, 0.7, { look: 1, shade: 0.2 })]; CAMEO.o = CAMEO.objs[0];
+        const tr = trees.find((t) => t.cameo); if (!tr) return null;
+        const side = tr.x > S.lx ? -1 : 1, hw = (tr.w * 0.1) / 2, c = [tr.x + side * hw, 0, tr.z];
+        CAMEO.objs = [peeker(c, side, 1.2, { look: 1, shade: 0.2, inBack: true })]; CAMEO.o = CAMEO.objs[0];
         return [c[0], 1.1, c[2]];
       },
       tick(t) { const o = CAMEO.o; o.lean = 0.62 * cutEase(clamp(t / 1.8, 0, 1)); o.face = t > 1.3 ? 0.6 : 0.2; },
-      hold: 1.95, shut: 0.4, span: 4.5,
+      hold: 1.95, shut: 0.4, span: 4.2,
     },
     // Cul de sac: a face comes slowly up to a window of a house at the end of the street (the one it smashed, if it's
     // in view)
@@ -15857,14 +16035,14 @@ body.lab .stage > :not(canvas) { display: none; }
       spot() {
         const b = (S.scene.boathouses || [])[0]; if (!b) return null;
         const sd = solid(b), cs = [-1, 1].flatMap((a) => [-1, 1].map((k) => sd.Wp([a * b.w / 2, 0, k * b.d / 2]))), c = outerCorner(cs, 1);
-        const o = { x: c[0] + 8, y: -1.3, z: c[2] - 6, dir: -1, look: 2, back: true, face: 1, shade: 0.3, lean: 0, draw: cameoMinion, clip: { water: true, edge: { at: [c[0], 1, c[2]], side: 1 } } };
+        const o = { x: c[0] + 8, y: -1.85, z: c[2] - 6, dir: -1, look: 2, back: true, face: 1, shade: 0.3, lean: 0, sz: MN_PEEK, draw: cameoMinion, clip: { water: true, edge: { at: [c[0], 1, c[2]], side: 1 } } };
         Object.assign(CAMEO, { objs: [o], o, c });
         return [c[0] + 3.5, 0.6, c[2] - 2];
       },
       tick(t) {
         const o = CAMEO.o, c = CAMEO.c;
-        if (t < 3.0) { const k = cutEase(t / 3.0); o.x = c[0] + 8 - k * 6.6; o.z = c[2] - 6 + k * 5.6; o.y = -1.3; }
-        else if (t < 3.9) { o.y = cutLerp(-1.3, 0.25, cutEase((t - 3.0) / 0.9)); o.sway = (t - 3) * 2.2; }
+        if (t < 3.0) { const k = cutEase(t / 3.0); o.x = c[0] + 8 - k * 6.6; o.z = c[2] - 6 + k * 5.6; o.y = -1.85; }
+        else if (t < 3.9) { o.y = cutLerp(-1.85, 0.25, cutEase((t - 3.0) / 0.9)); o.sway = (t - 3) * 2.2; }
         else { const k = clamp((t - 3.9) / 1.8, 0, 1); o.x = c[0] + 1.4 - k * 1.9; o.z = c[2] - 0.4 + k * 2.6; o.y = 0.25; o.sway = (t - 3) * 2.2; }
         o.clip.water = o.y < 0.2;
       },
@@ -15878,18 +16056,19 @@ body.lab .stage > :not(canvas) { display: none; }
         return [k.x, 1.1, k.z];
       },
       tick(t) { const o = CAMEO.o; o.lean = 0.6 * cutEase(clamp(t / 1.8, 0, 1)); o.face = t > 1.3 ? 0.6 : 0.2; },
-      hold: 1.95, shut: 0.4, span: 5,
+      hold: 1.95, shut: 0.4, span: 4.2,
     },
     // Harvest: from behind the barn's front corner (the one facing you, on its end away from the field), it leans
     // slowly out (the user, Nov 11 2026: not a back corner)
     harvest: {
       spot() {
         const f = barnFront(); if (!f) return null;
-        const o = peeker(f.c, f.side, 3.5, { look: 2, shade: 0.3 }); CAMEO.objs = [o]; CAMEO.o = o;
-        return [f.c[0], 1.1, f.c[2] + 1.0];
+        // (closer behind the corner and the shot tighter, batch F: it read too small)
+        const o = peeker(f.c, f.side, 2.0, { look: 2, shade: 0.3 }); CAMEO.objs = [o]; CAMEO.o = o;
+        return [f.c[0], 1.4, f.c[2] + 1.0];
       },
       tick(t) { const o = CAMEO.o; o.lean = 0.62 * cutEase(clamp(t / 1.8, 0, 1)); o.face = t > 1.3 ? 0.6 : 0.2; },
-      hold: 1.95, shut: 0.4, span: 5,
+      hold: 1.95, shut: 0.4, span: 4.2,
     },
     // Reservoir: in the powerhouse window (the one it smashed, if it did), its shape passes slowly by inside
     reservoir: {
@@ -15996,7 +16175,7 @@ body.lab .stage > :not(canvas) { display: none; }
       },
       from(c, side, depth) {
         const o = peeker(c, side, depth, { look: Math.random() < 0.5 ? 1 : 2, shade: 0.2, arm: 0, tomato: true });
-        Object.assign(STRAY, { o, objs: [o], from: [c[0] + side * 0.5, c[1] + 1.6, c[2] + depth * 0.5], side: -side, throwAt: 0.85 });
+        Object.assign(STRAY, { o, objs: [o], from: [c[0] + side * 0.5, c[1] + 1.6 * MN_PEEK, c[2] + depth * 0.5], side: -side, throwAt: 0.85 });
         return true;
       },
       tick(t) {
