@@ -230,6 +230,9 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .chres { display: grid; gap: 12px; width: 100%; }
 .chres .again { justify-self: start; font-size: .8rem; padding: 4px 10px; }
 .legend .hs, .legend .sharename { flex: 1 1 100%; }
+.lvl .wtop { opacity: 1; color: #1e6fb0; text-decoration: underline; cursor: pointer; font-weight: 800; }
+.lvmade { flex: 1 1 100%; text-align: center; font-family: var(--display); font-size: 1.4rem; }
+#lvSave { display: block; margin: 6px auto 8px; }
 .initials { flex: 1 1 100%; display: flex; justify-content: center; gap: 12px; }
 .initials .slot { display: grid; justify-items: center; gap: 3px; }
 .initials input { width: 2.6rem; font-family: var(--display); font-size: 2.1rem; line-height: 1.1; text-align: center; text-transform: uppercase; border: 2px solid var(--ink); border-radius: 8px; padding: 2px 0; background: #fff; color: var(--ink); }
@@ -774,7 +777,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.44</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.45</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2393,6 +2396,8 @@ body.lab .stage > :not(canvas) { display: none; }
       $("ovChal").onclick = () => openShare({ score: tot });
     }
     if (!S.camp) $("ovPick").onclick = () => { audio(); showStart(S.level); };
+    // (v2.45: free play and challenge rounds go for the level's world top 10)
+    if (!S.camp) levelTopOnCard(L, tot, !!S.challenge);
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult, clearB, lvl().gun ? 0 : S.osbScore || 0);
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
@@ -2550,13 +2555,14 @@ body.lab .stage > :not(canvas) { display: none; }
     $("ovHowto").onclick = () => openHowto();
     $("ovModes").onclick = () => { audio(); showModes(); };
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
-    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.chip || L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
+    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.chip || L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small><small class="wtop" data-i="${i}" role="link" tabindex="0" hidden></small></button>`; }).join("") +
       // the places still to come, greyed out
       COMING_SOON.map((name, i) => `<button type="button" class="lvl soon" disabled aria-disabled="true"><span class="num" aria-hidden="true">${LEVELS.length + i + 1}</span><span class="nm">${name}</span><small>coming soon!</small></button>`).join("");
     [...el.querySelectorAll(".lvl:not(.soon)")].forEach((b) => {
       b.onclick = () => { audio(); const i = Number(b.dataset.i); if (i === startPick) startLevel(i); else showStart(i); };
     });
     $("extras").hidden = false; extrasFor(LEVELS[sel]);
+    levelTops(); // (v2.45: each level's world #1, a link to its top 10)
   }
 
   // ================= (v2.18) "Which mode?" and the single-player campaign =================
@@ -7590,6 +7596,66 @@ body.lab .stage > :not(canvas) { display: none; }
       const s = await withT(f.getDocs(f.query(f.collection(f.db, "pneuman_story", d, "runs"), f.orderBy("total", "desc"), f.limit(30))), 8000);
       return sortTop(s.docs.map((x) => x.data())).slice(0, 10);
     } catch (e) { fbWarn("top 10", e); return null; }
+  }
+  // ---- (v2.45) a world top 10 for each level: free play and challenge rounds (Story has its own table) ----
+  //   pneuman_levels/{levelId}/runs/{auto}: name (three initials), total, diff, ch (a challenge round), at, uid, v, created
+  const lvCache = {}; // levelId → { at, t } (kept two minutes)
+  async function fbLevelTop(id, fresh = false) {
+    const c = lvCache[id]; if (!fresh && c && Date.now() - c.at < 120000) return c.t;
+    const f = await fb(); if (!f) return null;
+    try {
+      const s = await withT(f.getDocs(f.query(f.collection(f.db, "pneuman_levels", id, "runs"), f.orderBy("total", "desc"), f.limit(15))), 8000);
+      const t = s.docs.map((x) => x.data()).sort((a, b) => b.total - a.total || a.at - b.at).slice(0, 10);
+      lvCache[id] = { at: Date.now(), t }; return t;
+    } catch (e) { fbWarn("level top 10", e); return null; }
+  }
+  async function fbLevelAdd(id, entry) {
+    const f = await fb(); if (!f) return null;
+    try { await withT(f.addDoc(f.collection(f.db, "pneuman_levels", id, "runs"), { ...entry, uid: f.uid, v: GAME_V, created: f.serverTimestamp() }), 8000); }
+    catch (e) { fbWarn("level top 10 save", e); return null; }
+    return fbLevelTop(id, true);
+  }
+  function lvTable(L, t, mark) {
+    const rows = t.length ? t.map((e, i) => `<tr class="${mark && e.at === mark ? "me" : ""}"><td class="n">${i + 1}</td><td>${esc(String(e.name || "—"))}</td><td class="n">${e.total}</td><td class="d">${esc(String(e.diff || ""))}${e.ch ? " · challenge" : ""}</td><td class="d">${new Date(e.at).toLocaleDateString()}</td></tr>`).join("")
+      : `<tr><td class="none" colspan="5">No scores on ${esc(L.name)} yet. Be the first!</td></tr>`;
+    return `<table class="hs"><caption>World top 10 · ${esc(L.name)}</caption>${rows}</table>`;
+  }
+  // the end of a free-play or challenge round: the level's world table under the tally, and if the round makes it,
+  // "You made #N!" with the three initials and Save
+  async function levelTopOnCard(L, tot, ch) {
+    const box = document.createElement("div"); box.id = "lvTop"; box.style.flex = "1 1 100%";
+    $("legend").appendChild(box);
+    const t = await fbLevelTop(L.id, true); if (!t || !box.isConnected) return;
+    const makes = tot > 0 && (t.length < 10 || tot > t[t.length - 1].total), k = t.filter((e) => e.total >= tot).length;
+    box.innerHTML = (makes ? `<div class="lvmade">You made #${k + 1} on ${esc(L.name)}!</div>${initialsHtml(initialsGuess())}<button id="lvSave" type="button">Save to the world top 10</button>` : "") + lvTable(L, t);
+    if (!makes) return;
+    const read = initialsWire(), diff = S.diff;
+    $("lvSave").onclick = async () => {
+      audio(); const b = $("lvSave"); b.disabled = true; b.textContent = "Saving…";
+      const name = read(); try { localStorage.setItem("pneuman-initials", name); } catch (e) {}
+      const entry = { name, total: tot, diff, ch: !!ch, at: Date.now() };
+      const t2 = await fbLevelAdd(L.id, entry);
+      if (!box.isConnected) return;
+      if (t2) box.innerHTML = lvTable(L, t2, entry.at);
+      else { b.disabled = false; b.textContent = "Couldn't save: try again"; }
+    };
+  }
+  // the start card's level buttons: each shows the world #1, a link to that level's top 10
+  function levelTops() {
+    for (const s of document.querySelectorAll(".lvl .wtop")) {
+      const i = Number(s.dataset.i), L = LEVELS[i];
+      fbLevelTop(L.id).then((t) => {
+        if (!t || !t.length || !s.isConnected) return;
+        s.textContent = `world #1 ${t[0].total}`; s.hidden = false;
+        const open = (e) => { e.stopPropagation(); e.preventDefault(); audio(); showLevelTop(i); };
+        s.onclick = open; s.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") open(e); };
+      });
+    }
+  }
+  function showLevelTop(i) {
+    const L = LEVELS[i];
+    showCard("Free play", L.name, "", `<div id="lvTop" style="flex:1 1 100%">Loading…</div>`, `<button id="ovGo" type="button">‹ Back</button>`, () => showStart(i));
+    fbLevelTop(L.id, true).then((t) => { if ($("lvTop")) $("lvTop").innerHTML = t ? lvTable(L, t) : "Couldn't load the table just now."; });
   }
   async function fbTopAdd(d, entry) {
     const f = await fb(); if (!f) return null;
