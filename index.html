@@ -778,7 +778,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.47</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.48</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -876,11 +876,12 @@ body.lab .stage > :not(canvas) { display: none; }
     // stands of tall woods; the animals cost points and the scarecrow and junker win them, as on the cart; no wind
     pasture: { id: "pasture-mp", alt: "pasture", name: "Pasture", scene: "pastureGun", mix: {}, z: [10, 50], wind: [0, 0], gun: true,
       props: ["cow", "horse", "chicken", "turkey", "scarecrow", "junker"], noun: "Cow pies", upNoun: "cow pies", icon: PIE_ICON },
-    // Skeetza with the Cart Launcher: the hall with its roof raised to 20 m, two spinners (orange near, red at the
-    // back by the tunnel ovens) and two floor rings between the machines (zBy: each colour's band out from the cart);
-    // the workers and windows cost points, the drone and the stack of pizza boxes win them
+    // Skeetza with the Cart Launcher: the hall with its roof raised to 20 m, the orange spinner near, the red 25
+    // painted on the back wall above the roller door (bank shots, Nov 13 2026), and two floor rings between the
+    // machines (zBy: each colour's band out from the cart); the workers and windows cost points, the drone and the
+    // stack of pizza boxes win them. Spuds bounce off the walls and roof at a glancing angle (see bankOff)
     skeetza: { id: "skeetza-cart", alt: "skeetza", name: "Skeetza", scene: "factoryCart", mix: MIX, z: [14, 50], wind: [0, 0], mapZ: 66,
-      targets: { yellow: "spinner", red: "spinner" }, zBy: { yellow: [15, 20], red: [42, 52], purple: [23, 50], blue: [26, 56] }, ringScale: 0.45, props: [] },
+      targets: { yellow: "spinner", red: "wallring" }, zBy: { yellow: [15, 20], purple: [23, 50], blue: [26, 56] }, ringScale: 0.45, props: [] },
   };
   // the mode a level is played in, as the switches name it
   const modeOf = (L) => (L.gun ? "mp" : "cart");
@@ -1482,7 +1483,7 @@ body.lab .stage > :not(canvas) { display: none; }
     return rings;
   }
   // what a target is called in the shot notes
-  const tName = (t) => `${RINGS[t.type].name} ${t.form === "spinner" ? "spinner" : t.form === "splat" ? "target" : t.form === "roof" ? "roof ring" : t.form === "wallring" ? "ring on the barn" : t.hill ? "hill ring" : "ring"}`;
+  const tName = (t) => `${RINGS[t.type].name} ${t.form === "spinner" ? "spinner" : t.form === "splat" ? "target" : t.form === "roof" ? "roof ring" : t.form === "wallring" ? (t.hall ? "ring on the back wall" : "ring on the barn") : t.hill ? "hill ring" : "ring"}`;
   // a ring up on a roof or painted on a wall: the building draws it, and it doesn't take up ground
   const onBuilding = (t) => t.form === "roof" || t.form === "wallring";
   // "3.2 m short, 1.5 m left of the blue ring", for the nearest target not yet scored
@@ -1880,7 +1881,7 @@ body.lab .stage > :not(canvas) { display: none; }
     else if (S.osb && S.osb.state === "done") S.osb.show = false; // (the arc goes once the next spud's launched)
     const d = dirVec(), v = MUZZLE * Math.sqrt(S.psi), m = muzzle();
     S.potato = { x: m.x, y: m.y, z: m.z, vx: d.x * v, vy: d.y * v, vz: d.z * v, rot: 0, spin: rnd(8, 16), gold };
-    S.flightT = 0; S.struck = false; S.deflects = 0; S.spinSkip = null; S.propSkip = null; S.shotScores = 0;
+    S.flightT = 0; S.struck = false; S.deflects = 0; S.spinSkip = null; S.propSkip = null; S.shotScores = 0; S.bankFrom = null;
     // every shot is recorded: how the launcher was set, the wind, and (as it flies) the flight. Re-live it plays it
     // back; kept in S.shots for the level, ready for challenges and replays later
     S.rec = { level: S.level, at: Date.now(), gold, lx: S.lx, yaw: S.yaw, hole: S.hole, psi: S.psi, wind: { ...S.wind }, frames: [{ t: 0, x: m.x, y: m.y, z: m.z, rot: 0 }], sounds: [], capture: false, pre: sceneState() };
@@ -2303,6 +2304,13 @@ body.lab .stage > :not(canvas) { display: none; }
       else shotNote(missNote(x, z) || "Splat.");
     }
     if (pre) shotNote(`${pre} → ${shotEl.textContent}`);
+    // (Skeetza Cart: a score after the spud bounced off a wall or the roof: a bank shot, +5, on top of any combo)
+    if (S.bankFrom != null && S.shotScores > S.bankFrom) {
+      S.bonus += BANK_PTS; (S.bonusItems = S.bonusItems || []).push("Bank shot");
+      S.pops.push({ x, y: y + 2.4, z, text: `Bank shot! +${BANK_PTS}`, t: 0, combo: 2 });
+      if (S.shotScores < 2) sfx.zaDouble();
+      shotNote(`Bank shot! +${BANK_PTS} bonus! ${shotEl.textContent}`);
+    }
     // two or more scores in one shot (a spinner into a ring, the trampoline onto a roof…): called out, with a bonus
     // and a jingle
     if (S.shotScores >= 2) {
@@ -3012,6 +3020,8 @@ body.lab .stage > :not(canvas) { display: none; }
         if (board) { land(p.x, p.z, null, board.form === "wallring" ? { kind: "wallring", target: board } : board.zone === "board" ? { kind: "board", target: board } : { kind: "mount", target: board, at: [p.x, p.y, p.z] }); break; }
         // the place's own solid things (houses and the barn: walls, windows, roofs)
         const sh = S.scene.collide(p, prev);
+        // (Skeetza Cart: a wall or roof slope hit at a glancing angle bounces it on: see bankOff)
+        if (sh && sh.bank && S.deflects < MAX_DEFLECTS && bankOff(sh, p, prev)) continue;
         if (sh) { land(sh.land[0], sh.land[2], null, { ...sh, y: sh.land[1] }); break; }
         // a spud coming down into an animal or an object stops there (the junker, trampoline and tractor check their actual shape)
         const hit = (S.props || []).find((o) => !(S.propSkip && S.propSkip.o === o && S.flightT < S.propSkip.until) && (o.kind === "junker" ? carHit(o, p) : o.kind === "fisher" ? (o.zone = fisherHit(o, p)) : o.kind === "trampoline" ? (o.zone = trampHit(o, p, prev)) : o.kind === "tractor" ? (o.zone = tractorHit(o, p)) : p.y < o.y0 + o.h && p.y > o.y0 - 0.2 && Math.hypot(p.x - o.x, p.z - o.z) < o.r));
@@ -5051,6 +5061,24 @@ body.lab .stage > :not(canvas) { display: none; }
     p.y = Math.max(p.y, (o.y0 || 0) + Math.min(o.h || 1.5, 2.5) * 0.9); p.x += p.vx * 0.03; p.z += p.vz * 0.03;
     S.propSkip = { o, until: S.flightT + 0.7 };
   }
+  // ---- bank shots (Skeetza Cart, Nov 13 2026): a spud meeting a wall or a roof slope at under 35° to it bounces
+  // off and flies on, a bit slower (the along-the-surface part keeps 85%, the straight-off part 60%); a steeper hit
+  // smashes there as before. Counts toward the same per-shot limit as the ricochets (S.deflects). hit.bank: the
+  // surface's normal, pointing into the hall. No randomness, so Re-live it and challenges go the same way ----
+  const BANK_PTS = 5, BANK_MAX = Math.sin(deg(35));
+  function bankOff(hit, p, prev) {
+    const n = hit.bank, sp = Math.hypot(p.vx, p.vy, p.vz), dot = p.vx * n[0] + p.vy * n[1] + p.vz * n[2];
+    if (!sp || -dot / sp >= BANK_MAX) return false;
+    const vn = [n[0] * dot, n[1] * dot, n[2] * dot];
+    p.vx = (p.vx - vn[0]) * 0.85 - vn[0] * 0.6; p.vy = (p.vy - vn[1]) * 0.85 - vn[1] * 0.6; p.vz = (p.vz - vn[2]) * 0.85 - vn[2] * 0.6;
+    // (back inside, where it was a moment ago)
+    p.x = prev.x; p.y = prev.y; p.z = prev.z;
+    S.deflects++;
+    if (S.bankFrom == null) S.bankFrom = S.shotScores;
+    midHit({ hit: false }, () => sfx.thunk());
+    S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "BONK!", t: 0 });
+    return true;
+  }
   // off the mat: a bonus the first time, and the spud flies on (where it lands next counts too)
   function bounce(o, p) {
     const D = PROPS.trampoline;
@@ -6925,7 +6953,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (MAP.big) { mh = Math.min(H - 20, 480); mw = Math.min(W * 0.4, mh * 0.85); }
     else { mw = Math.min(150, W * 0.26); mh = Math.min(190, H * 0.5, mw * 1.3); }
     const x0 = W - mw - 10, y0 = H - mh - 10, by = y0 + mh - 14;
-    const zmax = lvl().mapZ || lvl().z[1] + 15, sc0 = (mh - 26) / zmax, sc = sc0 * MAP.zoom;
+    // (a place may size it to what's there now: Squash Head's lob, to its stem)
+    const zmax = (S.scene && S.scene.mapZ && S.scene.mapZ()) || lvl().mapZ || lvl().z[1] + 15, sc0 = (mh - 26) / zmax, sc = sc0 * MAP.zoom;
     // it can pan sideways over the area the whole map shows, and further to take in every target and thing in the
     // field (with a few metres to spare), so targets spread wider than the map can be slid into view even unzoomed
     const w0 = (mw / 2) / sc0, vw = (mw / 2) / sc;
@@ -6998,7 +7027,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // aim line (bolder while it's being dragged, or the mouse is over it, to show it's the thing that moves)
     const yw = S.yaw * Math.PI / 180;
     ctx.setLineDash([3, 3]); ctx.strokeStyle = "#e8452c"; ctx.lineWidth = MAP.lineHot ? 3 : 1.5;
-    ctx.beginPath(); ctx.moveTo(MX(S.lx), MY(0)); ctx.lineTo(MX(S.lx + Math.sin(yw) * zmax), MY(Math.cos(yw) * zmax)); ctx.stroke(); ctx.setLineDash([]);
+    // (on out past the map's top edge, wherever it's panned to: the map clips it)
+    ctx.beginPath(); ctx.moveTo(MX(S.lx), MY(0)); ctx.lineTo(MX(S.lx + Math.sin(yw) * zmax * 2), MY(Math.cos(yw) * zmax * 2)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = "#8a5a2b"; ctx.fillRect(MX(S.lx) - 4, MY(0) - 3, 8, 6);
     // the pin where the map was last tapped to aim, with how far that is from the launcher (it goes once the
     // launcher is turned or rolled some other way, so it never points somewhere the launcher doesn't)
@@ -7858,7 +7888,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // is the point on (or near) the map's red aim line? A finger gets more room than a mouse
   function onAimLine({ x, y }, kind) {
     const g = mapGeom(), yw = S.yaw * Math.PI / 180;
-    const ax = g.MX(S.lx), ay = g.MY(0), bx = g.MX(S.lx + Math.sin(yw) * g.zmax), by = g.MY(Math.cos(yw) * g.zmax);
+    const ax = g.MX(S.lx), ay = g.MY(0), bx = g.MX(S.lx + Math.sin(yw) * g.zmax * 2), by = g.MY(Math.cos(yw) * g.zmax * 2);
     const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1)));
     return Math.hypot(x - (ax + vx * t), y - (ay + vy * t)) <= (kind === "mouse" ? 8 : 16);
   }
@@ -8335,9 +8365,13 @@ body.lab .stage > :not(canvas) { display: none; }
           const a = side === "back" ? p.x : p.z, i = FACTORY_WINDOWS.findIndex((w) => w.side === side && a >= w.a0 && a <= w.a1 && p.y >= w.y0 && p.y <= w.y1);
           const foot = side === "back" ? [clamp(p.x, -HC.x + 0.3, HC.x - 0.3), 0, HC.z1 - 0.3] : [side * (HC.x - 0.3), 0, clamp(p.z, HC.z0 + 0.3, HC.z1 - 0.3)];
           const wat = side === "back" ? [p.x, p.y, HC.z1] : [side * HC.x, p.y, p.z];
-          return i >= 0 && !st.broken[i] ? { kind: "fwindow", i, w: FACTORY_WINDOWS[i], at: wat, land: foot } : { kind: "fwall", at: wat, land: foot };
+          // (bank: the wall's normal into the hall, for a glancing bounce; a window always breaks)
+          return i >= 0 && !st.broken[i] ? { kind: "fwindow", i, w: FACTORY_WINDOWS[i], at: wat, land: foot } : { kind: "fwall", at: wat, land: foot, bank: side === "back" ? [0, 0, -1] : [-side, 0, 0] };
         }
-        if (p.y > roofY(p.x, HC)) return { kind: "froof", at, land: [p.x, 0, p.z] };
+        if (p.y > roofY(p.x, HC)) {
+          const k = (HC.ridge - HC.eave) / HC.x, l = Math.hypot(k, 1), sx = Math.sign(p.x) || 1;
+          return { kind: "froof", at, land: [p.x, 0, p.z], bank: [-sx * k / l, -1 / l, 0] };
+        }
         return null;
       },
       // what it did when it came down there (see landOn)
@@ -8372,7 +8406,9 @@ body.lab .stage > :not(canvas) { display: none; }
         } else return false;
         return true;
       },
-      spots: () => null, roofTargets: () => [], wallTargets: () => [],
+      spots: () => null, roofTargets: () => [],
+      // (the red 25: painted on the back wall above the roller door, a ring like Harvest's on the barn)
+      wallTargets: (type) => [hallWallRing(type)],
       // the corner map: the hall's floor, its machines
       map(MX, MY) {
         ctx.fillStyle = "#c9cdd0"; ctx.fillRect(MX(-HC.x), MY(HC.z1), MX(HC.x) - MX(-HC.x), MY(-2) - MY(HC.z1));
@@ -8387,7 +8423,33 @@ body.lab .stage > :not(canvas) { display: none; }
     return scene;
   }
   // (the Cart Skeetza's hall is taller, with room in front for the cart and its camera: its own sizes, hallDims)
-  const HALL_CART = { x: 22, z0: -24, z1: 62, eave: 20, ridge: 25.6, truss0: -22 };
+  // (lift: the name and the safety board sit 5 m higher on its taller back wall, leaving room for the red ring
+  // above the roller door)
+  const HALL_CART = { x: 22, z0: -24, z1: 62, eave: 20, ridge: 25.6, truss0: -22, lift: 5 };
+  // the Cart Skeetza's red 25, painted on the back wall above the roller door (which reaches 5.5 m). As a target it
+  // has a place and a heading like a splat board (facing the cart), so the same hit test serves
+  const HALL_RING = { r: 2.4, cy: 8.7 };
+  function hallWallRing(type) {
+    const z = HALL_CART.z1 - 0.06, { r, cy } = HALL_RING;
+    const qs = Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return P(Math.cos(a) * r, cy + Math.sin(a) * r, z); });
+    const box = { x0: Math.min(...qs.map((q) => q.x)) - 3, x1: Math.max(...qs.map((q) => q.x)) + 3, y0: Math.min(...qs.map((q) => q.y)) - 3, y1: Math.max(...qs.map((q) => q.y)) + 3 };
+    return { type, form: "wallring", hall: true, x: 0, z, yaw: Math.PI, cy, rad: r, r, pts: RINGS[type].pts, hit: false, box };
+  }
+  function drawHallRing(t) {
+    const R = RINGS[t.type], z = t.z - 0.02, u = P(t.x, t.cy, z).s;
+    const circ = Array.from({ length: 32 }, (_, i) => { const a = (i / 32) * Math.PI * 2; return [t.x + Math.cos(a) * t.r, t.cy + Math.sin(a) * t.r, z]; });
+    if (!pathClip(circ)) return;
+    ctx.fillStyle = t.hit ? "rgba(255,255,255,.5)" : hexA(R.color, t.flash ? 0.55 + 0.4 * t.flash : 0.55); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = Math.max(1.4, 0.16 * u); ctx.stroke();
+    ctx.strokeStyle = t.hit ? "#cfd6da" : R.edge; ctx.lineWidth = Math.max(0.8, 0.1 * u); ctx.stroke();
+    // its points painted in the middle
+    const c = P(t.x, t.cy, z);
+    if (c.behind) return;
+    const fs = Math.max(9, t.r * 0.9 * c.s), label = t.hit ? "✓" : String(t.pts);
+    ctx.font = `800 ${fs}px Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, fs * 0.12); ctx.strokeStyle = "#23303a"; ctx.fillStyle = "#fffaf0";
+    ctx.strokeText(label, c.x, c.y); ctx.fillText(label, c.x, c.y);
+  }
   const hallDims = () => (S.scene && S.scene.hallDims) || HALL;
   const roofY = (x, H = hallDims()) => H.eave + (H.ridge - H.eave) * (1 - Math.abs(x) / H.x);
   // the hall itself: roof, walls, floor and the roof trusses with their lights. All inside surfaces, so nothing of
@@ -8422,13 +8484,15 @@ body.lab .stage > :not(canvas) { display: none; }
       quad([[-4, 0, Z1 - 0.05], [4, 0, Z1 - 0.05], [4, 5.5, Z1 - 0.05], [-4, 5.5, Z1 - 0.05]], "#8d969d", "#5d666d");
       for (let y = 0.4; y < 5.5; y += 0.4) seg([-4, y, Z1 - 0.06], [4, y, Z1 - 0.06], "rgba(60,66,72,.35)", 1);
       // the company's name, painted on the back wall
-      wallPaint(wallArt("name"), (u, v) => [-9 + 18 * u, 13.6 - 2 * v, Z1 - 0.08]);
+      wallPaint(wallArt("name"), (u, v) => [-9 + 18 * u, 13.6 + (HD.lift || 0) - 2 * v, Z1 - 0.08]);
     }
     // the windows (any broken ones dark, with a hole and cracks running out from it)
     const broken = S.scene.fbroken || (S.gun && S.gun.broken) || {};
     FACTORY_WINDOWS.forEach((w, i) => { if (inWall[w.side]) drawHallWindow(w, broken[i] || null, quad, seg); });
     // the safety board under the name: "0 days without an accident", the 0 on a plate hung a bit crooked
     if (inWall.back) safetySign();
+    // (the Cart Skeetza's red 25, painted above the roller door)
+    if (inWall.back) for (const t of S.rings) if (t.form === "wallring" && t.hall) drawHallRing(t);
     // the floor: polished concrete, its slab joints, the yellow walkway lines and the stop line you stand behind
     quad([[-X, 0, Z0], [X, 0, Z0], [X, 0, Z1], [-X, 0, Z1]], "#a9afb2");
     for (let z = 0; z < Z1; z += 6) seg([-X, 0.005, z], [X, 0.005, z], "rgba(80,88,94,.22)", 1);
@@ -8473,7 +8537,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the safety board hangs on the end wall, under the company's name and over the roller door
   function safetySign() {
-    wallPaint(wallArt("safety"), (u, v) => [-5 + 10 * u, 10.9 - 3 * v, HALL.z1 - 0.08]);
+    wallPaint(wallArt("safety"), (u, v) => [-5 + 10 * u, 10.9 + (hallDims().lift || 0) - 3 * v, HALL.z1 - 0.08]);
   }
   // the hall's signs, each drawn once, flat, on a canvas of its own (again once the lettering's font has loaded)
   const wallArtCache = {};
@@ -14915,9 +14979,10 @@ body.lab .stage > :not(canvas) { display: none; }
         ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
       }
       if (S.phase !== "title" && !S.bossCart) {
+        // (TODO2 batch AA: top right, clear of the hit notes along the top left)
         const w = Math.min(150, W * 0.3);
-        hudBar(12, 44, w, riley.hp / 100, "#24301c", "#7a9a4a", "");
-        text(`RILEY ${riley.hp}%`, 12, 38, "600 10px system-ui, sans-serif", "#d8cbb4", "left");
+        hudBar(W - 12 - w, 44, w, riley.hp / 100, "#24301c", "#7a9a4a", "");
+        text(`RILEY ${riley.hp}%`, W - 12, 38, "600 10px system-ui, sans-serif", "#d8cbb4", "right");
       }
       if (msg.text && msg.t > 0) { ctx.globalAlpha = clamp(msg.t, 0, 1); text(msg.text, W / 2, H * 0.2, "italic 17px Georgia, serif", "#eadfc8"); ctx.globalAlpha = 1; }
       for (const f of floats) { ctx.globalAlpha = clamp(f.life, 0, 1); text(f.txt, f.x, f.y, f.big ? "700 44px Georgia, serif" : "700 16px system-ui, sans-serif", f.col); ctx.globalAlpha = 1; }
@@ -15242,6 +15307,10 @@ body.lab .stage > :not(canvas) { display: none; }
         drawScreamers(); drawFlying(); ctx.restore();
       },
       over, press, release: releaseStep, collide, landOn, missNote, rise, map,
+      // (TODO2 batch AA: the lob's map reaches just past the stem, which sits about two thirds of the way up, so it's
+      // big enough on a phone to lay the aim line over it; the level's mapZ (60) only reached past where it falls far
+      // back)
+      mapZ: () => { if (!S.bossCart || B.state === "dead") return null; const st = stemWorld(); return Math.max(30, Math.ceil(Math.hypot(st.x, st.z) * 1.5 / 5) * 5); }, // (in 5 m steps, so it holds still)
       // (Re-live it puts it as it was before the lob, and after)
       keep: () => [[B, { state: B.state }]],
       // (FIRE closes the notebook while it's open)
