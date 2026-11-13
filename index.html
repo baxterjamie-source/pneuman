@@ -172,13 +172,14 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .legend i { width: 14px; height: 14px; border-radius: 50%; border: 3px solid currentColor; display: inline-block; }
 /* start screen: little pictures of what's worth +5 and what costs 5 */
 .extras { display: grid; gap: 0; }
-.xrow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.xrow b { font-family: var(--display); font-weight: 400; font-size: 1.25rem; min-width: 2.2em; }
-.xrow.plus b { color: #2e9b3a; }
-.xrow.minus b { color: var(--red); }
-.xrow span { display: flex; gap: 0; flex-wrap: wrap; }
-.xrow img { width: 56px; height: 44px; }
-.xrow .xmore { align-self: center; font-weight: 800; font-size: .8rem; color: #2e9b3a; margin: 0 4px 0 -4px; }.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+/* (batch G) one list: each a little picture with its points under it, green for a bonus, red for what it costs */
+.xlist { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: flex-end; }
+.xi { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; }
+.xi img { width: 56px; height: 44px; }
+.xi b { font-family: var(--display); font-weight: 400; font-size: 1.05rem; margin-top: -2px; }
+.xi b.p { color: #2e9b3a; }
+.xi b.m { color: var(--red); }
+.cardbtns { display: flex; gap: 10px; flex-wrap: wrap; }
 /* the difficulty switch on the start card, beside Play: meh / yup / gnarly, the one picked filled in */
 .diffsw { display: inline-flex; border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 0 var(--ink); align-self: center; }
 .diffsw button { border: 0; border-radius: 0; box-shadow: none; padding: 6px 12px; font-weight: 800; background: var(--paper); color: var(--ink); }
@@ -191,7 +192,7 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .lvl { flex: 0 0 128px; scroll-snap-align: start; position: relative; overflow: hidden; text-align: left; padding: 6px 10px; min-height: 50px; display: grid; align-content: end; gap: 0; background: #fff1cf; box-shadow: 0 3px 0 var(--ink); }
 .card.start #ovBtns { order: 1; }
 .card.start #legend, .card.start #extras { order: 2; }
-@media (max-height: 820px) { .card.start .xrow img { width: 44px; height: 34px; } .card.start { gap: 6px; padding-block: 10px; } }
+@media (max-height: 820px) { .card.start .xi img { width: 44px; height: 34px; } .card.start { gap: 6px; padding-block: 10px; } }
 .lvl .num { position: absolute; right: 4px; top: -12px; font-family: var(--display); font-weight: 400; font-size: 3.8rem; line-height: 1; opacity: .14; pointer-events: none; }
 .lvl .nm { position: relative; font-family: var(--display); font-weight: 400; font-size: 1.15rem; line-height: 1.1; }
 .lvl small { position: relative; font-size: .7rem; opacity: .65; }
@@ -315,8 +316,8 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
   /* the start and level cards fit on a phone: tighter, smaller pictures, and they scroll if they still don't */
   .overlay { padding: 8px; overflow-y: auto; }
   .card { padding: 12px 14px; gap: 7px; font-size: .92rem; }
-  .xrow img { width: 46px; height: 36px; }
-  .xrow b { font-size: 1.05rem; min-width: 1.8em; }
+  .xi img { width: 46px; height: 36px; }
+  .xi b { font-size: .95rem; }
   /* the field grows to fill the screen height left over by the header, scores and controls */
   .wrap { min-height: 100dvh; grid-template-rows: auto auto minmax(300px, 1fr) auto auto; padding-block: 10px 6px; }
   .stage { aspect-ratio: auto; max-height: none; min-height: 300px; height: 100%; }
@@ -541,20 +542,8 @@ body.lab .stage > :not(canvas) { display: none; }
       <label class="set-row">Level <select id="lvlSel"></select></label>
       <label class="set-row">Difficulty <select id="diffSel"><option value="meh">meh</option><option value="yup">yup</option><option value="gnarly">gnarly</option></select></label>
       <label class="set-row">Sound <input type="checkbox" id="soundTgl" role="switch" checked></label>
-      <!-- for testing (how fast it draws, and what it draws): folded away, and back to the defaults each time the game opens -->
-      <details class="set-test">
-        <summary>Test settings</summary>
-        <div class="set-test-body">
-          <h3 class="set-sub"><span>Animations</span> <button class="set-btn" id="animAllBtn" type="button">All off</button></h3>
-          <label class="set-row">Animals <input type="checkbox" id="animalsTgl" role="switch" checked></label>
-          <label class="set-row">Workers <input type="checkbox" id="workersTgl" role="switch" checked></label>
-          <label class="set-row">Mill &amp; saws <input type="checkbox" id="machinesTgl" role="switch" checked></label>
-          <label class="set-row">Smoke &amp; fire <input type="checkbox" id="smokeTgl" role="switch" checked></label>
-          <h3 class="set-sub"><span>Speed test</span></h3>
-          <label class="set-row">Frame rate <input type="checkbox" id="fpsTgl" role="switch"></label>
-          <label class="set-row">Full resolution <input type="checkbox" id="hiresTgl" role="switch" checked></label>
-        </div>
-      </details>
+      <!-- (batch G, Nov 12 2026: the test settings are gone; the frame-rate readout stays, under Sound, off to start) -->
+      <label class="set-row">Frame rate <input type="checkbox" id="fpsTgl" role="switch"></label>
       <button class="set-btn" id="howtoSetBtn" type="button">How to play ›</button>
       <button class="set-btn" id="introSetBtn" type="button">Watch intro ›</button>
       <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
@@ -606,10 +595,8 @@ body.lab .stage > :not(canvas) { display: none; }
         <div class="legend" id="legend">
           <span style="color:#d96a00"><i></i>2</span><span style="color:#7b45c9"><i></i>5</span><span style="color:#2f7fd6"><i></i>10</span><span style="color:#b81f1a"><i></i>25</span>
         </div>
-        <div class="extras" id="extras">
-          <div class="xrow plus"><b>+5</b><span id="xPlus"></span></div>
-          <div class="xrow minus"><b>−5</b><span id="xMinus"></span></div>
-        </div>
+        <!-- (batch G: one list, each thing's little picture with its points, bonuses first; it wraps onto a second line) -->
+        <div class="extras" id="extras"><div class="xlist" id="xList"></div></div>
         <div class="cardbtns" id="ovBtns"><button id="ovGo" type="button">Start level 1</button></div>
       </div>
     </div>
@@ -643,7 +630,7 @@ body.lab .stage > :not(canvas) { display: none; }
             <li><b>Load</b> a spud, <b>pump</b> up the pressure (more PSI goes farther), set the <b>angle</b> on the peg board and the <b>rotation</b>, then press <b>OPEN</b> (it opens the valve) to launch. Or work the cart by touch: tap the pump, drag the cart to aim, tap the blue valve to launch. On some levels it rolls sideways on its wheels.</li>
             <li><b>Rings</b> each score once. Some are spinners, targets on a tree or bale, or up on a roof.</li>
             <li><b>The map</b> (bottom right) shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim. Rings show in their colours, bonus objects as green squares, animals and people as orange, your landings as dots.</li>
-            <li><b>Objects</b> in the field (the junker, the mailbox, the tractor…) are a <b>+5 bonus</b>, once each. <b>Animals and people cost 5</b> every time.</li>
+            <li><b>Objects</b> in the field (the junker, the mailbox, the tractor…) are a <b>+10 bonus</b>, once each. <b>Animals and people cost 10</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
             <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. The cart is set on a golden arch of six stars: just find the pressure. +20 a star, 120 for all six. Calm air for that one, and nothing else counts.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
@@ -654,12 +641,12 @@ body.lab .stage > :not(canvas) { display: none; }
             <li><b>Grab</b> a loaded MP from its cabinet: the MP 10 has two barrels, the Reservoir's MP 15 three. <b>Aim</b> with the mouse or a finger; <b>launch</b> with OPEN, a click or Space.</li>
             <li>Skeet fly up in pairs (threes at the Reservoir). Plain ones are 5; <b>coloured ones are worth their colour's points</b>. Hit one of each colour to clear the level; then spare barrels and pulls not used are +1 each.</li>
             <li><b>Calls:</b> both of a pair with one barrel (Two Fer), both with a barrel each (Double), both and the drone (Amazing Triple).</li>
-            <li>The <b>drone</b> (and each level's own bonuses) are a bonus; <b>workers, windows and animals cost 5</b>.</li>
+            <li>The <b>drone</b> (and each level's own bonuses) are a bonus; <b>workers, windows and animals cost 10</b>.</li>
             <li><b>UP mode:</b> hit all of a level's bonuses to earn 30 s of UNLIMITED PNEUMAN. Hold OPEN to keep launching; waves of skeet worth 1 each, doubles +2, triples +5, quadruples +10.</li>
           </ul>
           <h3>Everywhere</h3>
           <ul>
-            <li><b>Difficulty:</b> meh, yup or gnarly, beside Play or in Settings. Harder means smaller, farther targets, more wind, and more in the way; your total is ×1, ×2 or ×3.</li>
+            <li><b>Difficulty:</b> meh, yup or gnarly, beside Play or in Settings. Harder means smaller, farther targets, more wind, and more in the way; your total is ×1, ×1.1 or ×1.2.</li>
             <li><b>Re-live it</b> plays your last shot again; <b>Share</b> sends a postcard of it. At the end, <b>Challenge a friend</b> to the same round: one try each.</li>
             <li><b>Keys:</b> arrows aim, Space pumps (or launches on the MP levels), Enter loads and launches, B bleeds, A and D roll the cart, M mutes.</li>
           </ul>
@@ -779,7 +766,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.37</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.38</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -858,7 +845,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // steps side to side; all 16 down and it runs straight on into Squash Head's level, no score card. See buildBoss (DT)
     { id: "downtown", name: "Downtown", scene: "downtown", mix: {}, z: [10, 50], wind: [0, 0], props: [], gun: true, downtown: true, noun: "Minions", icon: SQUASH_ICON,
       gunName: "MP 15", barrels: 3, perPull: 3, racks: 3 },
-    { id: "squashhead", name: "Squash Head", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: SQUASH_ICON,
+    // (chip: its name on the start card's row of levels, batch G)
+    { id: "squashhead", name: "Squash Head", chip: "Boss", scene: "boss", mix: {}, z: [10, 50], wind: [0, 0], props: [], boss: true, noun: "Squash Head", icon: SQUASH_ICON,
       // (endless, batch F, Nov 12 2026, the user: racks of MP 15s keep coming till it's down, as its sack never runs out)
       get gun() { return !S.bossCart; }, gunName: "MP 15", barrels: 3, perPull: 3, racks: 3, endless: true, lobs: 5, mapZ: 60 },
   ];
@@ -888,9 +876,9 @@ body.lab .stage > :not(canvas) { display: none; }
   // objects are put to the rings (m past touching); hide: how many rings get a bale partly in front of them (Harvest);
   // pace: how fast the gun levels' targets fly; tgt: their size (to hit and as drawn) ----
   const DIFF = {
-    meh:    { name: "meh",    ring: 1.15, z: 1, wind: 0.6,  gust: 0.12, near: [2.5, 6],   hide: 0, pace: 0.85, tgt: 1.15, mult: 1 },
-    yup:    { name: "yup",    ring: 0.92, z: 1.05, wind: 1.1,  gust: 0.2,  near: [0.8, 3.5], hide: 0, pace: 1.05, tgt: 0.95, mult: 2 },
-    gnarly: { name: "gnarly", ring: 0.75, z: 1.18, wind: 1.5,  gust: 0.35, near: [0.3, 1.8], hide: 2, pace: 1.22, tgt: 0.8,  mult: 3 },
+    meh:    { name: "meh",    ring: 1.15, z: 1, wind: 0.6,  gust: 0.12, near: [2.5, 6],   hide: 0, pace: 0.85, tgt: 1.15, mult: 1 }, // (mult, batch G: 1 / 1.1 / 1.2, were 1 / 2 / 3)
+    yup:    { name: "yup",    ring: 0.92, z: 1.05, wind: 1.1,  gust: 0.2,  near: [0.8, 3.5], hide: 0, pace: 1.05, tgt: 0.95, mult: 1.1 },
+    gnarly: { name: "gnarly", ring: 0.75, z: 1.18, wind: 1.5,  gust: 0.35, near: [0.3, 1.8], hide: 2, pace: 1.22, tgt: 0.8,  mult: 1.2 },
   };
   const DIFF_KEYS = Object.keys(DIFF);
   // (diffPick: the one picked; diff: the one this round is played at, set as each round is laid out)
@@ -1314,6 +1302,8 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // one spud scoring two or more things (a spinner and a ring, a spinner and a bonus object…): a call, a bonus and
   // the same jingles as Skeetza's Double Za and Amazing Triple (five or more: as the quadruple)
+  // (batch G, Nov 12 2026, the user: object bonuses +10 (were +5), anything alive or a window -10 (was -5))
+  const PTS = { obj: 10, hurt: 10 };
   const COMBO = {
     2: { text: "Double fun!", name: "Double fun", pts: 5, sound: "zaDouble" },
     3: { text: "Landed a triple!", name: "Triple", pts: 15, sound: "zaTriple" },
@@ -1517,7 +1507,7 @@ body.lab .stage > :not(canvas) { display: none; }
     fish:      { r: 0.6, h: 0.5, alive: true, animal: true, label: "fish", say: "SPLOOSH!", msg: "You smacked a jumping fish!", sound: "splosh" },
     boathouse: { r: 3.4, h: 4.5, label: "boathouse", say: "THUNK!", msg: "Right on the boathouse!", sound: "thunk" },
     // the Sea-Doo: four fast passes across the lake in a level; a hit is worth +15 (big: once per level)
-    seadoo:    { r: 1.4, h: 1.4, label: "Sea-Doo", say: "WHOA!", msg: "Nailed the Sea-Doo!", sound: "clank", big: 15 },
+    seadoo:    { r: 1.4, h: 1.4, label: "Sea-Doo", say: "WHOA!", msg: "Nailed the Sea-Doo!", sound: "clank", big: 20 },
     // gnarly's screens (v2.08), put partly in front of a ring (see screenProp): neutral, no bonus or penalty, the
     // spud just stops on them
     panel:     { r: 1.75, h: 1.35, neutral: true, label: "fence panel", say: "THUNK!", msg: "Stopped by the fence panel.", sound: "thunk" },
@@ -2160,7 +2150,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // −5 for hitting something alive (or a window), but the score never drops below 0; what was actually lost, and to
   // whom, shows in the end-of-level tally
   function penalize(name, msg) {
-    const lost = Math.min(5, S.score);
+    const lost = Math.min(PTS.hurt, S.score);
     S.score -= lost; S.penalty = (S.penalty || 0) + lost;
     if (lost) (S.penaltyItems = S.penaltyItems || []).push(name);
     shotNote(`${msg} ${lost ? `−${lost}` : "(no points to lose yet)"}`);
@@ -2171,8 +2161,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const D = PROPS[prop.kind];
     if ((lvl().noBonus || []).includes(prop.kind)) { shotNote(`${msg} ${say} (no bonus for that here)`); return; }
     if (prop.scored) { shotNote(`${msg} ${say} (bonus already won)`); return; }
-    prop.scored = true; S.shotScores++; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
-    shotNote(`${msg} ${say} +5 bonus!`);
+    prop.scored = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
+    shotNote(`${msg} ${say} +${PTS.obj} bonus!`);
   }
   function scoreTarget(t) {
     t.hit = true; t.flash = 1; S.score += t.pts; S.shotScores++; sfx.ring(t.pts);
@@ -2256,7 +2246,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     if (S.struck) {
       // the bird counts as an animal hit: −5, taken after this shot's ring points (never below 0), and named in the tally
-      const lost = Math.min(5, S.score), kind = S.bird ? S.bird.sp.name : "bird";
+      const lost = Math.min(PTS.hurt, S.score), kind = S.bird ? S.bird.sp.name : "bird";
       S.score -= lost; S.penalty = (S.penalty || 0) + lost;
       if (lost) (S.penaltyItems = S.penaltyItems || []).push(kind);
       shotNote(`Bird strike (${kind})! ${lost ? `−${lost}` : "(no points to lose yet)"} · ${shotEl.textContent}`);
@@ -2345,7 +2335,7 @@ body.lab .stage > :not(canvas) { display: none; }
 
   function endLevel() {
     // clearing every ring earns +1 for each spud left over (Skeetza: each barrel not fired)
-    // (Squash Head's round counts no spare spuds or clear bonus: its stem is +300)
+    // (Squash Head's round counts no spare spuds or clear bonus: its stem is +100, batch G (was 300))
     const boss = !!lvl().boss, br = boss && S.scene.result ? S.scene.result() : null;
     // (v2.27: Riley killed: no score, no best, no challenge; just the end of Riley, and play again)
     if ((boss || lvl().downtown) && !cleared()) { bossDeath(S.scene.result ? S.scene.result() : null); return; }
@@ -2368,7 +2358,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const title = boss ? (allHit ? "The terror is over." : br.why === "lob" ? "Squash Head rose again." : br.why === "out" ? "Out of MP 15s." : "Riley is down.")
       : allHit ? "Clean sweep!" : S.score >= maxScore() * 0.6 ? "Nice shooting" : "Level done";
     // each level keeps its own best (the level total, with bonuses and spare spuds), since levels can be played in any order
-    // (times the difficulty's multiplier: meh ×1, yup ×2, gnarly ×3)
+    // (times the difficulty's multiplier: meh ×1, yup ×1.1, gnarly ×1.2, batch G)
     // (v2.11: clearing the level, every colour hit, is worth LEVEL_CLEAR (+30) too, before the multiplier)
     const clearB = allHit && !boss ? LEVEL_CLEAR : 0;
     const raw = S.score + S.bonus + spare + unlaunched + clearB, mult = dif().mult, tot = Math.round(raw * mult), prev = getBest(L), isBest = prev == null || tot > prev;
@@ -2539,8 +2529,9 @@ body.lab .stage > :not(canvas) { display: none; }
     // (v2.09: no eyebrow or rules line any more, for room: How to play has them)
     showCard("", "Pneuman", "",
       // (Skeetza: the coloured skeetzas' points, as the rings', and the plain ones')
-      LEVELS[sel].downtown ? `<span class="pz">${SQUASH_ICON} minion down +${DTN.pts} (head shot +${DTN.pts + DTN.headPts}) · tomato +${DTN.tomatoPts}</span>` :
-      LEVELS[sel].boss ? `<span class="pz">${SQUASH_ICON} head ${BOSS.head} · kneecap or limb 2 · body 1 · squash +${BOSS.squashPts} · the stem, lobbed, +${BOSS.stemPts}</span>` :
+      // (batch G, the user: no scoring for these two, just a line)
+      LEVELS[sel].downtown ? `<span class="pz">${SQUASH_ICON} Put down all of the minions before they do the same to you!</span>` :
+      LEVELS[sel].boss ? `<span class="pz">${SQUASH_ICON} Save us!</span>` :
       ["yellow", "purple", "blue", "red"].map((t) => `<span style="color:${RINGS[t].edge}"><i></i>${RINGS[t].pts}</span>`).join("") + (LEVELS[sel].gun ? `<span class="pz">${LEVELS[sel].icon || "🍕"} ${GUN.pts}</span>` : ""),
       // (the difficulty switch beside Play: picking one lays the level out again for it, and shows its bests)
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
@@ -2549,7 +2540,7 @@ body.lab .stage > :not(canvas) { display: none; }
     $("ovHowto").onclick = () => openHowto();
     $("ovModes").onclick = () => { audio(); showModes(); };
     const el = $("levels"); el.hidden = false; document.querySelector(".card").classList.add("start");
-    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
+    el.innerHTML = LEVELS.map((L, i) => { const b = getBest(L); return `<button type="button" class="lvl${i === sel ? " on" : ""}" data-i="${i}" aria-pressed="${i === sel}"><span class="num" aria-hidden="true">${i + 1}</span><span class="nm">${L.chip || L.name}</span><small>${b == null ? "not played yet" : `best ${b}`}</small></button>`; }).join("") +
       // the places still to come, greyed out
       COMING_SOON.map((name, i) => `<button type="button" class="lvl soon" disabled aria-disabled="true"><span class="num" aria-hidden="true">${LEVELS.length + i + 1}</span><span class="nm">${name}</span><small>coming soon!</small></button>`).join("");
     [...el.querySelectorAll(".lvl:not(.soon)")].forEach((b) => {
@@ -2568,10 +2559,15 @@ body.lab .stage > :not(canvas) { display: none; }
     showCard("", "Pneuman", "Which mode?", "",
       `<button id="ovGo" class="modebtn" type="button">Story mode<small>Help Riley unravel the mystery left by a favourite uncle.</small></button>` +
       `<button id="ovFree" class="modebtn" type="button">Free play<small>Any level, any difficulty, as often as you like.</small></button>` +
-      `<button id="ovHowto" class="back" type="button">How to play</button>`, () => showCampaign());
+      `<button id="ovHowto" class="back" type="button">How to play</button>` +
+      // (batch G, Nov 12 2026: sound on or off right here, on to start; the same setting as in Settings)
+      `<button id="ovSound" class="back" type="button" role="switch"></button>`, () => showCampaign());
     document.querySelector(".card").classList.add("modes");
     $("ovFree").onclick = () => { audio(); showStart(startPick); };
     $("ovHowto").onclick = () => openHowto();
+    const snd = $("ovSound"), showSnd = () => { snd.textContent = S.muted ? "🔇 Sound off" : "🔊 Sound on"; snd.setAttribute("aria-checked", String(!S.muted)); };
+    snd.onclick = () => { setMuted(!S.muted); if (!S.muted) { audio(); sfx.click(); } showSnd(); };
+    showSnd();
   }
   // the levels of a run: the same order every run, so scores compare. A warm-up of the two gentlest (Pasture, no wind;
   // Cul de sac), then Cart Launcher and MP levels taking turns, Harvest's long shots just before the finale, and the
@@ -4917,7 +4913,7 @@ body.lab .stage > :not(canvas) { display: none; }
     o.t = 0; o.say = null; sfx.boing();
     // straight up mostly: it comes down again a few metres on
     p.y = TRAMP.y + 0.06; p.vy = Math.abs(p.vy) * 0.6; p.vx *= 0.3; p.vz *= 0.3;
-    if (!o.scored) { o.scored = true; S.shotScores++; S.bonus += 5; (S.bonusItems = S.bonusItems || []).push(D.label); addPre(`${D.msg} ${D.say} +5 bonus!`); }
+    if (!o.scored) { o.scored = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push(D.label); addPre(`${D.msg} ${D.say} +${PTS.obj} bonus!`); }
     else addPre(`${D.say} (bonus already won)`);
     hud();
   }
@@ -7390,39 +7386,15 @@ body.lab .stage > :not(canvas) { display: none; }
     const i = Number(lvlSel.value); audio(); showSettings(false);
     askRestart(`Switching to ${LEVELS[i].name}`, () => { if (S.phase === "title") showStart(i); else startLevel(i); }, () => { lvlSel.value = String(S.level); });
   });
-  const animalsTgl = $("animalsTgl");
-  animalsTgl.checked = S.animals;
+  // (batch G: the Animals switch and the other test settings are gone (animals always on, full resolution); this
+  // stands in for the switch so a challenge can still carry its own Animals setting)
+  const animalsTgl = { checked: S.animals, disabled: false };
   $("diffSel").value = S.diffPick;
   $("diffSel").addEventListener("change", (e) => setDiff(e.target.value));
-  animalsTgl.addEventListener("change", () => {
-    S.animals = animalsTgl.checked;
-    // take the animals out of the field, or bring them in among the current rings
-    if (S.animals) placeProps(lvl().props.filter((k) => PROPS[k].animal));
-    else S.props = S.props.filter((o) => !PROPS[o.kind].animal);
-  });
-  // the animation layers, and All off / All on for the lot (animals included)
-  const animTgls = { workers: $("workersTgl"), machines: $("machinesTgl"), smoke: $("smokeTgl") }, animAllBtn = $("animAllBtn");
-  const saveAnim = () => {}; // (the test settings aren't kept)
-  const anyAnim = () => S.animals || Object.values(S.anim).some(Boolean);
-  const showAnimAll = () => { animAllBtn.textContent = anyAnim() ? "All off" : "All on"; };
-  for (const [k, el] of Object.entries(animTgls)) {
-    el.checked = S.anim[k];
-    el.addEventListener("change", () => { S.anim[k] = el.checked; saveAnim(); showAnimAll(); });
-  }
-  animalsTgl.addEventListener("change", showAnimAll);
-  animAllBtn.addEventListener("click", () => {
-    const on = !anyAnim();
-    for (const [k, el] of Object.entries(animTgls)) { S.anim[k] = on; el.checked = on; }
-    saveAnim();
-    if (!animalsTgl.disabled && animalsTgl.checked !== on) { animalsTgl.checked = on; animalsTgl.dispatchEvent(new Event("change")); }
-    showAnimAll();
-  });
-  showAnimAll();
-  // the speed test: a frame-rate readout in the corner, and full resolution (off: one pixel per screen point)
-  const fpsTgl = $("fpsTgl"), hiresTgl = $("hiresTgl");
-  fpsTgl.checked = S.fps; hiresTgl.checked = S.hires;
+  // the frame-rate readout in the corner (off to start)
+  const fpsTgl = $("fpsTgl");
+  fpsTgl.checked = S.fps;
   fpsTgl.addEventListener("change", () => { S.fps = fpsTgl.checked; });
-  hiresTgl.addEventListener("change", () => { S.hires = hiresTgl.checked; resize(); });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
   gear.addEventListener("click", (e) => { e.stopPropagation(); showCtls(false); showSettings(settings.hidden); });
   document.addEventListener("click", (e) => {
@@ -7777,45 +7749,49 @@ body.lab .stage > :not(canvas) { display: none; }
     c.fillStyle = "#1b1b1b"; c.beginPath(); c.arc(42, 25.3, 0.7, 0, 7); c.fill();
     return off.toDataURL();
   }
-  // the start card's +5 and −5 pictures for a level (each drawn once, then kept)
+  // (batch G) a little picture (64 × 50, drawn at 2×) by any of the game's drawing code: paint(w, h) draws into it with
+  // ctx, W, H and the camera all its own for the moment, then everything's put back
+  function picCanvas(paint) {
+    const w = 64, h = 50, sc = 2, off = document.createElement("canvas"); off.width = w * sc; off.height = h * sc;
+    const keep = { ctx, W, H, dpr, F, CY, HZ, cp, sp, cyw, syw }, camK = { ...CAM };
+    ctx = off.getContext("2d"); W = w; H = h; dpr = sc; ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    try { paint(w, h); } catch (e) { console.error(e); }
+    finally { ({ ctx, W, H, dpr, F, CY, HZ, cp, sp, cyw, syw } = keep); Object.assign(CAM, camK); }
+    return off.toDataURL();
+  }
+  // a flat drawing of something wm × hm metres, called with its feet's spot and pixels a metre (draw(x, y, s))
+  const pic2D = (wm, hm, draw) => picCanvas((w, h) => { const s = Math.min((w * 0.9) / wm, (h * 0.86) / hm); draw(w / 2, h / 2 + (hm * s) / 2, s); });
+  // something in a place's world (its foot at at, wm × hm metres): a camera put straight in front of it, level
+  // (down: looking down on it that much (radians), for boats on the water)
+  const picWorld = (at, wm, hm, draw, down = 0) => picCanvas((w, h) => {
+    const d = 8; Object.assign(CAM, { x: at[0], y: at[1] + hm / 2 + d * Math.sin(down), z: at[2] - d * Math.cos(down), yaw: 0, pitch: down });
+    cyw = 1; syw = 0; cp = Math.cos(down); sp = Math.sin(down); F = Math.min((w * 0.9) / wm, (h * 0.86) / hm) * d; CY = h / 2; HZ = CY - F * Math.tan(down);
+    draw();
+  });
+  // the start card's list for a level: each thing's picture (drawn once, then kept) and its points, bonuses first
   const thumbs = {};
   const EXTRA_NAMES = { window: "a house window", bird: "a bird (a bird strike)" };
+  const getPic = (key, make) => thumbs[key] || (thumbs[key] = make());
   function extrasFor(L) {
-    // (Skeetza: a drone, +10, and a worker, −5, drawn by its own code)
-    // (Milling: its bonuses and penalties named for now; pictures to come)
-    if (L.scene === "reservoir") {
-      $("xPlus").innerHTML = `<small class="xmore">the drone (+10), the green nav buoy (+5)</small>`;
-      $("xMinus").innerHTML = `<small class="xmore">rowers, coaches' launches, the gull, the duck, the hydro worker, powerhouse windows</small>`;
-      return;
-    }
-    if (L.downtown) {
-      $("xPlus").innerHTML = `<small class="xmore">minion squash heads (+${DTN.pts}, head shot +${DTN.pts + DTN.headPts}), tomatoes shot down (+${DTN.tomatoPts})</small>`;
-      $("xMinus").innerHTML = `<small class="xmore">a tomato that reaches Riley (${DTN.tomato}%), a minion that gets to Riley (${DTN.claw}%); step aside: A / D, ◀ ▶</small>`;
-      return;
-    }
-    if (L.boss) {
-      $("xPlus").innerHTML = `<small class="xmore">squash shot down, as skeet (+${BOSS.squashPts})</small>`;
-      $("xMinus").innerHTML = `<small class="xmore">a squash that reaches Riley (${BOSS.rileyHit}% of Riley's health)</small>`;
-      return;
-    }
-    if (L.scene === "mill") {
-      $("xPlus").innerHTML = `<small class="xmore">weather vane, Live Edge Charcuterie sign (+10 each)</small>`;
-      $("xMinus").innerHTML = `<small class="xmore">workers, windows, the deer, the terrier, birds</small>`;
-      return;
-    }
+    const ex = $("extras"), list = $("xList");
+    // (batch G, the user: no scoring on Downtown's or Squash Head's card, just their line (in the legend's place))
+    if (L.downtown || L.boss) { ex.hidden = true; list.innerHTML = ""; return; }
+    let items = [];
+    const it = (key, make, name, pts) => items.push({ src: getPic(key, make), name, pts });
     if (L.gun) {
-      const get = (k) => thumbs[k] || (thumbs[k] = gunThumb(k));
-      $("xPlus").innerHTML = `<img src="${get("drone")}" alt="the drone" title="the drone"><small class="xmore">(+10)</small>`;
-      $("xMinus").innerHTML = `<img src="${get("worker")}" alt="a factory worker" title="a factory worker">`;
-      return;
+      if (L.scene === "mill") { it("vane", () => bonusPic("vane"), "weather vane", GUN.drone); it("sign", () => bonusPic("sign"), "Live Edge Charcuterie sign", GUN.drone); }
+      else if (L.scene === "reservoir") { it("drone", () => gunThumb("drone"), "the drone", GUN.drone); it("buoy", () => bonusPic("buoy"), "the green nav buoy", 10); }
+      else it("drone", () => gunThumb("drone"), "the drone", GUN.drone);
+      // (each place's own: drawn by its own code, see its cardPics)
+      const gp = sceneFor(L).gp, own = gp && gp.cardPics ? gp.cardPics() : [{ k: "worker", name: "a factory worker", make: () => gunThumb("worker") }];
+      for (const o of own) it(`${L.scene}:${o.k}`, o.make, o.name, -PTS.hurt);
+    } else {
+      const kinds = [...new Set(L.props.map((k) => PROPS[k].same || k))], mk = (k) => () => (k === "window" ? windowThumb() : k === "bird" ? birdThumb() : thumb(k)), nm = (k) => EXTRA_NAMES[k] || PROPS[k].label || k;
+      for (const k of kinds.filter((k) => !PROPS[k].alive && !PROPS[k].neutral && !(L.noBonus || []).includes(k))) it(k, mk(k), nm(k), PROPS[k].big || PTS.obj);
+      for (const k of [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : []), ...(L.scene === "lake" ? ["bird"] : [])]) it(k, mk(k), nm(k), -PTS.hurt);
     }
-    const kinds = [...new Set(L.props.map((k) => PROPS[k].same || k))], get = (k) => thumbs[k] || (thumbs[k] = k === "window" ? windowThumb() : k === "bird" ? birdThumb() : thumb(k));
-    // (a bigger bonus, the Sea-Doo's, gets a small "(+10)" after its picture rather than a row of its own)
-    const pic = (k) => `<img src="${get(k)}" alt="${EXTRA_NAMES[k] || PROPS[k].label || k}" title="${EXTRA_NAMES[k] || PROPS[k].label || k}">` +
-      (PROPS[k] && PROPS[k].big ? `<small class="xmore">(+${PROPS[k].big - 5})</small>` : "");
-    // (the lake's boathouses are the place's own buildings, not props, but they're +5 too)
-    $("xPlus").innerHTML = [...kinds.filter((k) => !PROPS[k].alive && !(L.noBonus || []).includes(k))].map(pic).join("");
-    $("xMinus").innerHTML = [...kinds.filter((k) => PROPS[k].alive), ...(L.scene === "culdesac" ? ["window"] : []), ...(L.scene === "lake" ? ["bird"] : [])].map(pic).join("");
+    ex.hidden = false;
+    list.innerHTML = items.map((o) => `<span class="xi" title="${o.name}"><img src="${o.src}" alt="${o.name}"><b class="${o.pts > 0 ? "p" : "m"}">${o.pts > 0 ? "+" : "−"}${Math.abs(o.pts)}</b></span>`).join("");
   }
 
   // ================= Skeetza: the MP 10 in the pizza factory =================
@@ -7832,7 +7808,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // (pace: how fast the skeetzas' flight plays out, 0.75 = three-quarter speed: the same arcs, a third longer in the air)
   // (cases: the prototype MP 10s in their cabinets, each used once, both barrels: 5 × 2 = the 10 shots)
   // (pts: a plain skeetza; a coloured one is worth its colour's points, as the rings are; drone: each of the two)
-  const GUN = { shots: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 5, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, pizzaR: 0.6, pg: 5.5, drone: 10 };
+  const GUN = { shots: 10, pulls: 20, pace: 0.75, cases: 5, droneSpeed: 1.15, pts: 5, eye: [0, 1.65, -2], look: -0.14, pellets: 5, speed: 80, spread: 0.012, pizzaR: 0.6, pg: 5.5, drone: 15 };
   const HALL = { x: 22, z0: -6, z1: 62, eave: 15.4, ridge: 21 };
   // (a level's own gun: the MP 15 has three barrels and its targets go up three at a time; the MP 10, two and two)
   const gunBarrels = () => lvl().barrels || 2, gunPerPull = () => lvl().perPull || 2, gunName = () => lvl().gunName || "MP 10";
@@ -8442,7 +8418,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // −5 for anyone or anything of the factory's: the score never goes below 0
   function gunPenalty(kind) {
-    const lost = Math.min(5, S.score);
+    const lost = Math.min(PTS.hurt, S.score);
     S.score -= lost; S.penalty = (S.penalty || 0) + lost;
     if (lost) (S.penaltyItems = S.penaltyItems || []).push(kind);
     return lost ? `−${lost}` : "(no points to lose yet)";
@@ -11026,6 +11002,14 @@ body.lab .stage > :not(canvas) { display: none; }
       upReady: () => bonusState.vaneHit != null && bonusState.signHit != null,
       // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
       bonusList: () => [{ k: "vane", label: "weather vane", hit: bonusState.vaneHit != null }, { k: "sign", label: "Live Edge Charcuterie sign", hit: bonusState.signHit != null }],
+      // (the start card's pictures of what costs points here, each by this place's own drawing (batch G))
+      cardPics: () => [
+        { k: "hand", name: "a mill hand", make: () => picWorld([0, 0, 0], 0.8, 1.85, () => drawHand({ x: 0, z: 0, face: 0, walking: false, ph: 0 }, CREW.carrier)) },
+        { k: "window", name: "a window", make: windowThumb },
+        { k: "deer", name: "the deer", make: () => pic2D(1.7, 1.7, (x, y, s) => drawDeer2D(x, y, s, 1, 0.7)) },
+        { k: "terrier", name: "the terrier", make: () => pic2D(0.75, 0.55, (x, y, s) => drawTerrier2D(x, y, s, 1, 0.5, false)) },
+        { k: "crow", name: "a crow", make: () => pic2D(0.7, 0.45, (x, y, s) => drawCrow2D(x, y - 0.22 * s, s, 1, 0.6)) },
+      ],
       // (where the vane's rooster is, for the intro's scripted shot at it, v2.20)
       vaneAt: [VANE.x, VANE.y + 0.7, VANE.z],
       upCross: () => [rnd(-2, 2), rnd(5.5, 7), rnd(15, 21)],
@@ -11940,6 +11924,18 @@ body.lab .stage > :not(canvas) { display: none; }
       upReady: () => S.gun.drones.some((d) => d.state !== "fly") && NAV.hitAt != null,
       // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
       bonusList: () => [{ k: "drone", gun: true, label: "the drone", hit: S.gun.drones.some((d) => d.state !== "fly") }, { k: "buoy", label: "the green nav buoy", hit: NAV.hitAt != null }],
+      // (the start card's pictures of what costs points here, each by this place's own drawing, where it is now (batch G))
+      cardPics: () => {
+        const t = gt(), q = QUADS[0], qa = quadAt(q, t), la = launchAt(q, t), g = gullAt(t), d = duckAt(t);
+        return [
+          { k: "quad", name: "rowers", make: () => picWorld([qa.x, 0, q.lane], 3.6, 1.6, () => drawQuad(q), 0.45) },
+          { k: "launch", name: "a coach's launch", make: () => picWorld([la.x, 0, la.z], 3.4, 1.6, () => drawLaunch(q, 0), 0.4) },
+          { k: "gull", name: "the gull", make: () => picWorld([g.x, g.y - 0.3, g.z], 1.5, 0.6, drawGull) },
+          { k: "duck", name: "the duck", make: () => picWorld([d.x, 0, d.z], 0.95, 0.55, drawDuck, 0.25) },
+          { k: "worker", name: "the hydro worker", make: () => picWorld([0, 0, 0], 0.7, 1.85, () => drawHydroWorker({ x: 0, y: 0, z: 0, t: 0, moving: false, hit: false, dir: 1 })) },
+          { k: "window", name: "a powerhouse window", make: windowThumb },
+        ];
+      },
       // (near the middle of the view, so a wave from both sides meets there)
       upCross: () => [rnd(-7, 7), rnd(12, 18), rnd(42, 58)],
       upFlight: (l, C) => Math.max(rnd(3.2, 4.0), Math.hypot(C[0] - l.x, C[2] - l.z) / 20),
@@ -12015,7 +12011,7 @@ body.lab .stage > :not(canvas) { display: none; }
         // the green nav buoy, +5 (once a round)
         // (a little more forgiving than the buoy itself: it's 200-odd metres out now)
         if (!upNow && NAV.hitAt == null && Math.abs(pl.x - NAV.x) < 1.3 && Math.abs(pl.z - NAV.z) < 1.3 && pl.y > 0 && pl.y < 2.6) {
-          hits.bonus({ name: "nav buoy", label: "nav buoy", pts: 5, at: [NAV.x, 1.5, NAV.z], react: () => { NAV.hitAt = S.gun.t; sfx.clank(); S.pops.push({ x: NAV.x, y: 2.6, z: NAV.z, text: "BONG!", t: 0 }); } }, pl.shot);
+          hits.bonus({ name: "nav buoy", label: "nav buoy", pts: 10, at: [NAV.x, 1.5, NAV.z], react: () => { NAV.hitAt = S.gun.t; sfx.clank(); S.pops.push({ x: NAV.x, y: 2.6, z: NAV.z, text: "BONG!", t: 0 }); } }, pl.shot);
           return "hit";
         }
         // the powerhouse's windows (a broken one lets the spud through, into the building)
@@ -12139,7 +12135,7 @@ body.lab .stage > :not(canvas) { display: none; }
   //   it's down loses the round.
   // - Squash (v2.26): skeet. Riley stands still and shoots them down, +10 each; one that gets through takes 10% of
   //   Riley's health (ten and Riley's down: the round's lost). The sack holds 10 / 11 / 12 (meh / yup / gnarly).
-  // - Hits score what they take off (head 8, kneecap or limb 2, body 1); the stem lob +300; then the multiplier.
+  // - Hits score what they take off (head 8, kneecap or limb 2, body 1); the stem lob +100 (batch G, was 300); then the multiplier.
   // - Difficulty: how many squash, and how fast.
   // - Down, its head comes off and rolls back and to a side, stem up; the heap quivers and the dread builds with each
   //   lob. Out of spuds (MP 15s or lobs) it gets up and lunges at Riley.
@@ -12148,7 +12144,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // yup / gnarly, then it stops throwing. A head shot takes 8 (13 knock it down))
   // (v2.27: a bigger sack, 20 / 24 / 28, and a third rack (45 spuds); from its second stomp closer it sometimes throws
   // two at once (double). Yup: 24 squash, Riley survives 9, so at least 15 must be shot, plus 13 head shots: 28 of 45)
-  const BOSS = { squashPts: 10, stemPts: 300, rileyHit: 10, lobs: 5, sack: { meh: 20, yup: 24, gnarly: 28 }, head: 8, double: 0.4 };
+  const BOSS = { squashPts: 10, stemPts: 100, rileyHit: 10, lobs: 5, sack: { meh: 20, yup: 24, gnarly: 28 }, head: 8, double: 0.4 };
   // Downtown's minions (v2.29): how many, how many at once, their size against Squash Head's, walking speed (m/s, yup),
   // tomato range and hurt, how near before they claw, points (a tomato shot down: tomatoPts), Riley's step
   // (tomatoSlow, v2.30: a tomato's flight time against a squash's, 1 / 0.8: 20% slower)
@@ -12894,7 +12890,7 @@ body.lab .stage > :not(canvas) { display: none; }
           life: rand(1.5, 3), max: 3, size: rand(0.15, 0.6), col: pick(fromHead ? ["217,140,60", "200,110,40", "180,130,70", "235,200,120"] : ["70,30,80", "120,150,70", "196,100,30", "90,120,50"]), g: 9.8, rot: rand(0, 6), vr: rand(-8, 8) });
       }
       sDeath(); setTimeout(() => splatScreen(34, 5, null), 280);
-      floats.push({ x: W / 2, y: H * 0.4, txt: "+300", life: 3, col: "#f0c060", big: true });
+      floats.push({ x: W / 2, y: H * 0.4, txt: `+${BOSS.stemPts}`, life: 3, col: "#f0c060", big: true });
     }
     // ---- (from the test page, lines 857-860)
     function stemWorld() {
@@ -14206,9 +14202,12 @@ body.lab .stage > :not(canvas) { display: none; }
         if (S.bossCart) return "stop";
         for (const q of projs) if (!q.dead && q.z > 0.4 && Math.hypot(pl.x - q.x, pl.y - q.y, pl.z - q.z) < q.r + 0.15) {
           burstProj(q); result.downed++;
-          const pts = q.type === "tomato" ? DTN.tomatoPts : BOSS.squashPts; S.score += pts;
+          // (batch G, Nov 12 2026, the user: squash only score up to the old sack's size (20 / 24 / 28), now that the
+          // sack never runs out; after that they still burst, for nothing)
+          const tom = q.type === "tomato", squashCap = BOSS.sack[S.diff] || BOSS.sack.yup;
+          const pts = tom ? DTN.tomatoPts : result.downed <= squashCap ? BOSS.squashPts : 0; S.score += pts;
           const shot = pl.shot;
-          shot.items.push(`${q.type === "tomato" ? "Tomato" : "Squash"}! +${pts}`); shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
+          shot.items.push(pts ? `${tom ? "Tomato" : "Squash"}! +${pts}` : "Squash!"); if (pts) shot.scores++; shot.at = shot.at || [q.x, q.y, q.z];
           hud();
           return "hit";
         }
@@ -14769,7 +14768,7 @@ body.lab .stage > :not(canvas) { display: none; }
       await htWait(3000, tok);
     } },
     // (an animal out in the field, then a bonus object)
-    { ch: "launcher", text: "Mind the animals: hitting one costs 5. Objects in the field, like the junker and the scarecrow, are a +5 bonus, once each.", async run(tok) {
+    { ch: "launcher", text: "Mind the animals: hitting one costs 10. Objects in the field, like the junker and the scarecrow, are a +10 bonus, once each.", async run(tok) {
       const at = (o) => [o.x, (o.h || 1.5) + 0.3, o.z];
       const ani = S.props.find((o) => PROPS[o.kind].alive), obj = S.props.find((o) => !PROPS[o.kind].alive && !PROPS[o.kind].neutral);
       await htPoints([ani && at(ani), obj && at(obj)].filter(Boolean), 3000, tok);
