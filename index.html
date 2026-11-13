@@ -15446,21 +15446,27 @@ body.lab .stage > :not(canvas) { display: none; }
   // the Uncle's notebook before a Story mode level (Scenes 3 on; Nov 10 2026): the iris opens onto the book, open at
   // the bookmark in Riley's hands, its entry already there ([page (0 left, 1 right), words]); a tap (or Skip) and the
   // level starts behind it as the book is lowered out of the way. An empty notes list is a blank page, to be written
+  // (batch J, Nov 13 2026, the user's words: the entries flow down the left page and on over to the right one (an entry
+  // given page 1 starts there); [page, { sketch, h }] is a pencil sketch h tall (NOTE_SKETCH); the words shrink a
+  // little if it's all too much for the two pages)
   const CUT_NOTES = {
-    culdesac: [[0, "Riley, you need to practice in different environments. You need to build your reflexes. You will only get one chance."]],
-    skeetza: [[0, "I left 20 acres to your Uncle Buzz, who agreed to let you use his factory. He is suspicious though, and may try to monitor you. Buzz and his drones!"],
-      [0, "Hitting flying objects is essential. That is what I designed the MP 10 for!"]],
-    // (batch H, Nov 12 2026: drafts for the user to revise; the story's three points (the scarecrows, guns don't work,
-    // why potatoes) spread through them, the backstory on the right-hand page)
-    lake: [[0, "Wind over open water moves everything, Riley. Watch the waves, read the flags, and lead your shots."],
-      [0, "Leave the fisher and the loons be. They have done nothing wrong."],
-      [1, "How it started: I built scarecrows from field waste. Stalks, squash, rotten pumpkins. Something in the fermentation set off a chain reaction. One morning they were gone from their posts."]],
-    milling: [[0, "Cold hands, steady aim. The MP 10 again. Short bursts, Riley."],
-      [1, "I tried my old rifle first. The bullet passed right through, and the squash just grew back around the hole! Conventional guns do not work."]],
-    harvest: [[0, "Long shots across open fields. Wind, distance, patience."],
-      [1, "Why potatoes? The same cellulose as a squash, but built differently: its structure, the cell wall matrix around it, somehow neutralizes them. I don't fully understand it, but it works. The more potato, the more damage."]],
-    reservoir: [[0, "The MP 15: three barrels, and they fly in threes. Clear each pull before the next."],
-      [1, "They are gathering, Riley. More every night, and bigger. I fear the town is next."]],
+    culdesac: [[0, "It was all a horrible mistake, Riley. It is unfair to put this on you, but you have that special spark and determination. I have never seen anyone else so patient and cool under pressure. The Pneuman cart is highly accurate once tweaked."],
+      [1, "Riley, you need to practice in different environments. You need to build your reflexes. Conserve spuds where you can, look for the double shot."],
+      [1, { sketch: "tramp", h: 150 }]],
+    skeetza: [[0, "Hitting flying objects is essential. That is what I designed the MP 10 for! Cartridged air, no pumping! And why I also designed automatic skeet launchers."],
+      [0, "A windless environment to build your skills. I left 20 hectares to your Uncle Buzz, who agreed to let you use his factory. He is suspicious though, and may try to monitor you. Buzz and his drones!"],
+      [1, { sketch: "mp10", h: 120 }]],
+    lake: [[0, "How it started: my food abundance experiments resulted in cast-off vegetables I turned into scarecrows. Something in the fermentation set off a chain reaction. One morning they were gone from their posts."],
+      [1, "Wind over open water moves everything, Riley. Watch the waves, read the flags, and lead your shots."],
+      [1, { sketch: "scarecrow", h: 186 }]],
+    milling: [[0, "They may be vegetable matter, but they are also killers, I don't know why. They killed Bessie, you used to love milking her on a stool. I tried my old rifle first. The bullet passed right through, and the squash just grew back around the hole! Conventional guns do not work."],
+      [1, "Cold hands, steady aim. The MP 10 again. Short bursts, Riley. Conserve spuds: try for two charcuterie with one launch of minis."],
+      [1, { sketch: "twofer", h: 124 }]],
+    harvest: [[0, "They all seem to stay close to each other, like a wolf pack. The Alpha controls the others. Why potatoes? The same cellulose as a squash, but built differently: its structure, the cell wall matrix around it, somehow neutralizes them. I don't fully understand it, but it works. The more potato, the more damage."],
+      [1, { sketch: "equation", h: 150 }]],
+    reservoir: [[0, "When they gather, the Alpha gets bigger. They focused on livestock at first, but I fear humans, the townsfolk, are next! Take down the Alpha!"],
+      [1, "The MP 15 is required when many objects are coming at you at once. It is not tweakable though, for that you need the Pneuman cart!"],
+      [1, { sketch: "mp15", h: 110 }]],
     // (Downtown has no page: the Aunt's call takes its place, the user's call)
   };
   for (const id in CUT_NOTES) CUT_SCENES[`note_${id}`] = { iris: true, lower: true,
@@ -15555,14 +15561,27 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       sfx.click(); cutNext(); return;
     }
-    if (p.notes) { // (a notebook page, once it's open; on a narrow field, first over to the right page if it has words)
+    if (p.notes) {
+      // (a notebook page, once it's open. Batch J, the user: only the NEXT button (or Skip, or Enter) goes on; a tap or
+      // a swipe on the pages turns between the left and right pages (on a narrow field, a page at a time), and on a
+      // wide one, where both show, nudges the button)
       if (CUT.st < (p.delay || 0)) return;
-      if (cutNarrow() && CUT.pg === 0 && p.notes.some((n) => n[0] === 1)) { CUT.pg = 1; noise(0.25, 900, 0.08, 400); return; }
-      cutNext(); return;
+      if (!pt) { sfx.click(); cutNext(); return; }
+      const n = CUT.nextAt;
+      if (n && pt.x >= n.x0 && pt.x <= n.x1 && pt.y >= n.y0 && pt.y <= n.y1) { sfx.click(); cutNext(); return; }
+      if (cutNarrow() && noteLayout(ctx, p.notes).pages > 0) cutPage(pt.swipe ? (pt.swipe < 0 ? 1 : 0) : 1 - CUT.pg);
+      else CUT.nudge = CUT.t;
+      return;
     }
     if (!p.s) return; // (a timed shot plays out; Skip skips the scene)
     if (CUT.shown < p.s.length) { CUT.shown = p.s.length; CUT.st = Math.max(CUT.st, p.delay || 0); return; }
     cutNext();
+  }
+  // the notebook turned to its left (0) or right (1) page, on a narrow field
+  function cutPage(pg) {
+    const p = CUT.on && cutStep();
+    if (!p || !p.notes || CUT.out || CUT.go || !cutNarrow() || CUT.pg === pg || (pg && !noteLayout(ctx, p.notes).pages)) return;
+    CUT.pg = pg; noise(0.25, 900, 0.08, 400);
   }
   function cutSkip() {
     if (!CUT.on || CUT.out || CUT.shutT >= 0) return;
@@ -15648,9 +15667,23 @@ body.lab .stage > :not(canvas) { display: none; }
       if (CUT.shutT >= 0.55 && !CUT.shutGo) { CUT.shutGo = true; irisFx.shut(1.6, () => { CUT.shutGo = false; endCut(); }); }
     }
     if (p.s && !p.hand) cutSubs(p);
+    // (batch J: a notebook page goes on only by its NEXT button, a gold pill bottom right that pulses gently (a tap on
+    // the pages of a wide field makes it jump); on a narrow field, two dots bottom middle show which page, the other
+    // a tap or swipe away)
+    CUT.nextAt = null;
     if (p.notes && CUT.st >= (p.delay || 0) && !CUT.go && !CUT.out && CUT.shutT < 0) {
-      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(CUT.st * 5); ctx.fillStyle = "#f0c070"; ctx.font = `600 ${Math.max(16, Math.min(24, H / 16))}px system-ui, sans-serif`;
-      ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("▸", W - 14, H - 10); ctx.globalAlpha = 1; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+      const fs = Math.max(16, Math.min(24, H / 17, W / 18)), bw = fs * 4.6, bh = fs * 1.9, nj = CUT.nudge && CUT.t - CUT.nudge < 0.45 ? Math.sin((CUT.t - CUT.nudge) * 40) * fs * 0.3 : 0;
+      const bx = W - bw - 12 + nj, by = H - bh - 12, pu = 0.5 + 0.5 * Math.sin(CUT.st * 4);
+      ctx.save(); ctx.shadowColor = "rgba(240,192,112,.8)"; ctx.shadowBlur = 6 + 10 * pu;
+      cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.fillStyle = "#f0c070"; ctx.fill(); ctx.restore();
+      cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.lineWidth = 2; ctx.strokeStyle = "#7a5420"; ctx.stroke();
+      ctx.fillStyle = "#2a1a0c"; ctx.font = `800 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("NEXT ▶", bx + bw / 2, by + bh / 2 + 1);
+      CUT.nextAt = { x0: bx - 14, x1: W, y0: by - 14, y1: H };
+      if (cutNarrow() && noteLayout(ctx, p.notes).pages > 0) {
+        for (const i of [0, 1]) { ctx.fillStyle = CUT.pg === i ? "#f0c070" : "rgba(240,192,112,.35)"; ctx.beginPath(); ctx.arc(W / 2 + (i ? 12 : -12), H - 12 - bh / 2, CUT.pg === i ? 6 : 5, 0, 7); ctx.fill(); }
+      }
+      ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
     }
     const go = CUT.go ? (CUT.go < 0.3 ? CUT.go / 0.3 : Math.max(0, 1 - (CUT.go - 0.3) / 0.3)) : 0;
     // (it comes in from black: a fade, or an iris for a notebook scene)
@@ -16466,13 +16499,23 @@ body.lab .stage > :not(canvas) { display: none; }
     // (the field's own points: the back corner of a line's box, else on; batch E)
     const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, b = CUT.backAt;
     if (b && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) { cutPrev(); return; }
+    // (a notebook page: a tap or a swipe, told apart when the finger lifts; batch J)
+    if (CUT.on && cutStep().notes) { CUT.press = { x, y, id: e.pointerId }; return; }
     cutTap({ x, y });
   });
+  $("cut").addEventListener("pointerup", (e) => {
+    const s = CUT.press; CUT.press = null;
+    if (!s || s.id !== e.pointerId || !CUT.on || !cutStep().notes) return;
+    const r = cv.getBoundingClientRect(), dx = e.clientX - r.left - s.x, dy = e.clientY - r.top - s.y;
+    cutTap({ x: s.x, y: s.y, swipe: Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0 });
+  });
+  $("cut").addEventListener("pointercancel", () => { CUT.press = null; });
   $("cutSkip").addEventListener("click", (e) => { e.stopPropagation(); cutSkip(); });
   window.addEventListener("keydown", (e) => {
     if (!CUT.on) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.key === "Escape") cutSkip();
+    else if (cutStep().notes && (e.key === "ArrowLeft" || e.key === "ArrowRight")) cutPage(e.key === "ArrowRight" ? 1 : 0);
     else if (!e.repeat && (e.key === "ArrowLeft" || e.key === "Backspace")) cutPrev();
     else if (!e.repeat && (e.key === " " || e.key === "Enter" || e.key === "f" || e.key === "F")) cutTap();
   }, true);
@@ -17488,15 +17531,219 @@ body.lab .stage > :not(canvas) { display: none; }
     c.fillStyle = "#2a1a12"; c.fillRect(738, 36, 7, 378);
     c.fillStyle = "#8a2a24"; c.beginPath(); c.moveTo(397, 30); c.lineTo(405, 30); c.lineTo(407, 436); c.lineTo(402, 430); c.lineTo(397, 438); c.closePath(); c.fill();
     if (sketch) pneumanSketch(c, 236, 338);
-    c.font = CUT_HAND; c.fillStyle = "#26263a"; c.textAlign = "left"; c.textBaseline = "alphabetic";
-    // (on the ruled lines; a blank line between entries)
-    const ys = [76, 76];
-    for (const [pg, s] of notes) {
-      const x = pg ? 420 : 62, rows = cutWrap(c, s, 314);
-      rows.forEach(([a, b], r) => c.fillText(s.slice(a, b), x, ys[pg] + r * CUT_LINE));
-      ys[pg] += (rows.length + 1) * CUT_LINE;
+    const L = noteLayout(c, notes);
+    c.font = L.font; c.fillStyle = "#26263a"; c.textAlign = "left"; c.textBaseline = "alphabetic";
+    for (const it of L.items) {
+      if (it.sketch) { const sk = noteSketch(it.sketch, it.h); c.drawImage(sk.c, (it.pg ? 404 : 48) + 174 - sk.w / 2, it.y, sk.w, it.h); }
+      else c.fillText(it.s, it.pg ? 420 : 62, it.y);
     }
   }
+  // the entries laid out on the ruled lines (a blank line between them): down the left page, over onto the right one
+  // when it's full (an entry given page 1 starts there); a sketch takes its height, rounded up to whole lines, and goes
+  // over to the right page whole if it won't fit. The biggest of the hands at which it all fits on the two pages.
+  // { font, items: [{ pg, y, s } a line of words | { pg, y, sketch, h }], pages: the last page with anything on it }
+  const NOTE_LAYOUT = new WeakMap(), NOTE_TOP = 76, NOTE_LAST = NOTE_TOP + 10 * CUT_LINE;
+  function noteLayout(c, notes) {
+    let L = NOTE_LAYOUT.get(notes); if (L) return L;
+    const keep = c.font;
+    for (const px of [23, 22, 21, 20, 19, 18]) {
+      c.font = CUT_HAND.replace("23px", `${px}px`);
+      const items = []; let pg = 0, y = NOTE_TOP, over = false;
+      const turn = () => { if (pg) over = true; else { pg = 1; y = NOTE_TOP; } };
+      for (const [want, s] of notes) {
+        if (want > pg) { pg = want; y = NOTE_TOP; }
+        if (typeof s === "string") {
+          for (const [a, b] of cutWrap(c, s, 314)) { if (y > NOTE_LAST) turn(); items.push({ pg, y, s: s.slice(a, b) }); y += CUT_LINE; }
+        } else {
+          const n = Math.ceil(s.h / CUT_LINE);
+          if (y + (n - 1) * CUT_LINE > NOTE_LAST + 4) turn();
+          items.push({ pg, y: y - 22, sketch: s.sketch, h: s.h }); y += n * CUT_LINE;
+        }
+        y += CUT_LINE;
+      }
+      L = { font: c.font, items, pages: Math.max(0, ...items.map((i) => i.pg)) };
+      if (!over) break;
+    }
+    c.font = keep; NOTE_LAYOUT.set(notes, L);
+    return L;
+  }
+  // ---- the notebook's sketches (batch J): the game's own drawings of things, turned to pencil on the page, with
+  // notes in the margin, or line drawings. Each drawn once into a little canvas of its own (h tall, w wide in page
+  // units, at a fixed resolution), kept
+  const NOTE_SK = {}, NOTE_SK_RES = 3, SK_FONT = '600 13px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive', SK_INK = "rgba(50,50,70,.85)";
+  function noteSketch(name, h) {
+    const key = `${name}:${h}`;
+    if (NOTE_SK[key]) return NOTE_SK[key];
+    const w = 330, cv2 = document.createElement("canvas"); cv2.width = w * NOTE_SK_RES; cv2.height = h * NOTE_SK_RES;
+    const g = cv2.getContext("2d"); g.scale(NOTE_SK_RES, NOTE_SK_RES);
+    g.lineCap = "round"; g.lineJoin = "round";
+    try { NOTE_SKETCH[name](g, w, h); } catch (e) { console.warn("sketch", name, e); }
+    return (NOTE_SK[key] = { c: cv2, w });
+  }
+  // a game drawing in full colour made into pencil on the paper: each pixel's darkness becomes the graphite's
+  // strength (a white bit stays the paper; a dark outline goes dark), so it reads as shaded pencil
+  function skPencil(w, h, draw) {
+    const k = NOTE_SK_RES, cv2 = document.createElement("canvas"); cv2.width = w * k; cv2.height = h * k;
+    const g = cv2.getContext("2d"); g.scale(k, k); g.lineCap = "round"; g.lineJoin = "round"; draw(g);
+    const im = g.getImageData(0, 0, cv2.width, cv2.height), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const a = d[i + 3] / 255; if (!a) continue;
+      const lum = (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255, n = (cutR(i * 0.37) - 0.5) * 0.12;
+      d[i] = 46; d[i + 1] = 46; d[i + 2] = 64; d[i + 3] = Math.round(255 * a * Math.max(0, Math.min(1, 0.08 + 0.9 * Math.pow(1 - lum, 1.1) + n)));
+    }
+    g.putImageData(im, 0, 0);
+    return cv2;
+  }
+  // a label in the margin and a pencil line from it to what it names (an arrowhead at the end)
+  function skLabel(g, s, x, y, tx, ty, align = "left") {
+    g.font = SK_FONT; g.fillStyle = SK_INK; g.textAlign = align; g.textBaseline = "middle"; g.fillText(s, x, y);
+    if (tx == null) { g.textAlign = "left"; g.textBaseline = "alphabetic"; return; }
+    const wd = g.measureText(s).width, sx = align === "left" ? x + wd / 2 : align === "right" ? x - wd / 2 : x, sy = y + (ty > y ? 9 : -9);
+    const ax = tx - (tx - sx) * 0.08, ay = ty - (ty - sy) * 0.08, an = Math.atan2(ay - sy, ax - sx);
+    g.strokeStyle = SK_INK; g.lineWidth = 1.1; g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo((sx + ax) / 2 + (ay - sy) * 0.15, (sy + ay) / 2 - (ax - sx) * 0.15, ax, ay);
+    g.moveTo(ax, ay); g.lineTo(ax - Math.cos(an - 0.45) * 7, ay - Math.sin(an - 0.45) * 7); g.moveTo(ax, ay); g.lineTo(ax - Math.cos(an + 0.45) * 7, ay - Math.sin(an + 0.45) * 7); g.stroke();
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+  }
+  // a pencil line gone over twice, a little off the first time
+  function skTwice(g, path, w = 1.4) {
+    g.strokeStyle = "rgba(50,50,70,.75)"; g.lineWidth = w; g.beginPath(); path(0); g.stroke();
+    g.strokeStyle = "rgba(50,50,70,.3)"; g.lineWidth = w * 0.7; g.beginPath(); path(1); g.stroke();
+  }
+  // the game's spud (drawPotato), on any canvas
+  function skPotato(g, x, y, r, rot) { const kc = ctx; ctx = g; try { drawPotato(x, y, r, rot); } finally { ctx = kc; } }
+  // the butternut head (the minions' and Squash Head's shape), at x, y (its middle) u pixels to its unit; face: "lit"
+  // (the candle inside glowing out through the carved face), "out" (X X eyes, the flame gone, a wisp of smoke),
+  // "happy" (a friendly scarecrow's)
+  function skHead(g, x, y, u, face, faceOnly = false) {
+    g.save(); g.translate(x, y); g.scale(u * 0.86, -u);
+    const hp = () => { g.beginPath(); g.moveTo(0, 3.0); g.bezierCurveTo(0.45, 3.02, 0.7, 2.8, 0.72, 2.2); g.bezierCurveTo(0.74, 1.5, 0.9, 1.0, 1.35, 0.55);
+      g.bezierCurveTo(1.95, 0.05, 1.95, -1.05, 1.45, -1.45); g.bezierCurveTo(0.9, -1.85, -0.9, -1.85, -1.45, -1.45);
+      g.bezierCurveTo(-1.95, -1.05, -1.95, 0.05, -1.35, 0.55); g.bezierCurveTo(-0.9, 1.0, -0.74, 1.5, -0.72, 2.2); g.bezierCurveTo(-0.7, 2.8, -0.45, 3.02, 0, 3.0); g.closePath(); };
+    if (!faceOnly) {
+      const gr = g.createRadialGradient(-0.55, -0.1, 0.15, 0, 0.2, 2.9); gr.addColorStop(0, "#dcb67e"); gr.addColorStop(0.55, "#b38851"); gr.addColorStop(1, "#5e4020");
+      hp(); g.fillStyle = gr; g.fill(); g.strokeStyle = "#3d2812"; g.lineWidth = 0.07; g.stroke();
+      g.save(); hp(); g.clip(); g.strokeStyle = "rgba(80,52,22,0.3)"; g.lineWidth = 0.05;
+      for (const k of [-0.75, -0.4, 0.4, 0.75]) { g.beginPath(); g.moveTo(k * 0.55, 2.95); g.bezierCurveTo(k * 0.85, 1.4, k * 2.2, 0.4, k * 1.9, -1.7); g.stroke(); }
+      g.restore();
+      g.fillStyle = "#6e5c38"; g.strokeStyle = "#33270f"; g.lineWidth = 0.05;
+      g.beginPath(); g.moveTo(-0.2, 2.95); g.quadraticCurveTo(-0.22, 3.3, -0.12, 3.5); g.lineTo(0.22, 3.48); g.quadraticCurveTo(0.24, 3.25, 0.2, 2.95); g.closePath(); g.fill(); g.stroke();
+    }
+    g.save(); hp(); g.clip();
+    if (face === "lit") {
+      // (lit from inside: the carved face glowing, the candle's flame showing through the mouth)
+      for (const pts of MN_FACE.front) { mnPoly(g, pts); g.fillStyle = "#fff2b0"; g.fill(); g.lineWidth = 0.05; g.strokeStyle = "#2a1608"; g.stroke(); }
+      g.fillStyle = "#e8a020"; g.beginPath(); g.moveTo(0, -0.45); g.quadraticCurveTo(0.2, -0.85, 0, -1.2); g.quadraticCurveTo(-0.2, -0.85, 0, -0.45); g.fill();
+    } else if (face === "out") {
+      // (X X for eyes, the mouth dark)
+      g.strokeStyle = "#1a0d06"; g.lineWidth = 0.17;
+      for (const s of [-1, 1]) { const ex = s * 0.62, ey = 0.38, r = 0.34; g.beginPath(); g.moveTo(ex - r, ey - r); g.lineTo(ex + r, ey + r); g.moveTo(ex + r, ey - r); g.lineTo(ex - r, ey + r); g.stroke(); }
+      mnPoly(g, MN_FACE.front[3]); g.fillStyle = "#24120a"; g.fill();
+    } else {
+      // (friendly: eyes as two smiling arcs, a wide smooth smile; no jagged teeth)
+      g.strokeStyle = "#24120a"; g.lineWidth = 0.2;
+      for (const s of [-1, 1]) { g.beginPath(); g.arc(s * 0.62, 0.25, 0.32, 0.25, Math.PI - 0.25); g.stroke(); }
+      g.beginPath(); g.moveTo(-1.15, -0.5); g.quadraticCurveTo(0, -0.62, 1.15, -0.5); g.quadraticCurveTo(0.9, -1.5, 0, -1.52); g.quadraticCurveTo(-0.9, -1.5, -1.15, -0.5); g.closePath();
+      g.fillStyle = "#24120a"; g.fill();
+      g.fillStyle = "rgba(200,80,60,.8)"; g.beginPath(); g.ellipse(0, -1.25, 0.4, 0.18, 0, 0, 7); g.fill();
+    }
+    g.restore(); g.restore();
+  }
+  // the sketches, each drawn on g at w × h (page units)
+  const NOTE_SKETCH = {
+    // Cul de sac: a spud dropping onto the trampoline and bouncing off in a dotted arc into a scoring ring
+    tramp(g, w, h) {
+      const tx = 104, ty = 104, R = 46, rx = 262, ry = 118;
+      // the trampoline, a little from above: the mat's ellipse, its pad, the legs, the net posts at the back
+      skTwice(g, (o) => { g.ellipse(tx + o, ty, R, R * 0.28, 0, 0, 7); });
+      skTwice(g, (o) => { g.ellipse(tx + o * 0.6, ty + 1, R * 0.78, R * 0.2, 0, 0, 7); }, 1);
+      for (const k of [-0.85, -0.3, 0.3, 0.85]) skTwice(g, (o) => { g.moveTo(tx + k * R + o, ty + R * 0.24 * Math.sqrt(1 - k * k)); g.lineTo(tx + k * R * 1.05 + o, ty + 34); });
+      for (const k of [-0.95, -0.4, 0.4, 0.95]) skTwice(g, (o) => { g.moveTo(tx + k * R + o, ty - R * 0.2 * Math.sqrt(1 - k * k)); g.lineTo(tx + k * R + o, ty - 34); }, 1);
+      g.strokeStyle = "rgba(50,50,70,.35)"; g.lineWidth = 0.8; g.beginPath(); g.ellipse(tx, ty - 34, R, R * 0.26, 0, Math.PI, 0); g.stroke();
+      // the ring on the ground, painted, with its flag
+      skTwice(g, (o) => { g.ellipse(rx + o, ry, 46, 11, 0, 0, 7); });
+      skTwice(g, (o) => { g.ellipse(rx + o * 0.6, ry, 38, 8, 0, 0, 7); }, 0.9);
+      skTwice(g, (o) => { g.moveTo(rx + o, ry - 11); g.lineTo(rx + o, ry - 46); g.lineTo(rx + 20 + o, ry - 40); g.lineTo(rx + o, ry - 34); });
+      // the spud: in from the top left, down onto the mat, bounced up and over into the ring (dotted)
+      g.strokeStyle = SK_INK; g.lineWidth = 1.5; g.setLineDash([3, 5]);
+      g.beginPath(); g.moveTo(20, 18); g.quadraticCurveTo(70, 18, tx - 4, ty - 6); g.quadraticCurveTo(185, -60, rx - 4, ry - 6); g.stroke(); g.setLineDash([]);
+      g.drawImage(skPencil(w, h, (c) => { skPotato(c, 20, 18, 6, 0.4); skPotato(c, rx - 4, ry - 6, 6, -0.3); }), 0, 0, w, h);
+      g.lineWidth = 1.2; g.beginPath(); g.moveTo(tx - 12, ty - 10); g.lineTo(tx - 16, ty - 18); g.moveTo(tx + 4, ty - 10); g.lineTo(tx + 8, ty - 18); g.stroke();
+      skLabel(g, "boing!", tx + 56, 66);
+      skLabel(g, "+ points", rx - 30, ry + 26);
+    },
+    // Skeetza: the MP 10, as the game draws it, side on, with notes
+    mp10(g, w, h) {
+      const L = 250, x = 20 + 0.13 * L, y = 62;
+      g.drawImage(skPencil(w, h, (c) => drawMP10(c, x, y, 0, L)), 0, 0, w, h);
+      skLabel(g, "MP 10", 12, 18);
+      skLabel(g, "air cartridge!", 8, 108, x + 0.08 * L, y + 8);
+      skLabel(g, "FIRE", 150, 106, x + 0.27 * L + 4, y + 16);
+      skLabel(g, "2 barrels", x + 0.8 * L, 30, x + 0.82 * L, y - 4, "center");
+    },
+    // the Lake: a scarecrow before it all went wrong, the game's minion with a happy face
+    scarecrow(g, w, h) {
+      const u = (h - 18) / 21, fx = w / 2 - 20, fy = h - 12;
+      g.drawImage(skPencil(w, h, (c) => {
+        const p = mnPose({}); p.head.back = true;
+        c.save(); c.translate(fx, fy); c.scale(u, -u); c.lineJoin = "round";
+        mnBody(c, p, 1, false);
+        c.restore();
+        skHead(c, fx + p.head.x * u, fy - p.head.y * u, u, "happy", true);
+      }), 0, 0, w, h);
+      skLabel(g, "before...", w - 60, 40, fx + 3 * u, fy - 16 * u, "center");
+      skLabel(g, "a friendly", w - 60, h - 64, null, null, "center"); skLabel(g, "scarecrow!", w - 60, h - 46, null, null, "center");
+    },
+    // Milling: a launch of minis lined up on two charcuterie boards, one behind the other: a two-fer
+    twofer(g, w, h) {
+      const b1 = [178, 52, 34], b2 = [236, 66, 30];
+      g.drawImage(skPencil(w, h, (c) => {
+        const kc = ctx; ctx = c;
+        try {
+          for (const [bx, by, r, i] of [[...b2, 1], [...b1, 0]]) {
+            const p = { kind: i ? "slab" : null, shape: [1, 0.94, 1.03, 0.97, 1.05, 0.92, 1.0, 0.96, 1.04, 0.95], wob: i };
+            c.save(); c.translate(bx, by); c.rotate(i ? 0.2 : -0.15);
+            woodOutline(p, r); c.fillStyle = "#4b3a2d"; c.fill(); c.strokeStyle = "#2a1e16"; c.lineWidth = 1.2; c.stroke();
+            if (i) { c.save(); c.scale(1, 0.72); woodOutline(p, r * 0.98); c.restore(); } else woodOutline(p, r * 0.8);
+            c.fillStyle = "#e3c493"; c.fill(); c.strokeStyle = "rgba(150,108,66,.7)"; c.lineWidth = 0.9;
+            if (i) for (let k = -2; k <= 2; k++) { c.beginPath(); for (let j = 0; j <= 10; j++) c.lineTo(-r * 1.1 + (2.2 * r * j) / 10, k * r * 0.11 + Math.sin(j * 0.9 + k) * r * 0.03); c.stroke(); }
+            else for (const k of [0.55, 0.32, 0.12]) { c.beginPath(); c.ellipse(r * 0.04, 0, r * k, r * k * 0.95, 0, 0, 7); c.stroke(); }
+            c.restore();
+          }
+          // the minis, a little spread, on their way along the line through both
+          for (const [x, y, r] of [[56, 96, 5], [76, 86, 4.5], [98, 76, 5], [68, 104, 4], [90, 92, 4.5]]) drawPotato(x, y, r, x * 0.1);
+        } finally { ctx = kc; }
+      }), 0, 0, w, h);
+      // the dotted line the launch takes: through the near board and on into the far one
+      g.strokeStyle = SK_INK; g.lineWidth = 1.4; g.setLineDash([3, 5]); g.beginPath(); g.moveTo(16, 122); g.quadraticCurveTo(120, 40, b2[0] + 6, b2[1] - 4); g.stroke(); g.setLineDash([]);
+      skLabel(g, "minis", 6, 64, 50, 90);
+      skLabel(g, "TWO-FER!", 222, 14);
+      skLabel(g, "line them up", 214, 116, b2[0] - 8, b2[1] + 26, "center");
+    },
+    // Harvest: Squash Head (lit) + a spud (or 5 minis) = Squash Head, X X, out
+    equation(g, w, h) {
+      const u = 15, y = 62;
+      g.drawImage(skPencil(w, h, (c) => {
+        skHead(c, 46, y, u, "lit");
+        skPotato(c, 150, y + 4, 12, 0.3);
+        for (let i = 0; i < 5; i++) skPotato(c, 122 + i * 14, y + 62 + (i % 2) * 6, 4.5, i);
+        skHead(c, 270, y, u, "out");
+      }), 0, 0, w, h);
+      g.font = '700 30px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; g.fillStyle = SK_INK; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("+", 102, y + 4); g.fillText("=", 206, y + 4); g.textAlign = "left"; g.textBaseline = "alphabetic";
+      skLabel(g, "1 spud", 150, y - 30, null, null, "center");
+      skLabel(g, "or 5 minis", 150, y + 40, null, null, "center");
+      // (the smoke off the snuffed candle)
+      g.strokeStyle = "rgba(50,50,70,.5)"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(270, y - 52); g.bezierCurveTo(262, y - 60, 280, y - 66, 272, y - 76); g.bezierCurveTo(266, y - 82, 278, y - 88, 274, y - 94); g.stroke();
+    },
+    // the Reservoir: the MP 15, three barrels on the T at the valve
+    mp15(g, w, h) {
+      const L = 250, x = 20 + 0.13 * L, y = 58;
+      g.drawImage(skPencil(w, h, (c) => drawMP10(c, x, y, 0, L, { barrels: 3 })), 0, 0, w, h);
+      skLabel(g, "MP 15", 12, 18);
+      skLabel(g, "valve", x + 0.39 * L, 98, x + 0.39 * L, y + 10, "center");
+      skLabel(g, "3 barrels!", x + 0.78 * L, 98, x + 0.78 * L, y + 12, "center");
+    },
+  };
   // a notebook scene (before a Story mode level): the book open at the bookmark, held still (no hands: Nov 10 2026).
   // back is null while it's lowered over the level
   function paintNote(c, t, p, back) {
