@@ -226,6 +226,14 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .hs td.d { font-size: .72rem; opacity: .65; }
 .hs tr.me td { background: var(--yellow); }
 .hs .none { opacity: .6; font-style: italic; }
+/* (v2.44) Firebase: a challenge's leaderboard, the challenger's results card, the world top 10 */
+.chres { display: grid; gap: 12px; width: 100%; }
+.chres .again { justify-self: start; font-size: .8rem; padding: 4px 10px; }
+.legend .hs, .legend .sharename { flex: 1 1 100%; }
+.initials { flex: 1 1 100%; display: flex; justify-content: center; gap: 12px; }
+.initials .slot { display: grid; justify-items: center; gap: 3px; }
+.initials input { width: 2.6rem; font-family: var(--display); font-size: 2.1rem; line-height: 1.1; text-align: center; text-transform: uppercase; border: 2px solid var(--ink); border-radius: 8px; padding: 2px 0; background: #fff; color: var(--ink); }
+.initials button { padding: 0 12px; font-size: .8rem; line-height: 1.5; }
 .campnote { font-weight: 800; color: #b3541e; }
 /* (v2.20, v2.21) the intro: all of it drawn on the field's canvas, the only thing left showing, the page round it dark
    to match; a see-through layer over everything takes the tap that skips it (How to play's finger shows above it) */
@@ -766,7 +774,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.40</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.44</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2368,16 +2376,18 @@ body.lab .stage > :not(canvas) { display: none; }
       // a challenge: both scores, and send yours back on the same round (no Replay: it was one try)
       const c = S.challenge;
       chSave(c, { score: tot });
-      showCard(`Pneuman Challenge · ${L.name}`, verdict(tot, c.score, c.name), `You ${tot}, ${c.name || "your friend"} ${c.score}.`, counts,
+      // (v2.44: the score goes on the Firestore attempt, and the challenge's leaderboard comes in under the tally)
+      showCard(`Pneuman Challenge · ${L.name}`, verdict(tot, c.score, c.name), `You ${tot}, ${c.name || "your friend"} ${c.score}.`, counts + `<div id="chBoard" style="flex:1 1 100%"></div>`,
         `<button id="ovGo" type="button">Challenge back</button><button id="ovPick" type="button">Play Pneuman</button>`,
-        () => openShare({ score: tot, vs: { name: c.name, score: c.score } }));
-      $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score } }); // (the card stays up behind it)
+        () => openShare({ score: tot, vs: { name: c.name, score: c.score, id: c.id } }));
+      $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score, id: c.id } }); // (the card stays up behind it)
+      fbAttemptEnd(c, tot).then((g) => { if (g && g.ch && $("chBoard")) $("chBoard").innerHTML = boardHtml(g.ch, g.atts, g.me); });
     } else if (S.camp) {
       // (a campaign run: on only once cleared; Replay as often as you like, the best clear counting)
       campEndCard(L, tot, allHit, counts);
     } else {
       // (Next is always offered here; "only once cleared" is for the single-player campaign, still to come)
-      const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">Challenge a friend</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
+      const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">${S.rechallenge ? `Challenge ${esc(S.rechallenge)}` : "Challenge a friend"}</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
       showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
       // this round, sent to a friend with the score to beat
       $("ovChal").onclick = () => openShare({ score: tot });
@@ -2554,7 +2564,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // its row of levels, the sandbox) and How to play, which comes back here when it's closed
   let menuAt = "modes"; // (where How to play goes back to when it was opened from a menu: "modes", "start", "camp")
   function showModes() {
-    leaveChallenge(); campOff(); menuAt = "modes";
+    leaveChallenge(); campOff(); menuAt = "modes"; S.rechallenge = null;
     if (S.phase !== "title") { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(startPick); }
     showCard("", "Pneuman", "Which mode?", "",
       `<button id="ovGo" class="modebtn" type="button">Story mode<small>Help Riley unravel the mystery left by a favourite uncle.</small></button>` +
@@ -2568,6 +2578,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const snd = $("ovSound"), showSnd = () => { snd.textContent = S.muted ? "🔇 Sound off" : "🔊 Sound on"; snd.setAttribute("aria-checked", String(!S.muted)); };
     snd.onclick = () => { setMuted(!S.muted); if (!S.muted) { audio(); sfx.click(); } showSnd(); };
     showSnd();
+    // (v2.44: 📬 Challenge results, once a friend has played one of yours)
+    modesResults();
   }
   // the levels of a run: the same order every run, so scores compare. A warm-up of the two gentlest (Pasture, no wind;
   // Cul de sac), then Cart Launcher and MP levels taking turns, Harvest's long shots just before the finale, and the
@@ -2597,11 +2609,36 @@ body.lab .stage > :not(canvas) { display: none; }
   // in a run the level and difficulty are the run's: greyed out in Settings, as in a challenge
   function campOn(r) { S.camp = r; lvlSel.disabled = true; $("diffSel").disabled = true; $("diffSel").value = r.diff; }
   function campOff() { if (!S.camp) return; S.camp = null; lvlSel.disabled = false; $("diffSel").disabled = false; $("diffSel").value = S.diffPick; }
-  function campTable(d, mark) {
-    const t = campTop(d);
+  // (v2.44: t, a top 10 to show instead of this device's: the world one from Firestore, captioned "World top 10")
+  function campTable(d, mark, t = null) {
+    const world = !!t; t = t || campTop(d);
     const rows = t.length ? t.map((e, i) => `<tr class="${mark && e.at === mark ? "me" : ""}"><td class="n">${i + 1}</td><td>${esc(String(e.name || "—"))}</td><td class="n">${e.total}</td><td class="n">${e.tries} tries</td><td class="d">${new Date(e.at).toLocaleDateString()}</td></tr>`).join("")
-      : `<tr><td class="none" colspan="5">No runs finished on ${d} yet.</td></tr>`;
-    return `<table class="hs"><caption>Top 10 · ${d}</caption>${rows}</table>`;
+      : `<tr><td class="none" colspan="5">No stories finished on ${d} yet.</td></tr>`;
+    return `<table class="hs"><caption>${world ? "World top 10" : "Top 10"} · ${d}</caption>${rows}</table>`;
+  }
+  // (v2.44) the high-score table is old school: three initials, rolled with ▲ ▼ or typed, kept on this device
+  // (first guess: the name's initials, else its first three letters)
+  function initialsGuess() {
+    try { const s = localStorage.getItem("pneuman-initials"); if (/^[A-Z]{3}$/.test(s || "")) return s; } catch (e) {}
+    const w = playerName().toUpperCase().replace(/[^A-Z ]/g, "").split(/\s+/).filter(Boolean);
+    const g = (w.length > 1 ? w.map((x) => x[0]).join("") + w[w.length - 1].slice(1) : w.join("")).slice(0, 3);
+    return (g + "AAA").slice(0, 3);
+  }
+  const initialsHtml = (s) => `<div class="initials" role="group" aria-label="Your initials">${[...s].map((ch, i) =>
+    `<div class="slot"><button type="button" class="back" data-i="${i}" data-d="-1" aria-label="Letter ${i + 1} up">▲</button><input data-i="${i}" maxlength="1" value="${ch}" aria-label="Letter ${i + 1}" autocomplete="off" autocapitalize="characters"><button type="button" class="back" data-i="${i}" data-d="1" aria-label="Letter ${i + 1} down">▼</button></div>`).join("")}</div>`;
+  function initialsWire() {
+    const ins = [...document.querySelectorAll(".initials input")];
+    const roll = (i, d) => { const c = (ins[i].value || "A").charCodeAt(0) - 65; ins[i].value = String.fromCharCode(65 + ((c + d + 26) % 26)); };
+    for (const b of document.querySelectorAll(".initials button")) b.onclick = () => { audio(); roll(Number(b.dataset.i), -Number(b.dataset.d)); };
+    ins.forEach((el, i) => {
+      el.oninput = () => { el.value = el.value.toUpperCase().replace(/[^A-Z]/g, "").slice(-1); if (el.value && ins[i + 1]) { ins[i + 1].focus(); ins[i + 1].select(); } };
+      el.onfocus = () => el.select();
+      el.onkeydown = (e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); roll(i, e.key === "ArrowUp" ? 1 : -1); }
+        else if (e.key === "Backspace" && !el.value && ins[i - 1]) ins[i - 1].focus();
+      };
+    });
+    return () => ins.map((el) => el.value || "A").join("");
   }
   const campChips = (r) => (r ? r.order : CAMP_ORDER).map((id, k) => {
     const done = r && r.cleared[id], now = r && !done && k === campNext(r);
@@ -2618,7 +2655,7 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   // the campaign card: a run in progress to continue, or a new one at the difficulty picked; the top 10 for it
   function showCampaign(mark) {
-    leaveChallenge(); campOff(); menuAt = "camp";
+    leaveChallenge(); campOff(); menuAt = "camp"; S.rechallenge = null;
     const r = campSaved(), order = r ? r.order : CAMP_ORDER, at = r ? Math.min(campNext(r), order.length - 1) : 0;
     if (S.phase !== "title" || S.level !== levelIx(order[at])) { S.phase = "title"; S.score = 0; S.bonus = 0; previewLevel(levelIx(order[at])); }
     // (Nov 10 2026: Story mode. The story, the difficulty and the way back to the modes; nothing about levels (no
@@ -2686,19 +2723,33 @@ body.lab .stage > :not(canvas) { display: none; }
   // every level cleared: the run's total, a name for the table, and onto the top 10
   function campFinish(r) {
     campOff(); menuAt = "camp";
-    const total = campTotal(r), tries = campTries(r), top = campTop(r.diff), rank = top.filter((e) => e.total > total || (e.total === total && e.tries <= tries)).length;
-    showCard(`Story mode · ${r.diff}`, "Story complete!",
-      `All ${r.order.length} levels cleared: ${total} in ${tries} tries.${rank < 10 ? ` That's #${rank + 1} on the ${r.diff} table!` : ""}`,
-      `<label class="sharename">Your name <input id="campName" maxlength="20" value="${esc(playerName())}" placeholder="For the high-score table" autocomplete="nickname"></label>` + campTable(r.diff),
-      `<button id="ovGo" type="button">Save my score</button>`, () => {
-        const name = ($("campName").value || "").trim().slice(0, 20);
-        if (name) setPlayerName(name);
-        const at = Date.now(), t = campTop(r.diff);
-        t.push({ name: name || "Player", total, tries, at });
-        t.sort((a, b) => b.total - a.total || a.tries - b.tries || a.at - b.at);
+    const total = campTotal(r), tries = campTries(r);
+    const rankIn = (top) => top.filter((e) => e.total > total || (e.total === total && e.tries <= tries)).length;
+    const say = (top, world) => { const k = rankIn(top); return `All ${r.order.length} levels cleared: ${total} in ${tries} tries.${k < 10 ? ` That's #${k + 1} on the ${world ? "world " : ""}${r.diff} table!` : ""}`; };
+    // (v2.44: the world top 10 from Firestore replaces this device's once it's in; the device's stays if it can't be had)
+    let saving = false;
+    showCard(`Story mode · ${r.diff}`, "Story complete!", say(campTop(r.diff), false),
+      `<label class="sharename">Your initials</label>${initialsHtml(initialsGuess())}<div id="campTop" style="flex:1 1 100%">${campTable(r.diff)}</div>`,
+      `<button id="ovGo" type="button">Save my score</button>`, async () => {
+        if (saving) return; saving = true;
+        const name = readInitials();
+        try { localStorage.setItem("pneuman-initials", name); } catch (e) {}
+        const at = Date.now(), entry = { name, total, tries, at }, t = campTop(r.diff);
+        t.push(entry); sortTop(t);
         try { localStorage.setItem(campTopKey(r.diff), JSON.stringify(t.slice(0, 10))); } catch (e) {}
-        campDrop(); campPick = r.diff; showCampaign(at);
+        campDrop(); campPick = r.diff;
+        $("ovGo").textContent = "Saving…"; $("ovGo").disabled = true;
+        const world = await fbTopAdd(r.diff, entry);
+        if (!world) { showCampaign(at); return; }
+        const k = world.findIndex((e) => e.at === at && e.name === name);
+        showCard(`Story mode · ${r.diff}`, k >= 0 ? `#${k + 1} in the world!` : "Saved", k >= 0 ? `${name} is on the ${r.diff} table with ${total}.` : `${total} didn't make the world top 10 this time.`,
+          campTable(r.diff, at, world), `<button id="ovGo" type="button">Done</button>`, () => showCampaign(at));
       });
+    const readInitials = initialsWire();
+    fbTop(r.diff).then((world) => {
+      if (!world || saving || !$("campTop")) return;
+      $("campTop").innerHTML = campTable(r.diff, null, world); $("ovBody").textContent = say(world, true);
+    });
     cheer(Math.min(total, 100));
   }
   // ---- the scroll hint (v2.08): whichever card is up in front (the start card, the end card, Share, a challenge, the
@@ -7175,7 +7226,7 @@ body.lab .stage > :not(canvas) { display: none; }
       return onPhone() ? { link, phoneCaption: true, lead: SHARE_LINE, tail: "", text: caption }
         : { link, imageOnly: true, lead: SHARE_LINE, tail: "", text: link };
     }
-    const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim());
+    const c = s.challenge, place = LEVELS[S.level].name, link = challengeLink(c.score, playerName().trim(), c.id);
     const lead = c.vs
       ? `I scored ${c.score} on your ${place} round${c.vs.name ? `, ${c.vs.name}` : ""} (you had ${c.vs.score}). Your turn: beat my ${c.score}! 🥔`
       : `Pneuman Challenge: beat my ${c.score} on ${place}! ${sameRound(LEVELS[S.level])}, one try. 🥔`;
@@ -7207,6 +7258,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // (a challenge's likewise: "Click image to take the challenge!" only where the picture is the link)
     const card = challenge ? postcard(rec, `Beat my ${challenge.score}!`, onPhone() ? "" : "Click image to take the challenge!")
       : postcard(rec, SHARE_LINE, onPhone() ? "" : "Click image to see more!");
+    // (v2.44: a challenge gets its Firestore id now, for its link; its record is written once it's sent: fbSend)
+    if (challenge && !challenge.id) { challenge.id = newId(); fb(); }
     share = { rec, card, blob: null, challenge }; shareBlob();
     $("shareImg").src = card.toDataURL("image/png");
     shareCard.querySelector(".eyebrow").textContent = challenge ? (challenge.vs ? "Challenge back" : "Pneuman Challenge") : "Epic spud";
@@ -7228,6 +7281,7 @@ body.lab .stage > :not(canvas) { display: none; }
   $("osbGo").addEventListener("click", (e) => { e.stopPropagation(); if (S.replay) stopRelive(); osbCarryOn(); });
   $("shareGo").addEventListener("click", async () => {
     if (!share) return;
+    fbSend(share);
     const m = shareMessage(), text = m.text, file = shareFile(await shareBlob());
     try {
       // (an epic spud goes as the picture alone, nothing outside it; a challenge as the picture with its message)
@@ -7240,6 +7294,7 @@ body.lab .stage > :not(canvas) { display: none; }
   });
   $("shareCopyImg").addEventListener("click", async () => {
     if (!share) return;
+    fbSend(share);
     try { await navigator.clipboard.write([new ClipboardItem({ "image/png": shareBlob() })]); shareNote("Picture copied: paste it into an email or message, with the message below."); }
     catch (err) { shareNote("Couldn't copy the picture here. Right-click it (or press and hold) to save it instead."); }
   });
@@ -7274,6 +7329,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const onPhone = () => matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
   $("shareCopy").addEventListener("click", async () => {
     if (!share) return;
+    fbSend(share);
     const m = shareMessage(), text = m.text, html = shareHtml(m, share.card);
     const done = () => shareNote("Copied: the postcard, message and link together. Paste into an email or message; the picture and the link both open the game.");
     if (onPhone()) {
@@ -7308,16 +7364,19 @@ body.lab .stage > :not(canvas) { display: none; }
   // …/pneuman/?c=harvest-hlx2pd-rg-d2-1-1b-1.37-Jamie
   // (links before v1.37 gave the level by its place in LEVELS, in the order of the time: OLD_ORDER)
   const OLD_ORDER = ["pasture", "culdesac", "harvest", "lake"];
-  function challengeLink(score, name) {
+  // (v2.44: and f = the challenge's id in Firestore, where its one-try attempts and leaderboard live. The c code still
+  // carries the whole round, so the link works without Firebase too, as before)
+  function challengeLink(score, name, id) {
     const b = (n) => Math.round(n).toString(36);
     // (the animals field carries the difficulty's first letter too, since v2.07: "1g" is animals on, gnarly)
     const code = [lvl().id, b(S.seed), b(S.layoutView.w), b(S.layoutView.h), `${S.animals ? 1 : 0}${S.diff[0]}`, b(score), GAME_V, name || ""].join("-");
-    return `${SHARE_URL}?${new URLSearchParams({ c: code })}`;
+    return `${SHARE_URL}?${new URLSearchParams(id ? { c: code, f: id } : { c: code })}`;
   }
   // a challenge in this page's address, or null (the short c= code, or the long form the first links used:
   // ?level=harvest&seed=…&w=…&h=…&a=1&score=47&name=Jamie&v=1.24)
   function readChallenge() {
     let q = new URLSearchParams(location.search);
+    const id = (q.get("f") || "").replace(/[^a-z0-9]/gi, "").slice(0, 24);
     if (q.has("c")) {
       const f = q.get("c").split("-"), n = (s) => parseInt(s, 36);
       const L = LEVELS.find((L) => L.id === (/^\d+$/.test(f[0]) ? OLD_ORDER[Number(f[0])] : f[0]));
@@ -7328,7 +7387,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const level = LEVELS.findIndex((L) => L.id === q.get("level"));
     const seed = Number(q.get("seed")), score = Number(q.get("score")), w = Number(q.get("w")), h = Number(q.get("h"));
     if (level < 0 || !q.has("seed") || !q.has("score") || !Number.isFinite(seed) || !Number.isFinite(score) || !(w >= 100 && w <= 4000) || !(h >= 100 && h <= 4000)) return null;
-    return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", diff: DIFF[q.get("d")] ? q.get("d") : "yup", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "" };
+    return { level, seed: seed >>> 0, score: Math.max(0, Math.round(score)), w: Math.round(w), h: Math.round(h), animals: q.get("a") !== "0", diff: DIFF[q.get("d")] ? q.get("d") : "yup", name: (q.get("name") || "").trim().slice(0, 20), v: q.get("v") || "", id };
   }
   // one try: what this device knows of a challenge (null, { started }, or { score })
   const chKey = (c) => `pneuman-ch:${LEVELS[c.level].id}:${c.seed}:${c.name}:${c.score}`;
@@ -7353,23 +7412,190 @@ body.lab .stage > :not(canvas) { display: none; }
   // what's the same for both players (Skeetza has no targets or wind: its skeetzas fly the same way for both)
   const sameRound = (L) => (L.gun ? "Same skeetzas, same drone" : "Same targets, same wind");
   const verdict = (mine, theirs, name) => mine > theirs ? "You win!" : mine < theirs ? `${name || "Your friend"} wins` : "A tie!";
-  function showChallenge(c) {
+  // (v2.44) got: the challenge's Firestore record and attempts, once fetched ({ ch, atts, me }); the card is drawn at
+  // once from what the link and this device know, then again when they arrive (a try used on another browser counts;
+  // your own challenge shows its leaderboard)
+  function showChallenge(c, got = null) {
     S.challenge = c; useChallengeAnimals(c);
     S.phase = "title"; previewLevel(c.level, c);
     const L = LEVELS[c.level], who = c.name || "A friend", mine = chMine(c);
     const old = c.v && c.v !== GAME_V ? ` (Sent from Pneuman v${c.v}; this is v${GAME_V}, so the round may differ a little.)` : "";
     const plain = () => { leaveChallenge(); showStart(c.level); };
-    if (!mine) {
-      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name} (${c.diff}). ${sameRound(L)}, one try. Your turn!${old}`, "",
+    const board = got && got.ch ? boardHtml(got.ch, got.atts, got.me) : "";
+    if (got && got.ch && got.ch.uid === got.me) {
+      showCard("Pneuman Challenge", "Your challenge", `You challenged your friends to beat ${c.score} on ${L.name} (${c.diff}).`, board,
+        `<button id="ovGo" type="button">Play Pneuman</button>`, plain);
+    } else if (!mine) {
+      showCard("Pneuman Challenge", `Beat ${c.score}!`, `${who} scored ${c.score} on ${L.name} (${c.diff}). ${sameRound(L)}, one try. Your turn!${old}`,
+        `<label class="sharename">Your name <input id="chName" maxlength="20" value="${esc(playerName())}" placeholder="So ${esc(who)} sees who played" autocomplete="nickname"></label>` + board,
         `<button id="ovGo" type="button">Play ${L.name}</button><button id="ovPick" type="button">Just play Pneuman</button>`,
-        () => { chSave(c, { started: Date.now() }); startLevel(c.level, c); });
+        () => { chSave(c, { started: Date.now() }); fbAttemptStart(c); startLevel(c.level, c); });
+      $("chName").oninput = () => setPlayerName($("chName").value.trim().slice(0, 20));
+      $("ovPick").onclick = () => { audio(); plain(); };
+    } else if (mine.score == null) {
+      // a forfeit (left or reloaded mid-round): it's said, and a new challenge back offered, on this level or another
+      showCard("Pneuman Challenge", "Challenge forfeited", `You started ${who}'s ${L.name} challenge (${c.score} to beat) but didn't finish it, so it counts as a forfeit. It was one try only. Want another go at ${who}? Play a round, on ${L.name} or any level, and send them a challenge of your own.`, board,
+        `<button id="ovGo" type="button">Challenge ${esc(who)}</button><button id="ovPick" type="button">Just play Pneuman</button>`,
+        () => { leaveChallenge(); S.rechallenge = c.name || "your friend"; showStart(c.level); });
       $("ovPick").onclick = () => { audio(); plain(); };
     } else {
-      const body = mine.score == null
-        ? `You started ${who}'s ${L.name} challenge (${c.score} to beat) but didn't finish it. It was one try only.`
-        : `You scored ${mine.score} against ${who}'s ${c.score} on ${L.name}. ${verdict(mine.score, c.score, c.name)}`;
-      showCard("Pneuman Challenge", "You've had your go", body, "", `<button id="ovGo" type="button">Play Pneuman</button>`, plain);
+      showCard("Pneuman Challenge", "You've had your go", `You scored ${mine.score} against ${who}'s ${c.score} on ${L.name}. ${verdict(mine.score, c.score, c.name)}`, board,
+        `<button id="ovGo" type="button">Play Pneuman</button>`, plain);
     }
+    if (c.id && !got) fbBoard(c.id).then((g) => {
+      if (!g || !g.ch || S.challenge !== c || S.phase !== "title") return;
+      // (a try this device doesn't know of, made in another browser on the same sign-in, counts here too)
+      const me = g.atts.find((a) => a.uid === g.me);
+      if (me && !chMine(c)) chSave(c, me.score == null ? { started: Date.now() } : { score: me.score });
+      showChallenge(c, g);
+    });
+  }
+
+  // ================= (v2.44) Firebase: challenges, one-try attempts, results back, the Story world top 10 =================
+  // In the cottagerestocklist project (shared with Howlertown and Balderlaugh: everything here is under pneuman_*).
+  // Loaded only when it's first needed (a challenge sent or opened, a sent challenge to check, a story finished), with
+  // anonymous sign-in, so each device has a stable id with no sign-up. If anything fails (offline, ?nofb, sign-in not
+  // turned on, rules refusing) the game carries on as before: the round in the link, the top 10 on this device.
+  //   pneuman_challenges/{id}: level, seed, w, h, animals, diff, v, name, uid, score, vs (the id it answers), created
+  //   pneuman_challenges/{id}/attempts/{uid}: name, started, score (null till the round ends: a forfeit if it never does), done
+  //   pneuman_story/{diff}/runs/{auto}: name, total, tries, at, uid, v, created
+  // The rules (firestore.rules.pneuman.txt, pasted into the console) allow one attempt per id and one score on it.
+  const FB_CONFIG = {
+    apiKey: "AIzaSyDhQO70r9B55hTJEjT_5qjfFWOUcfJkDo0",
+    authDomain: "cottagerestocklist.firebaseapp.com",
+    projectId: "cottagerestocklist",
+    storageBucket: "cottagerestocklist.firebasestorage.app",
+    messagingSenderId: "1061783772523",
+    appId: "1:1061783772523:web:5f6118355535b46862c02e"
+  };
+  const FB_URL = (m) => `https://www.gstatic.com/firebasejs/10.13.0/firebase-${m}.js`;
+  const withT = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error("timed out")), ms))]);
+  const fbWarn = (what, e) => console.warn(`Pneuman: Firebase ${what} failed`, e);
+  let fbP = null;
+  // the connection, once: { db, uid, and Firestore's functions }, or null
+  function fb() {
+    if (fbP) return fbP;
+    if (/[?&]nofb\b/.test(location.search)) return (fbP = Promise.resolve(null));
+    const go = (async () => {
+      const [A, F, U] = await Promise.all([import(FB_URL("app")), import(FB_URL("firestore")), import(FB_URL("auth"))]);
+      const app = A.initializeApp(FB_CONFIG, "pneuman"), auth = U.getAuth(app);
+      await auth.authStateReady();
+      const user = auth.currentUser || (await U.signInAnonymously(auth)).user;
+      return { ...F, db: F.getFirestore(app), uid: user.uid };
+    })();
+    fbP = withT(go, 10000).catch((e) => { fbWarn("sign-in", e); return null; });
+    return fbP;
+  }
+  const fbName = () => playerName().trim().slice(0, 20) || "Player";
+  const newId = () => { const a = "abcdefghijkmnpqrstuvwxyz23456789"; return [...crypto.getRandomValues(new Uint8Array(10))].map((x) => a[x % a.length]).join(""); };
+  const tsMs = (t) => (t && t.toMillis ? t.toMillis() : 0);
+  // an attempt with no score for 20 minutes is a forfeit (a round takes a few minutes; a reload ends it)
+  const forfeited = (a) => a.score == null && Date.now() - tsMs(a.started) > 20 * 60000;
+  // a challenge and its attempts, or null
+  async function fbBoard(id) {
+    const f = await fb(); if (!f) return null;
+    try {
+      const [cs, as] = await withT(Promise.all([f.getDoc(f.doc(f.db, "pneuman_challenges", id)), f.getDocs(f.collection(f.db, "pneuman_challenges", id, "attempts"))]), 8000);
+      return { ch: cs.exists() ? cs.data() : null, atts: as.docs.map((d) => ({ uid: d.id, ...d.data() })), me: f.uid };
+    } catch (e) { fbWarn("read", e); return null; }
+  }
+  // the little leaderboard: the challenger (🎯) and everyone who's played, best first; then those playing or gone
+  function boardHtml(ch, atts, me, caption = "This challenge") {
+    const rows = [{ name: ch.name || "Challenger", score: ch.score, uid: ch.uid, host: true }, ...atts.map((a) => ({ ...a, name: a.name || "Player" }))];
+    const done = rows.filter((r) => r.score != null).sort((a, b) => b.score - a.score), not = rows.filter((r) => r.score == null);
+    const tr = (r, k) => `<tr class="${r.uid === me ? "me" : ""}"><td class="n">${k}</td><td>${esc(String(r.name))}${r.host ? " 🎯" : ""}</td><td class="n">${r.score == null ? "" : r.score}</td><td class="d">${r.score != null ? "" : forfeited(r) ? "didn't finish" : "playing…"}</td></tr>`;
+    return `<table class="hs"><caption>${esc(caption)}</caption>${done.map((r, i) => tr(r, i + 1)).join("")}${not.map((r) => tr(r, "–")).join("")}</table>`;
+  }
+  // a challenge sent (on Share…, Copy or Copy picture, once): its record, and a note of it on this device for results
+  function fbSend(s) {
+    const c = s && s.challenge; if (!c || !c.id || c.sent) return; c.sent = true;
+    const data = { level: lvl().id, seed: S.seed >>> 0, w: Math.round(S.layoutView.w), h: Math.round(S.layoutView.h), animals: !!S.animals, diff: S.diff, v: GAME_V, name: playerName().trim().slice(0, 20), score: c.score, vs: (c.vs && c.vs.id) || null };
+    fb().then(async (f) => {
+      if (!f) { c.sent = false; return; }
+      try {
+        await withT(f.setDoc(f.doc(f.db, "pneuman_challenges", c.id), { ...data, uid: f.uid, created: f.serverTimestamp() }), 8000);
+        sentAdd({ id: c.id, level: data.level, score: c.score, at: Date.now(), seen: 0 });
+      } catch (e) { c.sent = false; fbWarn("send", e); }
+    });
+  }
+  // Play pressed on a challenge: the one try is used (the rules refuse a second attempt by the same id)
+  function fbAttemptStart(c) {
+    if (!c.id) return;
+    c.startP = fb().then((f) => f && withT(f.setDoc(f.doc(f.db, "pneuman_challenges", c.id, "attempts", f.uid), { name: fbName(), started: f.serverTimestamp(), score: null }), 8000))
+      .catch((e) => fbWarn("attempt", e));
+  }
+  // the round's over: its score on the attempt (once), then the leaderboard
+  async function fbAttemptEnd(c, tot) {
+    if (!c.id) return null;
+    await c.startP;
+    const f = await fb(); if (!f) return null;
+    try { await withT(f.updateDoc(f.doc(f.db, "pneuman_challenges", c.id, "attempts", f.uid), { score: tot, done: f.serverTimestamp() }), 8000); }
+    catch (e) { fbWarn("score", e); }
+    return fbBoard(c.id);
+  }
+  // ---- results back to the challenger: the challenges sent from this device (the last 30 days, ten at most) ----
+  const SENT_KEY = "pneuman-sent";
+  const sentList = () => { try { const t = JSON.parse(localStorage.getItem(SENT_KEY) || "[]"); return Array.isArray(t) ? t : []; } catch (e) { return []; } };
+  const sentSave = (t) => { try { localStorage.setItem(SENT_KEY, JSON.stringify(t.slice(0, 20))); } catch (e) {} };
+  const sentAdd = (e) => { sentSave([e, ...sentList().filter((x) => x.id !== e.id)]); resCache = null; };
+  const sentRecent = () => sentList().filter((e) => Date.now() - e.at < 30 * 864e5).slice(0, 10);
+  // (finished or forfeited: what's news to the challenger)
+  const settled = (it) => it.atts.filter((a) => a.score != null || forfeited(a)).length;
+  let resCache = null; // { at, list: [{ e, ch, atts, me }] } (kept two minutes, so the menu doesn't re-read every time)
+  async function fbResults() {
+    if (resCache && Date.now() - resCache.at < 120000) return resCache.list;
+    const sent = sentRecent(); if (!sent.length) return [];
+    const got = await Promise.all(sent.map((e) => fbBoard(e.id).then((g) => (g && g.ch ? { e, ...g } : null))));
+    resCache = { at: Date.now(), list: got.filter(Boolean) };
+    return resCache.list;
+  }
+  // on "Which mode?": a 📬 button once anyone has played one of your challenges ("2 new" since you last looked)
+  async function modesResults() {
+    if (!sentRecent().length) return;
+    const list = await fbResults();
+    const card = document.querySelector(".card.modes");
+    if (!card || $("overlay").hidden || $("ovResults") || !list.some((it) => it.atts.length)) return;
+    const fresh = list.reduce((n, it) => n + Math.max(0, settled(it) - (it.e.seen || 0)), 0);
+    const b = document.createElement("button");
+    b.id = "ovResults"; b.type = "button"; b.className = "back";
+    b.textContent = `📬 Challenge results${fresh ? ` (${fresh} new)` : ""}`;
+    $("ovHowto").before(b);
+    b.onclick = () => { audio(); showResults(list); };
+  }
+  function showResults(list) {
+    menuAt = "modes";
+    const days = (ms) => { const d = Math.floor((Date.now() - ms) / 864e5); return d < 1 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; };
+    const parts = list.map((it, k) => {
+      const L = LEVELS[levelIx(it.ch.level)] || { name: it.ch.level };
+      const gone = it.atts.filter(forfeited).map((a) => `<button type="button" class="back again" data-k="${k}" data-name="${esc(String(a.name || "Player"))}">Send ${esc(String(a.name || "Player"))} a new challenge</button>`).join("");
+      return `<div class="chres">${boardHtml(it.ch, it.atts, it.me, `${L.name} · your ${it.ch.score} · ${days(it.e.at)}`)}${it.atts.length ? "" : `<div class="hs none">No one has played it yet.</div>`}${gone}</div>`;
+    }).join("");
+    showCard("Pneuman Challenge", "Challenge results", "How your friends did on the challenges you've sent (the last 30 days).", `<div class="chres">${parts}</div>`,
+      `<button id="ovGo" type="button">‹ Main menu</button>`, showModes);
+    // (looked at: nothing's new till someone else plays)
+    const seen = new Map(list.map((it) => [it.e.id, settled(it)]));
+    sentSave(sentList().map((e) => (seen.has(e.id) ? { ...e, seen: seen.get(e.id) } : e)));
+    resCache = null;
+    // a forfeit: a new challenge for them is a new round (on that level, or pick another), sent from its end card
+    for (const b of document.querySelectorAll(".chres .again")) b.onclick = () => {
+      audio(); const it = list[Number(b.dataset.k)];
+      S.rechallenge = b.dataset.name; showStart(Math.max(0, levelIx(it.ch.level)));
+    };
+  }
+  // ---- the Story world top 10: one table per difficulty, everyone's finished stories ----
+  const sortTop = (t) => t.sort((a, b) => b.total - a.total || a.tries - b.tries || a.at - b.at);
+  async function fbTop(d) {
+    const f = await fb(); if (!f) return null;
+    try {
+      const s = await withT(f.getDocs(f.query(f.collection(f.db, "pneuman_story", d, "runs"), f.orderBy("total", "desc"), f.limit(30))), 8000);
+      return sortTop(s.docs.map((x) => x.data())).slice(0, 10);
+    } catch (e) { fbWarn("top 10", e); return null; }
+  }
+  async function fbTopAdd(d, entry) {
+    const f = await fb(); if (!f) return null;
+    try { await withT(f.addDoc(f.collection(f.db, "pneuman_story", d, "runs"), { ...entry, uid: f.uid, v: GAME_V, created: f.serverTimestamp() }), 8000); }
+    catch (e) { fbWarn("top 10 save", e); return null; }
+    return fbTop(d);
   }
 
   // settings: a gear in the header opens a small panel
