@@ -777,7 +777,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.45</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.46</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -15966,13 +15966,17 @@ body.lab .stage > :not(canvas) { display: none; }
     if (p.notes && CUT.st >= (p.delay || 0) && !CUT.go && !CUT.out && CUT.shutT < 0) {
       const fs = Math.max(16, Math.min(24, H / 17, W / 18)), bw = fs * 4.6, bh = fs * 1.9, nj = CUT.nudge && CUT.t - CUT.nudge < 0.45 ? Math.sin((CUT.t - CUT.nudge) * 40) * fs * 0.3 : 0;
       const bx = W - bw - 12 + nj, by = H - bh - 12, pu = 0.5 + 0.5 * Math.sin(CUT.st * 4);
-      ctx.save(); ctx.shadowColor = "rgba(240,192,112,.8)"; ctx.shadowBlur = 6 + 10 * pu;
-      cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.fillStyle = "#f0c070"; ctx.fill(); ctx.restore();
-      cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.lineWidth = 2; ctx.strokeStyle = "#7a5420"; ctx.stroke();
-      ctx.fillStyle = "#2a1a0c"; ctx.font = `800 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("NEXT ▶", bx + bw / 2, by + bh / 2 + 1);
-      CUT.nextAt = { x0: bx - 14, x1: W, y0: by - 14, y1: H };
-      if (cutNarrow() && noteLayout(ctx, p.notes).pages > 0) {
+      // (Nov 13 2026, the user: a page at a time (narrow field, two pages), NEXT shows only on the right-hand page)
+      const twoPg = cutNarrow() && noteLayout(ctx, p.notes).pages > 0;
+      if (!twoPg || CUT.pg === 1) {
+        ctx.save(); ctx.shadowColor = "rgba(240,192,112,.8)"; ctx.shadowBlur = 6 + 10 * pu;
+        cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.fillStyle = "#f0c070"; ctx.fill(); ctx.restore();
+        cutRR(ctx, bx, by, bw, bh, bh / 2); ctx.lineWidth = 2; ctx.strokeStyle = "#7a5420"; ctx.stroke();
+        ctx.fillStyle = "#2a1a0c"; ctx.font = `800 ${fs}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("NEXT ▶", bx + bw / 2, by + bh / 2 + 1);
+        CUT.nextAt = { x0: bx - 14, x1: W, y0: by - 14, y1: H };
+      }
+      if (twoPg) {
         for (const i of [0, 1]) { ctx.fillStyle = CUT.pg === i ? "#f0c070" : "rgba(240,192,112,.35)"; ctx.beginPath(); ctx.arc(W / 2 + (i ? 12 : -12), H - 12 - bh / 2, CUT.pg === i ? 6 : 5, 0, 7); ctx.fill(); }
       }
       ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
