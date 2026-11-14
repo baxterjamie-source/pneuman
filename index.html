@@ -50,6 +50,15 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .set-sub .set-btn { font-size: .75rem; letter-spacing: 0; text-transform: none; padding: 2px 8px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 800; cursor: pointer; }
 .set-row input { width: 22px; height: 22px; accent-color: var(--red); cursor: pointer; }
+/* (TODO2 batch AB: on/off switches drawn as sliders, in Settings and on the main menu) */
+.set-row input[role="switch"], input.sw { appearance: none; -webkit-appearance: none; flex: none; margin: 0; position: relative; width: 46px; height: 26px; border-radius: 13px;
+  border: 2px solid var(--ink); background: #b9b2a3; cursor: pointer; transition: background .15s; }
+.set-row input[role="switch"]::before, input.sw::before { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.35); transition: transform .15s; }
+.set-row input[role="switch"]:checked, input.sw:checked { background: var(--red); }
+.set-row input[role="switch"]:checked::before, input.sw:checked::before { transform: translateX(20px); }
+.set-row input[role="switch"]:focus-visible, input.sw:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.sndrow { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; font-family: Nunito, sans-serif; font-weight: 800; font-size: 1rem; cursor: pointer; }
 .set-row select { font: inherit; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 2px 6px; cursor: pointer; }
 /* the test settings, folded away under their own heading */
 .set-test { border-top: 2px solid rgba(35,48,58,.15); padding-top: 8px; }
@@ -778,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.49</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.50</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2670,13 +2679,14 @@ body.lab .stage > :not(canvas) { display: none; }
       `<button id="ovFree" class="modebtn" type="button">Free play<small>Any level, any difficulty, as often as you like.</small></button>` +
       `<button id="ovHowto" class="back" type="button">How to play</button>` +
       // (batch G, Nov 12 2026: sound on or off right here, on to start; the same setting as in Settings)
-      `<button id="ovSound" class="back" type="button" role="switch"></button>`, () => showCampaign());
+      // (TODO2 batch AB: a slider switch, as in Settings)
+      `<label class="sndrow">Sound <input type="checkbox" id="ovSound" class="sw" role="switch"></label>`, () => showCampaign());
     document.querySelector(".card").classList.add("modes");
     $("ovFree").onclick = () => { audio(); showStart(startPick); };
     $("ovHowto").onclick = () => openHowto();
-    const snd = $("ovSound"), showSnd = () => { snd.textContent = S.muted ? "🔇 Sound off" : "🔊 Sound on"; snd.setAttribute("aria-checked", String(!S.muted)); };
-    snd.onclick = () => { setMuted(!S.muted); if (!S.muted) { audio(); sfx.click(); } showSnd(); };
-    showSnd();
+    const snd = $("ovSound");
+    snd.checked = !S.muted;
+    snd.onchange = () => { setMuted(!snd.checked); if (!S.muted) { audio(); sfx.click(); } };
     // (v2.44: 📬 Challenge results, once a friend has played one of yours)
     modesResults();
   }
@@ -9892,12 +9902,16 @@ body.lab .stage > :not(canvas) { display: none; }
   // screen space: a few soft grey clouds that drift up and spread as they fade
   function gunPuff(g) {
     // (the smoke comes out of the middle of the barrels, whichever one fired)
-    const ms = g.muzzles, s = g.puffSize || 60;
-    if (!ms || !ms.length) return;
-    const m = [ms.reduce((a, p) => a + p[0], 0) / ms.length, ms.reduce((a, p) => a + p[1], 0) / ms.length];
+    // (TODO2 batch AB: it takes its random numbers whether or not the gun's been drawn yet (no muzzles), so a seeded
+    // round goes the same way however much of it is drawn: the intro's moments step their run-up unseen)
+    const ms = g.muzzles && g.muzzles.length ? g.muzzles : null, s = g.puffSize || 60;
+    const m = ms ? [ms.reduce((a, p) => a + p[0], 0) / ms.length, ms.reduce((a, p) => a + p[1], 0) / ms.length] : [0, 0];
     g.puffs = g.puffs || [];
-    for (let i = 0, n = g.upm ? 3 : 7; i < n; i++) g.puffs.push({ x: m[0] + rnd(-0.03, 0.03) * s, y: m[1] - rnd(0, 0.06) * s, vx: rnd(-0.25, 0.25) * s, vy: -rnd(0.35, 0.9) * s,
-      r: rnd(0.07, 0.13) * s, t: 0, life: rnd(0.9, 1.5), shade: Math.round(rnd(140, 195)) });
+    for (let i = 0, n = g.upm ? 3 : 7; i < n; i++) {
+      const p = { x: m[0] + rnd(-0.03, 0.03) * s, y: m[1] - rnd(0, 0.06) * s, vx: rnd(-0.25, 0.25) * s, vy: -rnd(0.35, 0.9) * s,
+        r: rnd(0.07, 0.13) * s, t: 0, life: rnd(0.9, 1.5), shade: Math.round(rnd(140, 195)) };
+      if (ms) g.puffs.push(p);
+    }
   }
   function updatePuffs(g, dt) {
     if (!g.puffs || !g.puffs.length) return;
@@ -15030,7 +15044,8 @@ body.lab .stage > :not(canvas) { display: none; }
         hudBar(x, 16, w, B.hp / 100, "#3a0d08", "#9c2414", "S Q U A S H   H E A D");
         ctx.fillStyle = "rgba(255,255,255,0.3)"; for (const t of [5]) ctx.fillRect(x + (w * t) / 100, 16, 1, 8);
       }
-      if (S.phase !== "title" && !S.bossCart) {
+      // (not in the intro's moment of its footsteps: TODO2 batch AB)
+      if (S.phase !== "title" && !S.bossCart && !document.body.classList.contains("introon")) {
         // (TODO2 batch AA: top right, clear of the hit notes along the top left)
         const w = Math.min(150, W * 0.3);
         hudBar(W - 12 - w, 44, w, riley.hp / 100, "#24301c", "#7a9a4a", "");
@@ -15795,14 +15810,16 @@ body.lab .stage > :not(canvas) { display: none; }
   // (the page round it dark; the header, chips and tray hidden):
   //  open (1.6 s): on black, the title slides in from the left, high up, as the cart and the MP 10 slide in from the
   //    right, side by side: three barrels;
-  //  tag (1.9 s): each barrel fires a word of the tagline (the cart's, then the MP 10's two), a puff of smoke, a dotted
-  //    arc tracing it, and it drops into place under the title;
+  //  tag (1.9 s): each barrel fires a spud (the cart's, then the MP 10's two, the MP 10 seen as you hold it in the
+  //    game), with the game's blast and smoke; each smashes under the title, and a word of the tagline bursts out of it;
   //  Milling (2 s): the MP 10 clangs the weather vane, then takes both pieces of a pull with one barrel: the triple;
   //  finger (2.3 s): on black, the cart big in the middle, worked by a finger: a tap and the arm tamps a spud down, three
   //    taps on the pump, a drag that raises the barrel, a tap on the blue valve, and the spud flies off the top;
   //  Lake (1.8 s): that spud, it seems, coming down onto the Sea-Doo (WHOA!);
   //  still (1.2 s): black, the title and tagline, nothing moving;
-  //  Reservoir (2 s): UNLIMITED PNEUMAN, the MP 15 emptying into waves of gold: doubles, triples, quadruples;
+  //  Reservoir (3.9 s, at 2/3 speed): UNLIMITED PNEUMAN, the MP 15 emptying into waves of gold, to a QUADRUPLE and
+  //    a TRIPLE;
+  //  stomps (1.45 s): Squash Head's street, empty, two of its footsteps off to the left shaking the screen;
   //  end (2.4 s): black, the title and tagline fade in, a spud flies in and bursts them like a skeet; then it fades
   //    into wherever the game was going ("Which mode?", a level's start card, a challenge).
   // The game's own calls only, no captions of ours. A tap or any key skips it. Each moment from a level is a seeded
@@ -15814,7 +15831,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // already allowing for it)
   const INTRO_BEATS = [
     { kind: "open", secs: 2.2, slow: 1.4 }, { kind: "tag", secs: 2.85, slow: 1.5 }, { kind: "clip", clip: 1, secs: 2.0 }, { kind: "finger", secs: 3.2, slow: 1.4 },
-    { kind: "clip", clip: 0, secs: 2.7 }, { kind: "still", secs: 1.5 }, { kind: "clip", clip: 2, secs: 3.0 }, { kind: "end", secs: 3.25, slow: 1.35 },
+    { kind: "clip", clip: 0, secs: 2.7 }, { kind: "still", secs: 1.5 }, { kind: "clip", clip: 2, secs: 2.0 }, { kind: "clip", clip: 3, secs: 1.45 }, { kind: "end", secs: 3.25, slow: 1.35 },
   ];
   const TAG_WORDS = ["potatoes,", "pressure,", "patience"];
   // where the cart must point, and the pressure, to land at (x, z) at peg hole `hole` (no wind); and how long it flies
@@ -15889,8 +15906,12 @@ body.lab .stage > :not(canvas) { display: none; }
     // Its waves take about 4 s to reach their crossings far out over the water, so it's shown from then, for 3 s
     // (v2.23: it keeps going past its 3 s until it's shown a DOUBLE, a TRIPLE and a QUADRUPLE, then a moment more for
     // the last call; never more than maxSecs)
-    { level: "reservoir", seed: 303, waves: 1, speed: 1, showFrom: 240, every: 0.1, maxSecs: 10,
-      until: () => S.gun.upDoubles > 0 && S.gun.upTriples > 0 && S.gun.upQuads > 0,
+    // (TODO2 batch AB: at 2/3 speed, and over just after its QUADRUPLE and TRIPLE (steps 263 and 291 of this round, on
+    // a 1000 x 700 field); what came after, a run of doubles, cut. Shown from step 164, a stretch of the waves flying
+    // in, so it still lasts what it did, about 3.9 s: (291 + 30 - 164) / 40. Where it's shown from no longer changes
+    // how it goes: see gunPuff)
+    { level: "reservoir", seed: 303, waves: 1, speed: 2 / 3, showFrom: 164, every: 0.1, maxSecs: 7, tail: 30,
+      until: () => S.gun.upTriples > 0 && S.gun.upQuads > 0,
       prep(c) { c.cool = 0; c.spot = null; c.rng = mulberry32(c.waves); },
       at(c, n) {
         const g = S.gun;
@@ -15917,6 +15938,12 @@ body.lab .stage > :not(canvas) { display: none; }
         }
         return n < c.showFrom ? true : null;
       } },
+    // (TODO2 batch AB) Squash Head's street, before it's in sight: two of its footsteps off to the left, the screen
+    // shaking with each. Its entrance (updBoss "intro") steps at 0.5, 1.25, 2.0 and 2.75 s and roars at 1.6 s; shown
+    // from 1.75 s (the roar heard in the run-up, so silently) to 3.2 s, when it would step into view: the two heaviest
+    { level: "squashhead", seed: 7, speed: 1, showFrom: 105,
+      prep() {},
+      at(c, n) { return n < c.showFrom ? true : null; } },
   ];
   function introStep() {
     const c = INTRO.clip; INTRO.n++;
@@ -15973,12 +16000,20 @@ body.lab .stage > :not(canvas) { display: none; }
   function introCart(bx, by, bw, bh, f) {
     const FW = W, FH = H, keys = ["yaw", "hole", "angDisp", "valve", "psi", "phase", "lx", "loadT", "pumpAnim", "puff", "kick"], keep = {};
     for (const k of keys) keep[k] = S[k];
-    W = bw; H = bh;
+    // (TODO2 batch AB: laid out as if its box were at least 700 px across, then scaled down into it. A phone's small
+    // box gave a short focal length, so the cart's minimum line widths and knob sizes came out big for it and were
+    // then scaled up with k: lumpy and out of shape)
+    const v = Math.max(1, 700 / Math.max(1, Math.min(bw, bh)));
+    W = bw * v; H = bh * v;
+    // (and always the cart's own camera: after Milling's moment the field's place is an MP 10 one, whose camera is
+    // the gun's; a place's wider view left out too)
+    keep.scene = S.scene;
+    if (S.scene) S.scene = Object.assign({}, S.scene, { gun: false, view: 1 });
     Object.assign(S, { yaw: 0, hole: 6, valve: 0, psi: 60, phase: "aim", lx: 0, loadT: 0, pumpAnim: 0, puff: 0, kick: 0 }, f);
     if (f.angDisp == null) S.angDisp = HOLES[S.hole];
     camHome();
     const l = P(-1.6, 0, 0), rt = P(1.4, 0, 0), hi = P(0, 3.4, 1.5), lo = P(0, 0, -1.1);
-    const k = Math.min(bw * 0.9 / (rt.x - l.x), bh * 0.9 / Math.max(1, lo.y - hi.y)), mx = (l.x + rt.x) / 2, my = (hi.y + lo.y) / 2;
+    const k = Math.min(bw * 0.9 / (rt.x - l.x), bh * 0.9 / Math.max(1e-3, lo.y - hi.y)), mx = (l.x + rt.x) / 2, my = (hi.y + lo.y) / 2;
     const at = (q) => q && { x: bx + bw / 2 + (q.x - mx) * k, y: by + bh / 2 + (q.y - my) * k };
     ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, bx * dpr, by * dpr);
     ctx.translate(bw / 2, bh / 2); ctx.scale(k, k); ctx.translate(-mx, -my);
@@ -15989,42 +16024,54 @@ body.lab .stage > :not(canvas) { display: none; }
     W = FW; H = FH; Object.assign(S, keep); camHome();
     return out;
   }
-  // a puff of smoke from a muzzle, age seconds old
-  function introPuff(x, y, age, s = 1) {
-    if (age < 0 || age > 0.9) return;
-    const a = 1 - age / 0.9;
-    ctx.save();
-    for (let i = 0; i < 5; i++) {
-      const ang = i * 1.3, r = (5 + age * 38) * s * (0.7 + (i % 3) * 0.2);
-      ctx.fillStyle = `rgba(222,216,204,${0.45 * a})`; ctx.beginPath(); ctx.arc(x + Math.cos(ang) * age * 26 * s, y + Math.sin(ang) * age * 18 * s - age * 20 * s, r, 0, 7); ctx.fill();
+  // the MP 10's smoke, as the game's (gunPuff): soft grey clouds out of the barrel that fired, drifting up and
+  // spreading as they fade. Made once per shot (in INTRO.fx.smoke) and drawn by their age, so they don't need stepping
+  function introSmoke(key, m, s, at) {
+    const fx = INTRO.fx;
+    if (!fx.smoke[key]) fx.smoke[key] = { m, at, p: Array.from({ length: 7 }, () => ({ dx: rnd(-0.03, 0.03) * s, dy: -rnd(0, 0.06) * s, vx: rnd(-0.25, 0.25) * s, vy: -rnd(0.35, 0.9) * s, r: rnd(0.07, 0.13) * s, life: rnd(0.9, 1.5), shade: Math.round(rnd(140, 195)) })) };
+  }
+  function introSmokeDraw(t) {
+    for (const sm of Object.values(INTRO.fx.smoke)) for (const p of sm.p) {
+      const a = t - sm.at;
+      if (a < 0 || a >= p.life) continue;
+      // (the game slows them each step by 1.5 and 1.2 a second: so they've gone v (1 - e^-ka) / k)
+      const k = a / p.life, r = p.r * (1 + k * 2.2), x = sm.m.x + p.dx + (p.vx * (1 - Math.exp(-1.5 * a))) / 1.5, y = sm.m.y + p.dy + (p.vy * (1 - Math.exp(-1.2 * a))) / 1.2;
+      ctx.fillStyle = `rgba(${p.shade},${p.shade},${p.shade + 4},${(0.62 * (1 - k)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
     }
-    if (age < 0.08) { ctx.fillStyle = `rgba(255,214,90,${1 - age / 0.08})`; ctx.beginPath(); ctx.arc(x, y, 12 * s, 0, 7); ctx.fill(); }
-    ctx.restore();
   }
   // the cart and the MP 10 side by side, low on the screen, slid off to the right by off; puffs: when each of the
-  // three barrels fired (or null). Their three muzzles: the cart's, then the MP 10's upper and lower barrels
+  // three barrels fired (or null). Their three muzzles: the cart's, then the MP 10's left and right barrels
   function introPair(off, t, puffs, L) {
-    const s = Math.min(W, H * 1.6) / 900;
     // (v2.23: both down at the bottom of the screen, so the words fly farther)
     const bw = Math.min(W * 0.32, H * 0.56), bh = H * 0.5, bx = W * 0.25 - bw / 2 + off, by = H * 0.525;
     const cartAge = puffs[0] == null ? -1 : t - puffs[0];
-    const cart = introCart(bx, by, bw, bh, { yaw: 24, hole: 7, valve: cartAge >= 0 ? 1 : 0, puff: 0, kick: cartAge >= 0 ? Math.max(0, 1 - cartAge * 3) : 0 });
-    // (v2.22) the MP 10 on the right, pointing up and back toward the title: drawn mirrored, so its gauge stays on top
-    const ML = Math.min(W * 0.34, H * 0.72), mx = W * 0.8 + off, my = H - ML * 0.045, ma = Math.atan2(L.y + L.size * 0.5 - my, mx - W / 2);
-    const kick = (age) => (age >= 0 && age < 0.25 ? (1 - age / 0.25) * ML * 0.03 : 0);
-    const kk = Math.max(kick(puffs[1] == null ? -1 : t - puffs[1]), kick(puffs[2] == null ? -1 : t - puffs[2]));
-    ctx.save(); ctx.translate(mx, my); ctx.scale(-1, 1); drawMP10(ctx, -Math.cos(ma) * kk, -Math.sin(ma) * kk, ma, ML); ctx.restore();
-    const w = ML * 0.085, tip = (o) => ({ x: mx - (Math.cos(ma) * ML - Math.sin(ma) * o * w), y: my + Math.sin(ma) * ML + Math.cos(ma) * o * w });
-    // (tip(0.3) is the barrel on the left as it's drawn, tip(-0.3) the right: left to "pressure", right to "patience",
-    // so the two lines don't cross)
-    const mz = [cart.muzzle, tip(0.3), tip(-0.3)];
-    mz.forEach((m, i) => puffs[i] != null && m && introPuff(m.x, m.y, t - puffs[i], s));
+    // (the cart fires as it does in the game: its own puff of smoke and kick)
+    const cart = introCart(bx, by, bw, bh, { yaw: 24, hole: 7, valve: cartAge >= 0 ? 1 : 0, puff: cartAge >= 0 ? Math.max(0, 1 - cartAge * 1.4) : 0, kick: cartAge >= 0 ? Math.max(0, 1 - cartAge * 3) : 0 });
+    // (TODO2 batch AB) the MP 10 as you hold it in the game (drawMP10Pov, as drawGunView draws it): the two black
+    // barrels rising from below the bottom edge on the right, leaning a touch the way the game leans them there.
+    // Each shot: the flash off that barrel's end, a kick back down, and its smoke
+    const age = (i) => (puffs[i] == null ? -1 : t - puffs[i]), last = age(2) >= 0 ? 2 : age(1) >= 0 ? 1 : 0;
+    const fl = last ? Math.max(0, 1 - age(last) * 6) : 0, kick = last ? Math.max(0, 1 - age(last) * 4) : 0;
+    const base = Math.min(H, W * 0.75), s = base * 0.27 * (1 + 0.1 * kick), reach = s * 0.62, gx = W * 0.76 + off;
+    // (a little higher than in the game, so more of the barrels show)
+    const ny = H + base * 0.02 - reach * 0.45 + kick * base * 0.1, lean = 0.1 * clamp((gx - W / 2) / (W / 2), -1, 1);
+    drawMP10Pov(ctx, gx, ny, s, lean, fl, 2, last === 2 ? 1 : 0);
+    const tip = (k) => { const rf = (s / 4) * 0.8, lx = k * rf, ly = -reach - rf; return { x: gx + lx * Math.cos(lean) - ly * Math.sin(lean), y: ny + lx * Math.sin(lean) + ly * Math.cos(lean) }; };
+    // (the left barrel to "pressure", the right to "patience")
+    const mz = [cart.muzzle, tip(-1), tip(1)];
+    // (the smoke out of the middle of the pair, as the game's)
+    const mid = { x: (mz[1].x + mz[2].x) / 2, y: (mz[1].y + mz[2].y) / 2 };
+    for (const i of [1, 2]) if (age(i) >= 0) introSmoke(`mp${i}`, mid, s, puffs[i]);
+    introSmokeDraw(t);
     return mz;
   }
   // once per beat: a sound, a tap of the finger
   const introOnce = (key, f) => { if (!INTRO.fx.once[key]) { INTRO.fx.once[key] = true; f(); } };
   const qpt = (a, c, b, u) => ({ x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * c.x + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * c.y + u * u * b.y });
-  const TAG_AT = [0.1, 0.65, 1.2], TAG_FLY = 0.5;
+  // (TAG_FLY: how long each spud takes to get to its word's place: the cart's lobs, the MP 10's mini spuds are there in
+  // a flash, as fast as they fly in the game: TODO2 batch AB)
+  const TAG_AT = [0.1, 0.65, 1.2], TAG_FLY = [0.5, 0.08, 0.08]; // (the beat plays 1.5x slow: 0.12 s on the clock)
   const INTRO_PAINT = {
     open(t) {
       const L = introLayout(H * 0.2);
@@ -16038,16 +16085,40 @@ body.lab .stage > :not(canvas) { display: none; }
       TAG_AT.forEach((a, i) => {
         if (t < a) return;
         introOnce(`fire${i}`, () => { sfx.fire(); INTRO.fx.from[i] = mz[i]; });
-        // (the cart's spud lobs "potatoes" up on an arc; the MP 10's mini spuds fly "pressure" and "patience" straight
-        // out of its barrels: a control point on the line itself makes the curve a straight line)
-        const p0 = INTRO.fx.from[i] || mz[i], p2 = L.slots[i], c = { x: (p0.x + p2.x) / 2, y: i ? (p0.y + p2.y) / 2 : Math.min(p0.y, p2.y) - H * 0.2 }, u = clamp((t - a) / TAG_FLY, 0, 1);
-        // the dotted path, traced as far as the word has got
-        ctx.save(); ctx.setLineDash([3, 7]); ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(255,250,240,.75)"; ctx.beginPath(); ctx.moveTo(p0.x, p0.y);
-        for (let k = 1; k <= 24; k++) { const q = qpt(p0, c, p2, (u * k) / 24); ctx.lineTo(q.x, q.y); }
-        ctx.stroke(); ctx.restore();
-        const q = qpt(p0, c, p2, u);
-        introWord(L, i, q.x, q.y, 1, 0.45 + 0.55 * u);
+        // (TODO2 batch AB) a spud out of each barrel, to where its word goes, where it smashes and the word pops up:
+        // the cart's spud lobs up on an arc; the MP 10's mini spuds are there in a flash, straight out of the barrels
+        // (a control point on the line itself makes the curve a straight line), the game's streak behind them
+        const p0 = INTRO.fx.from[i] || mz[i], p2 = L.slots[i], c = { x: (p0.x + p2.x) / 2, y: i ? (p0.y + p2.y) / 2 : Math.min(p0.y, p2.y) - H * 0.2 }, u = clamp((t - a) / TAG_FLY[i], 0, 1);
+        if (u < 1) {
+          const q = qpt(p0, c, p2, u);
+          if (i) {
+            const b = qpt(p0, c, p2, Math.max(0, u - 0.35));
+            ctx.save(); ctx.lineCap = "round"; ctx.strokeStyle = "rgba(240,200,130,.55)"; ctx.lineWidth = Math.max(2, L.tsize * 0.14);
+            ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore();
+            ctx.fillStyle = "#d9a35a"; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(2.5, L.tsize * 0.14), 0, 7); ctx.fill();
+          } else drawPotato(q.x, q.y, Math.max(5, L.tsize * 0.38), u * 10);
+          return;
+        }
+        // smashed: bits of spud thrown out from where it hit, a flash, and the word bursting up out of it
+        const hit = a + TAG_FLY[i], w = t - hit;
+        introOnce(`smash${i}`, () => {
+          sfx.hitSkeet(false);
+          const cols = ["#e2a74f", "#c98a3c", "#f6d36b", "#a87432", "#fff3d0"], n = i ? 14 : 22, sz = L.tsize / 22;
+          for (let k = 0; k < n; k++) {
+            const ang = rnd(0, 6.28), sp = rnd(60, 260) * sz;
+            INTRO.fx.bits.push({ x: p2.x, y: p2.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 80 * sz, s: rnd(2, 6) * sz * (i ? 0.8 : 1), c: pick(cols), r: rnd(0, 6), vr: rnd(-12, 12), at: hit });
+          }
+        });
+        if (w < 0.15) { ctx.fillStyle = `rgba(255,236,170,${0.85 * (1 - w / 0.15)})`; ctx.beginPath(); ctx.arc(p2.x, p2.y, L.tsize * (0.5 + w * 6), 0, 7); ctx.fill(); }
+        introWord(L, i, p2.x, p2.y, clamp(w / 0.06, 0, 1), 0.3 + 0.7 * easeBack(clamp(w / 0.22, 0, 1)));
       });
+      // the bits of spud, flying and falling as they fade
+      for (const b of INTRO.fx.bits) {
+        const a = t - b.at;
+        if (a < 0 || a > 0.9) continue;
+        ctx.save(); ctx.globalAlpha = clamp(1.2 - a * 1.4, 0, 1); ctx.translate(b.x + b.vx * a, b.y + b.vy * a + 500 * a * a * (L.tsize / 22)); ctx.rotate(b.r + b.vr * a);
+        ctx.fillStyle = b.c; ctx.fillRect(-b.s / 2, -b.s / 2, b.s, b.s * 0.7); ctx.restore();
+      }
     },
     finger(t) {
       // the finger's moments: tap to load (0.12), pump (0.8, 1.0, 1.2), then (v2.23) the cart turns to face straight
@@ -16109,9 +16180,11 @@ body.lab .stage > :not(canvas) { display: none; }
   };
   // ---- running it ----
   function introBeat(i) {
-    INTRO.beat = i; INTRO.t = 0; INTRO.fx = { once: {}, from: [], th: null, bits: [] }; htThumbHide();
+    INTRO.beat = i; INTRO.t = 0; INTRO.fx = { once: {}, from: [], th: null, bits: [], smoke: {} }; htThumbHide();
     const b = INTRO_BEATS[i];
     if (!b) { introFinish(); return; }
+    // (a beat on black: the last moment's hum cut, Squash Head's street's drone: TODO2 batch AB)
+    if (b.kind !== "clip") stopEngines();
     if (b.kind === "clip" && !introClip(b.clip, b.secs)) introBeat(i + 1);
   }
   // each frame while it's on: a moment from a level is stepped (a step or two a frame) and drawn as the game draws;
@@ -16131,7 +16204,7 @@ body.lab .stage > :not(canvas) { display: none; }
       if (stepped) draw();
       if (INTRO.n >= c.endN) {
         // (a moment that runs till something's happened: on, a step at a time, then 0.75 s more once it has)
-        if (c.until && !c.got && INTRO.n < c.capN) { if (c.until()) { c.got = true; c.endN = INTRO.n + 45; } else c.endN = INTRO.n + 1; }
+        if (c.until && !c.got && INTRO.n < c.capN) { if (c.until()) { c.got = true; c.endN = INTRO.n + (c.tail || 45); } else c.endN = INTRO.n + 1; }
         else introBeat(INTRO.beat + 1);
       }
       return;
