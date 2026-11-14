@@ -787,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.54</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.55</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -905,9 +905,10 @@ body.lab .stage > :not(canvas) { display: none; }
     harvest: { id: "harvest-mp", alt: "harvest", name: "Harvest", scene: "harvestGun", mix: {}, z: [10, 50], wind: [0, 0], gun: true,
       props: ["cow", "chicken", "sheep", "farmer", "tractor", "pumpkins"], noun: "Pumpkins", upNoun: "pumpkins", icon: PUMPKIN_ICON },
     // Cul de sac with the MP 10: hubcaps (scoring ones with painted rims) from behind the bulb's houses; the dog,
-    // porch neighbours and windows cost points, the mailbox, junker and trampoline win them. No wind. See buildCulDeSacGun
+    // porch neighbours and windows cost points, the mailbox and junker win them (the trampoline too, till batch AD,
+    // Nov 14 2026: two bonuses, as every other level). No wind. See buildCulDeSacGun
     culdesac: { id: "culdesac-mp", alt: "culdesac", name: "Cul de sac", scene: "culdesacGun", mix: {}, z: [10, 50], wind: [0, 0], gun: true,
-      props: ["mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour"], noun: "Hubcaps", upNoun: "hubcaps", icon: HUBCAP_ICON },
+      props: ["mailbox", "junker", "dog", "neighbour", "neighbour"], noun: "Hubcaps", upNoun: "hubcaps", icon: HUBCAP_ICON },
   };
   // the mode a level is played in, as the switches name it
   const modeOf = (L) => (L.gun ? "mp" : "cart");
@@ -7776,29 +7777,40 @@ body.lab .stage > :not(canvas) { display: none; }
     catch (e) { fbWarn("level top 10 save", e); return null; }
     return fbLevelTop(id, true);
   }
-  function lvTable(L, t, mark) {
+  function lvTable(L, t, mark, local = false) {
     const rows = t.length ? t.map((e, i) => `<tr class="${mark && e.at === mark ? "me" : ""}"><td class="n">${i + 1}</td><td>${esc(String(e.name || "—"))}</td><td class="n">${e.total}</td><td class="d">${esc(String(e.diff || ""))}${e.ch ? " · challenge" : ""}</td><td class="d">${new Date(e.at).toLocaleDateString()}</td></tr>`).join("")
       : `<tr><td class="none" colspan="5">No scores on ${esc(L.name)} yet. Be the first!</td></tr>`;
-    return `<table class="hs"><caption>World top 10 · ${esc(levelLabel(L))}</caption>${rows}</table>`;
+    return `<table class="hs"><caption>${local ? "Top 10 on this device" : "World top 10"} · ${esc(levelLabel(L))}</caption>${rows}</table>`;
+  }
+  // (batch AD, Nov 14 2026: when the world table can't be had (offline, ?nofb, Firestore refusing: the per-level rules
+  // weren't published, so it never showed at all), the level's top 10 on this device instead, rather than nothing)
+  const lvLocalKey = (id) => `pneuman-lvtop-${id}`;
+  const lvLocal = (id) => { try { const t = JSON.parse(localStorage.getItem(lvLocalKey(id)) || "[]"); return Array.isArray(t) ? t : []; } catch (e) { return []; } };
+  function lvLocalAdd(id, entry) {
+    const t = [...lvLocal(id), entry].sort((a, b) => b.total - a.total || a.at - b.at).slice(0, 10);
+    try { localStorage.setItem(lvLocalKey(id), JSON.stringify(t)); } catch (e) {}
+    return t;
   }
   // the end of a free-play or challenge round: the level's world table under the tally, and if the round makes it,
   // "You made #N!" with the three initials and Save
   async function levelTopOnCard(L, tot, ch) {
     const box = document.createElement("div"); box.id = "lvTop"; box.style.flex = "1 1 100%";
     $("legend").appendChild(box);
-    const t = await fbLevelTop(L.id, true); if (!t || !box.isConnected) return;
+    const w = await fbLevelTop(L.id, true); if (!box.isConnected) return;
+    const local = !w, t = w || lvLocal(L.id);
     const makes = tot > 0 && (t.length < 10 || tot > t[t.length - 1].total), k = t.filter((e) => e.total >= tot).length;
-    box.innerHTML = (makes ? `<div class="lvmade">You made #${k + 1} on ${esc(L.name)}!</div>${initialsHtml(initialsGuess())}<button id="lvSave" type="button">Save to the world top 10</button>` : "") + lvTable(L, t);
+    box.innerHTML = (makes ? `<div class="lvmade">You made #${k + 1} on ${esc(L.name)}!</div>${initialsHtml(initialsGuess())}<button id="lvSave" type="button">${local ? "Save to the top 10" : "Save to the world top 10"}</button>` : "") + lvTable(L, t, null, local);
     if (!makes) return;
     const read = initialsWire(), diff = S.diff;
     $("lvSave").onclick = async () => {
       audio(); const b = $("lvSave"); b.disabled = true; b.textContent = "Saving…";
       const name = read(); try { localStorage.setItem("pneuman-initials", name); } catch (e) {}
       const entry = { name, total: tot, diff, ch: !!ch, at: Date.now() };
-      const t2 = await fbLevelAdd(L.id, entry);
+      // (kept on this device as well, so the device's table is there to fall back on)
+      const tl = lvLocalAdd(L.id, entry);
+      const t2 = local ? null : await fbLevelAdd(L.id, entry);
       if (!box.isConnected) return;
-      if (t2) box.innerHTML = lvTable(L, t2, entry.at);
-      else { b.disabled = false; b.textContent = "Couldn't save: try again"; }
+      box.innerHTML = t2 ? lvTable(L, t2, entry.at) : lvTable(L, tl, entry.at, true);
     };
   }
   // the start card's level buttons: each shows the world #1, a link to that level's top 10
@@ -8244,7 +8256,7 @@ body.lab .stage > :not(canvas) { display: none; }
       for (const k of ["scarecrow", "junker"]) it(k, () => thumb(k), PROPS[k].label, PTS.obj);
       for (const k of ["cow", "horse", "chicken", "turkey"]) it(k, () => thumb(k), k, -PTS.hurt);
     } else if (L.scene === "culdesacGun") {
-      for (const k of ["mailbox", "junker", "trampoline"]) it(k, () => thumb(k), PROPS[k].label, PTS.obj);
+      for (const k of ["mailbox", "junker"]) it(k, () => thumb(k), PROPS[k].label, PTS.obj);
       for (const k of ["dog", "neighbour"]) it(k, () => thumb(k), PROPS[k].label || k, -PTS.hurt);
       it("window", windowThumb, "a house window", -PTS.hurt);
     } else if (L.scene === "lakeGun" || L.scene === "harvestGun") {
@@ -10508,8 +10520,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const q = P(p.x, p.y, p.z);
     if (q.behind) return;
     const r = tgtR() * q.s * 0.95, [col, edge] = vestCols(p);
-    // (it tumbles: turning over, so it narrows and widens, and spinning slowly)
-    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(Math.sin(p.spin * 0.3 + p.wob) * 0.9); ctx.scale(0.3 + 0.7 * Math.abs(Math.cos(p.spin * 0.45 + p.wob)), 1);
+    // (it turns slowly and steadily one way, face on to you: no tumbling over, which showed it paper thin edge on
+    // and made it harder to hit (batch AD, Nov 14 2026). 35-70° in a two second flight, from within 17° of upright)
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate((p.spin - 3) * 0.1);
     vestFace(ctx, r, col, edge);
     ctx.restore();
   }
@@ -10641,6 +10654,12 @@ body.lab .stage > :not(canvas) { display: none; }
     const gp = {
       // (bigger vests, 0.7 m on yup, to read at that distance about as the Reservoir's cushions do)
       tR: 0.74,
+      // (batch AD, Nov 14 2026: speed) on a phone's tall field the view holds still, as the Reservoir's does: turning
+      // to follow the vests (by 5° at most, but in nearly half of all frames) meant the lake, its islands, pines and
+      // their reflections were drawn afresh every frame instead of kept as a picture, and a phone sank below 30 fps.
+      // Tested over many pairs: held still, a vest is off the field only as it first comes in from the side, as it was
+      // when following. A computer's short, wide field still follows (held still, vests went off its top)
+      get noFollow() { return W < H; },
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 85 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
@@ -10828,7 +10847,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // ---- Cul de sac with the MP 10 (Nov 14 2026, the user's choice by M/C): you stand in the street just short of the
   // bulb. Hubcaps go up in pairs, unseen, from the backyards behind the five houses round the bulb, over their roofs,
   // the pair always crossing at one point out over the bulb. The dog, the porch neighbours and the houses' windows
-  // cost points; the mailbox, the junker and the trampoline win them, and all three earn UP mode. No wind. (The
+  // cost points; the mailbox and the junker win them, and both earn UP mode (the trampoline was a third till batch
+  // AD). No wind. (The
   // mower and the neighbour up the street are left out: their yards are behind you from here) ----
   // (Nov 14 2026, after playing: back down the street, 14 m in (was 34 m, just short of the bulb: too close, and
   // too much side to side))
@@ -10852,7 +10872,8 @@ body.lab .stage > :not(canvas) { display: none; }
       }
     });
     const clearAt = (x, y, z) => y > 0.4 && !inHouse(x, y, z, 0.4);
-    const bonusProps = () => (S.props || []).filter((o) => o.kind === "mailbox" || o.kind === "junker" || o.kind === "trampoline");
+    // (the mailbox and the junker: UP mode once both are hit. The trampoline was a third, till batch AD)
+    const bonusProps = () => (S.props || []).filter((o) => o.kind === "mailbox" || o.kind === "junker");
     const pairs = altPairs(clearAt, {
       near: 0.3, spd: 23,
       // (out in front of you near the middle, 28-40 m out; about a third a little closer, 22-28 m: Nov 14 2026, long
@@ -10861,8 +10882,9 @@ body.lab .stage > :not(canvas) { display: none; }
       fallback: (a, b) => [[(a.x + b.x) * 0.3, 12, E[2] + 22], 2.8],
     });
     const gp = {
-      // (25% bigger than a skeetza, to see and to hit: the user, Nov 14 2026)
-      tR: GUN.pizzaR * 1.25,
+      // (25% bigger than a skeetza, to see and to hit: the user, Nov 14 2026; another 25% on, still hard to hit on a
+      // phone: batch AD)
+      tR: GUN.pizzaR * 1.25 * 1.25,
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 80 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
@@ -10897,9 +10919,12 @@ body.lab .stage > :not(canvas) { display: none; }
       },
     };
     // the props: the junker in a bulb driveway and the neighbours on the bulb porches (the place's own spots), the
-    // mailbox on the verge ahead, the trampoline on a front lawn round the bulb, the dog about the bulb
+    // mailbox on the verge ahead, the dog about the bulb
     const spots = (kind) => {
-      if (kind === "junker" || kind === "neighbour") return base.spots(kind);
+      // (the junker only in the driveways well in view on a phone's narrow field: the one out to the side, 23 m across
+      // and 57 m out, had it half off the edge: batch AD, Nov 14 2026)
+      if (kind === "junker") { const all = base.spots(kind) || [], inView = all.filter((s) => (Math.abs(s.x - E[0]) + 3) / (s.z - E[2]) < 0.38); return inView.length ? inView : all; }
+      if (kind === "neighbour") return base.spots(kind);
       if (kind === "mailbox") return (base.spots("mailbox") || []).filter((s) => s.z > E[2] + 10);
       const out = [];
       for (let i = 0; i < 80 && out.length < 12; i++) {
