@@ -787,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.52</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.53</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -10608,9 +10608,13 @@ body.lab .stage > :not(canvas) { display: none; }
   // in pairs, unseen, from behind the two boathouses and from over the pines at the back of each island. The loons
   // and the jumping fish cost points, so does knocking the fisher out of his boat; the fishing boat (+10) and the
   // Sea-Doo (+20) win them, and the boat earns UP mode. No wind ----
-  // (the raft, Nov 14 2026 (the user, by M/C): 22 m out, so pairs cross 28-45 m away, about three quarters of the
-  // Reservoir's 56 m; it was 40 m out, crossing about 25 m away, which looked very close on a computer)
-  const LG_EYE = [0, 2.0, 22];
+  // (the raft, Nov 14 2026 (the user, by M/C, then after playing): 8 m off the end of the dock, so pairs cross
+  // 32-45 m away and the islands stand well back, as on the Cart level (it was 40 m out, then 22: still too close on
+  // a computer))
+  const LG_EYE = [0, 2.0, 8];
+  // (a computer's wide field: zoomed out as the Reservoir's is (the usual MP 10 view, max(W 0.9, H 1.2), is very
+  // tight on a wide, short field); a phone's as ever)
+  const WIDE_FOCAL = () => (W < H ? W * 1.15 : Math.min(W * 0.85, H * 1.9));
   function buildLakeGun() {
     const base = buildLake(), E = LG_EYE, bh = base.boathouses;
     const nearBuilding = (x, y, z, m) => base.buildings.some((b) => houseNear(b, x, z, m) && y < (b.y0 || 0) + (b.hr || 4.5) + m);
@@ -10624,7 +10628,7 @@ body.lab .stage > :not(canvas) { display: none; }
     }
     base.isles.forEach((s, i) => {
       const back = s.trees.filter((t) => t.z > s.cz - 1 && t.z < s.cz + s.rz * 0.7 && Math.abs(t.x) < 48 && !base.buildings.some((b) => houseNear(b, t.x, t.z, 3)));
-      for (const t of shuffle(back).slice(0, 3)) launchers.push({ x: t.x, y: s.y(t.x, t.z) + rnd(14, 16), z: t.z, src: "isle" + i });
+      for (const t of shuffle(back).slice(0, 3)) launchers.push({ x: t.x, y: s.y(t.x, t.z) + rnd(11, 13), z: t.z, src: "isle" + i });
     });
     const clearAt = (x, y, z) => y > base.groundY(x, z) + 0.4 && !nearBuilding(x, y, z, 0.4);
     const bonusProps = () => (S.props || []).filter((o) => o.kind === "fisher" || o.kind === "seadoo");
@@ -10679,7 +10683,8 @@ body.lab .stage > :not(canvas) { display: none; }
       if (kind === "fish") return [{ x: 0, z: E[2] + 18 }];
       const out = [];
       for (let i = 0; i < 40 && out.length < 12; i++) {
-        const s = Math.random() < 0.5 ? -1 : 1, x = kind === "fisher" ? s * rnd(9, 20) : s * rnd(7, 16), z = E[2] + (kind === "fisher" ? rnd(18, 30) : rnd(13, 25));
+        // (in view on a computer too: not too far to the side, the boat between you and where the pairs cross)
+        const s = Math.random() < 0.5 ? -1 : 1, x = kind === "fisher" ? s * rnd(4, 10) : s * rnd(5, 12), z = E[2] + (kind === "fisher" ? rnd(22, 32) : rnd(16, 26));
         if (wet(x, z)) out.push({ x, z });
       }
       return out;
@@ -10692,7 +10697,7 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.strokeStyle = "rgba(90,66,40,.7)"; ctx.lineWidth = 1.2;
       for (let bx = x0 + 0.3; bx < x1; bx += 0.3) if (pathClip([[bx, y + 0.002, z0], [bx, y + 0.002, z1]], false)) ctx.stroke();
     };
-    return { ...base, gun: true, gp, launchers, eye: E,
+    return { ...base, gun: true, gp, launchers, eye: E, focal: WIDE_FOCAL,
       // (the Sea-Doo's lane: between the raft and the islands; and where the fish jumps)
       seadooZ: (rn) => E[2] + 14 + rn() * 14, fishAt: { x: 0, z: E[2] + 18, r: 7 },
       standing: base.standing,
@@ -10826,12 +10831,15 @@ body.lab .stage > :not(canvas) { display: none; }
   // the pair always crossing at one point out over the bulb. The dog, the porch neighbours and the houses' windows
   // cost points; the mailbox, the junker and the trampoline win them, and all three earn UP mode. No wind. (The
   // mower and the neighbour up the street are left out: their yards are behind you from here) ----
-  const CG_EYE = [0, 1.7, 34];
+  // (Nov 14 2026, after playing: back down the street, 14 m in (was 34 m, just short of the bulb: too close, and
+  // too much side to side))
+  const CG_EYE = [0, 1.7, 14];
   function buildCulDeSacGun() {
     const base = buildCulDeSac(), E = CG_EYE;
     // (the yard trees right beside you would fill the view: gone)
     const trees = base.trees.filter((t) => Math.hypot(t.x - E[0], t.z - E[2]) > 18);
-    const bulb = base.houses.filter((h) => h.bulb != null);
+    // (only the three houses facing you: the two at the ends of the bulb stand well out to the sides)
+    const bulb = base.houses.filter((h) => h.bulb != null && Math.abs(h.bulb) < 60);
     const inHouse = (x, y, z, m) => base.houses.some((h) => houseNear(h, x, z, m) && y < (h.y0 || 0) + h.hr + m);
     // where they go up from: 12 m behind each bulb house's back wall, out from the bulb, two to a house (the houses
     // are about 9.5 m to the ridge: from closer a hubcap would have to go nearly straight up to clear one)
@@ -10848,9 +10856,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const bonusProps = () => (S.props || []).filter((o) => o.kind === "mailbox" || o.kind === "junker" || o.kind === "trampoline");
     const pairs = altPairs(clearAt, {
       near: 0.3, spd: 23,
-      // (out over the bulb in front of you, 22-32 m out, and not far to the side (the end houses are well out to the
-      // sides); about a third closer in, 11-16 m out: Nov 14 2026, to play like Pasture MP 10)
-      at: (a, b, near) => [(a.x + b.x) / 2 * (near ? 0.2 : 0.3) + rnd(-2, 2), near ? rnd(5, 7.5) : rnd(6, 9), near ? E[2] + rnd(11, 16) : E[2] + rnd(22, 32)],
+      // (out in front of you near the middle, 28-40 m out; about a third a little closer, 22-28 m: Nov 14 2026, long
+      // travel forward, as Harvest)
+      at: (a, b, near) => [(a.x + b.x) / 2 * 0.15 + rnd(-1.5, 1.5), near ? rnd(5, 7.5) : rnd(6, 9), near ? E[2] + rnd(22, 28) : E[2] + rnd(28, 40)],
       fallback: (a, b) => [[(a.x + b.x) * 0.3, 12, E[2] + 22], 2.8],
     });
     const gp = {
@@ -10909,7 +10917,7 @@ body.lab .stage > :not(canvas) { display: none; }
         groundCircle(f.x, f.z, r * 0.2, 10, 0.03); ctx.fillStyle = "#7d848c"; ctx.fill();
       }
     };
-    return { ...base, gun: true, gp, launchers, eye: E, trees, wanderBox: [-10, 10, E[2] + 14, 74],
+    return { ...base, gun: true, gp, launchers, eye: E, focal: WIDE_FOCAL, trees, wanderBox: [-10, 10, E[2] + 14, 74],
       standing: base.standing.filter((s) => !base.trees.includes(s) || trees.includes(s)),
       back() { base.back(); flops(); },
       front() {}, dyn: gunThings,
