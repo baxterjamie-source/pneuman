@@ -787,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.51</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.52</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -883,6 +883,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // (a life vest and a pumpkin, for the MP 10 Lake's and Harvest's start cards and boxes)
   const VEST_ICON = `<svg class="pzi" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M-3 -8.5 L-5.6 -8.6 Q-6 -4.5 -8.6 -3.2 L-8.3 7.6 Q0 9.4 8.3 7.6 L8.6 -3.2 Q6 -4.5 5.6 -8.6 L3 -8.5 L0 -2.5 Z" fill="#1a1b1e"/><path d="M-3.2 -7.8 L-4.8 -8 L-5.3 -3.8 L-6.8 -2.5 L-6.5 6.8 L-0.6 7.4 L-0.6 -1.6 Z M3.2 -7.8 L4.8 -8 L5.3 -3.8 L6.8 -2.5 L6.5 6.8 L0.6 7.4 L0.6 -1.6 Z" fill="#d22b25"/><path d="M-8 1 H8 M-8 4.4 H8" stroke="#111" stroke-width="1.3"/><rect x="-1.2" y="0.2" width="2.4" height="1.6" fill="#555"/><rect x="-1.2" y="3.6" width="2.4" height="1.6" fill="#555"/></svg>`;
   const PUMPKIN_ICON = `<svg class="pzi" viewBox="-10 -10 20 20" aria-hidden="true"><ellipse cx="0" cy="1.5" rx="9" ry="7.4" fill="#f08a1c" stroke="#9a4708" stroke-width="1"/><path d="M-3 -5.6 Q-5.5 1.5 -3 8.6 M3 -5.6 Q5.5 1.5 3 8.6 M0 -5.9 V8.9" stroke="#b8580c" stroke-width=".9" fill="none"/><path d="M-0.8 -5.4 L-0.4 -8.8 L1.6 -9 L1.2 -5.4 Z" fill="#5d6b2a"/></svg>`;
+  const HUBCAP_ICON = `<svg class="pzi" viewBox="-10 -10 20 20" aria-hidden="true"><circle r="9" fill="#b9bfc6" stroke="#4a4f55" stroke-width="1"/><circle r="7" fill="#e3e7eb" stroke="#5d636a" stroke-width=".6"/><g fill="#33383e"><ellipse cx="4.7" cy="0" rx="1.4" ry=".7"/><ellipse cx="-4.7" cy="0" rx="1.4" ry=".7"/><ellipse cx="2.35" cy="4.07" rx="1.4" ry=".7" transform="rotate(60 2.35 4.07)"/><ellipse cx="-2.35" cy="-4.07" rx="1.4" ry=".7" transform="rotate(60 -2.35 -4.07)"/><ellipse cx="-2.35" cy="4.07" rx="1.4" ry=".7" transform="rotate(-60 -2.35 4.07)"/><ellipse cx="2.35" cy="-4.07" rx="1.4" ry=".7" transform="rotate(-60 2.35 -4.07)"/></g><circle r="1.8" fill="#d0d5da" stroke="#4a4f55" stroke-width=".5"/></svg>`;
   const ALTS = {
     // Pasture with the MP 10: cow pies (four in the ring colours) thrown up unseen from behind new low hills and two
     // stands of tall woods; the animals cost points and the scarecrow and junker win them, as on the cart; no wind
@@ -903,6 +904,10 @@ body.lab .stage > :not(canvas) { display: none; }
     // the barn; the animals and farmer cost points, the tractor and pumpkin pile win them. No wind. See buildHarvestGun
     harvest: { id: "harvest-mp", alt: "harvest", name: "Harvest", scene: "harvestGun", mix: {}, z: [10, 50], wind: [0, 0], gun: true,
       props: ["cow", "chicken", "sheep", "farmer", "tractor", "pumpkins"], noun: "Pumpkins", upNoun: "pumpkins", icon: PUMPKIN_ICON },
+    // Cul de sac with the MP 10: hubcaps (scoring ones with painted rims) from behind the bulb's houses; the dog,
+    // porch neighbours and windows cost points, the mailbox, junker and trampoline win them. No wind. See buildCulDeSacGun
+    culdesac: { id: "culdesac-mp", alt: "culdesac", name: "Cul de sac", scene: "culdesacGun", mix: {}, z: [10, 50], wind: [0, 0], gun: true,
+      props: ["mailbox", "junker", "trampoline", "dog", "neighbour", "neighbour"], noun: "Hubcaps", upNoun: "hubcaps", icon: HUBCAP_ICON },
   };
   // the mode a level is played in, as the switches name it
   const modeOf = (L) => (L.gun ? "mp" : "cart");
@@ -4305,7 +4310,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // (alternates, Nov 13 2026)
     pastureGun: () => buildPastureGun(), factoryCart: () => buildFactoryCart(),
     // (batch AC, Nov 14 2026)
-    lakeGun: () => buildLakeGun(), harvestGun: () => buildHarvestGun() };
+    lakeGun: () => buildLakeGun(), harvestGun: () => buildHarvestGun(), culdesacGun: () => buildCulDeSacGun() };
   const sceneFor = (L) => built[L.scene] || (built[L.scene] = SCENE_BUILD[L.scene]());
 
   // ---- houses: two storeys, a gable roof with its ridge across the front, an attached garage, often a porch ----
@@ -7570,7 +7575,7 @@ body.lab .stage > :not(canvas) { display: none; }
     try { history.replaceState(null, "", `${location.pathname}?level=${lvl().id}`); } catch (e) {}
   }
   // what's the same for both players (Skeetza has no targets or wind: its skeetzas fly the same way for both)
-  const sameRound = (L) => (L.gun ? (L.scene === "pastureGun" ? "Same cow pies" : L.scene === "lakeGun" ? "Same life vests" : L.scene === "harvestGun" ? "Same pumpkins" : "Same skeetzas, same drone") : "Same targets, same wind");
+  const sameRound = (L) => (L.gun ? (L.scene === "pastureGun" ? "Same cow pies" : L.scene === "lakeGun" ? "Same life vests" : L.scene === "harvestGun" ? "Same pumpkins" : L.scene === "culdesacGun" ? "Same hubcaps" : "Same skeetzas, same drone") : "Same targets, same wind");
   // a level's name, with its launcher for an alternate ("Pasture (MP 10)")
   const levelLabel = (L) => (L.alt ? `${L.name} (${L.gun ? "MP 10" : "Cart"})` : L.name);
   const verdict = (mine, theirs, name) => mine > theirs ? "You win!" : mine < theirs ? `${name || "Your friend"} wins` : "A tie!";
@@ -8238,6 +8243,10 @@ body.lab .stage > :not(canvas) { display: none; }
     if (L.scene === "pastureGun") {
       for (const k of ["scarecrow", "junker"]) it(k, () => thumb(k), PROPS[k].label, PTS.obj);
       for (const k of ["cow", "horse", "chicken", "turkey"]) it(k, () => thumb(k), k, -PTS.hurt);
+    } else if (L.scene === "culdesacGun") {
+      for (const k of ["mailbox", "junker", "trampoline"]) it(k, () => thumb(k), PROPS[k].label, PTS.obj);
+      for (const k of ["dog", "neighbour"]) it(k, () => thumb(k), PROPS[k].label || k, -PTS.hurt);
+      it("window", windowThumb, "a house window", -PTS.hurt);
     } else if (L.scene === "lakeGun" || L.scene === "harvestGun") {
       // (batch AC: the Cart level's own things, bonuses first)
       const lake = L.scene === "lakeGun";
@@ -9047,6 +9056,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (p.kind === "pie") { burstPie(p); return; }
     if (p.kind === "vest") { burstVest(p); return; }
     if (p.kind === "pumpkin") { burstPumpkin(p); return; }
+    if (p.kind === "hubcap") { burstHubcap(p); return; }
     if (p.kind) { burstWood(p); return; }
     p.done = true;
     sfx.hitSkeet(false);
@@ -9766,6 +9776,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (p.kind === "pie") { drawPie(p); return; }
     if (p.kind === "vest") { drawVest(p); return; }
     if (p.kind === "pumpkin") { drawPumpkin(p); return; }
+    if (p.kind === "hubcap") { drawHubcap(p); return; }
     if (p.kind) { drawWood(p); return; }
     // (seen from anywhere but where you stand, in Re-live it, it's drawn as the disc it is)
     if (S.gunReplay && S.gunReplay.pass > 0) { drawPizza3D(p); return; }
@@ -10431,10 +10442,13 @@ body.lab .stage > :not(canvas) { display: none; }
       cross(a, b) {
         let got = null;
         const nearPair = Math.random() < o.near;
-        for (let i = 0; i < 40 && !got; i++) {
+        for (let i = 0; i < 60 && !got; i++) {
           const C = o.at(a, b, nearPair && i < 30);
+          // (the later tries cross higher, in case the place is tall in between)
+          if (i >= 40) C[1] += 4;
           const t0 = Math.max(rnd(1.4, 1.8), ...[a, b].map((l) => Math.hypot(C[0] - l.x, C[2] - l.z) / o.spd));
-          for (const k of [1, 1.15, 1.3, 1.5]) { const t = t0 * k; if (clears(a, C, t) && clears(b, C, t - 0.35) && clears(b, C, t + 0.35)) { got = [C, t]; break; } }
+          // (the quickest that clears; 1.75 and 2 only come in where a faster throw (Cul de sac's) runs into a roof)
+          for (const k of [1, 1.15, 1.3, 1.5, 1.75, 2, 2.3]) { const t = t0 * k; if (clears(a, C, t) && clears(b, C, t - 0.35) && clears(b, C, t + 0.35)) { got = [C, t]; break; } }
         }
         plan = got || o.fallback(a, b);
         return plan[0];
@@ -10448,7 +10462,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.gun.upm) return null;
     for (const o of S.props || []) {
       const D = PROPS[o.kind], y0 = o.y0 || 0;
-      if (y0 < -1 || pl.y < y0 || pl.y > y0 + D.h || Math.hypot(pl.x - o.x, pl.z - o.z) > D.r * 0.7) continue;
+      // (the junker by its own shape, which also says if it was the windshield; the rest as an upright cylinder)
+      if (o.kind === "junker" ? !carHit(o, pl) : y0 < -1 || pl.y < y0 || pl.y > y0 + D.h || Math.hypot(pl.x - o.x, pl.z - o.z) > D.r * 0.7) continue;
       const own = special && special(o, D, pl, hits);
       if (own) return own;
       if (D.alive) {
@@ -10457,7 +10472,7 @@ body.lab .stage > :not(canvas) { display: none; }
       }
       if (!o.scored || S.gunReplay) {
         if (!S.gunReplay) o.scored = true;
-        hits.bonus({ name: D.label, label: D.label, pts: D.big || PTS.obj, at: [o.x, y0 + D.h * 0.8, o.z], react: () => { o.t = 0; o.say = null; sfx[D.sound](); if (o.kind === "pumpkins") smashPumpkin(o, pl.x, pl.z); if (o.kind === "tractor") puffSmoke(o); } }, pl.shot);
+        hits.bonus({ name: D.label, label: D.label, pts: D.big || PTS.obj, at: [o.x, y0 + D.h * 0.8, o.z], react: () => { o.t = 0; o.say = null; sfx[D.sound](); if (o.kind === "pumpkins") smashPumpkin(o, pl.x, pl.z); if (o.kind === "tractor") puffSmoke(o); if (o.kind === "mailbox") burstMail(o); if (o.kind === "junker" && o.zone === "glass") smashWindshield(o); } }, pl.shot);
         return "hit";
       }
       o.t = 0; sfx.thunk(); return "stop";
@@ -10593,7 +10608,9 @@ body.lab .stage > :not(canvas) { display: none; }
   // in pairs, unseen, from behind the two boathouses and from over the pines at the back of each island. The loons
   // and the jumping fish cost points, so does knocking the fisher out of his boat; the fishing boat (+10) and the
   // Sea-Doo (+20) win them, and the boat earns UP mode. No wind ----
-  const LG_EYE = [0, 2.0, 40];
+  // (the raft, Nov 14 2026 (the user, by M/C): 22 m out, so pairs cross 28-45 m away, about three quarters of the
+  // Reservoir's 56 m; it was 40 m out, crossing about 25 m away, which looked very close on a computer)
+  const LG_EYE = [0, 2.0, 22];
   function buildLakeGun() {
     const base = buildLake(), E = LG_EYE, bh = base.boathouses;
     const nearBuilding = (x, y, z, m) => base.buildings.some((b) => houseNear(b, x, z, m) && y < (b.y0 || 0) + (b.hr || 4.5) + m);
@@ -10613,11 +10630,13 @@ body.lab .stage > :not(canvas) { display: none; }
     const bonusProps = () => (S.props || []).filter((o) => o.kind === "fisher" || o.kind === "seadoo");
     const pairs = altPairs(clearAt, {
       near: 0.3, spd: 18,
-      // (out in front of you, between the two; about a third close in, 10-15 m out)
-      at: (a, b, near) => [(a.x + b.x) / 2 * (near ? 0.35 : 0.5) + rnd(-2, 2), near ? rnd(5, 7.5) : rnd(6, 10), near ? E[2] + rnd(10, 15) : clamp(Math.min(a.z, b.z) - rnd(18, 28), E[2] + 15, E[2] + 30)],
-      fallback: (a, b) => [[(a.x + b.x) * 0.3, 10, E[2] + 22], 2.8],
+      // (out in front of you, between the two, 32-45 m away; about a third a little closer, 28-34 m)
+      at: (a, b, near) => [(a.x + b.x) / 2 * (near ? 0.35 : 0.5) + rnd(-2, 2), near ? rnd(6, 8) : rnd(7, 10), near ? E[2] + rnd(28, 34) : E[2] + rnd(32, 45)],
+      fallback: (a, b) => [[(a.x + b.x) * 0.3, 10, E[2] + 36], 2.8],
     });
     const gp = {
+      // (bigger vests, 0.7 m on yup, to read at that distance about as the Reservoir's cushions do)
+      tR: 0.74,
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 85 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
@@ -10625,7 +10644,7 @@ body.lab .stage > :not(canvas) { display: none; }
       calls: { 1: { text: "Two Fer Vest!", name: "Two Fer Vest" }, 2: { text: "Double Vest!", name: "Double Vest" } },
       // (UP mode once the fishing boat's been hit: the Sea-Doo is seldom about)
       upReady: () => (S.props || []).some((o) => o.kind === "fisher" && o.scored),
-      upCross: () => [rnd(-3, 3), rnd(6, 8), E[2] + rnd(18, 26)],
+      upCross: () => [rnd(-3, 3), rnd(7, 9), E[2] + rnd(30, 40)],
       upFlight: (l, C) => Math.max(rnd(1.6, 2), Math.hypot(C[0] - l.x, C[2] - l.z) / 18),
       bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
       cardPics: () => ["loon", "fish"].map((k) => ({ k, name: k, make: () => thumb(k) })),
@@ -10692,9 +10711,11 @@ body.lab .stage > :not(canvas) { display: none; }
     const hills = [];
     const dry = (x, z, m) => Array.from({ length: 16 }, (_, i) => [x + Math.cos(i * 0.3927) * m, z + Math.sin(i * 0.3927) * m]).concat([[x, z]]).every(([px, pz]) => !base.water(px, pz));
     for (let i = 0; i < 800 && hills.length < 3; i++) {
-      const r = rnd(7.5, 10), x = hills.length === 0 ? rnd(-8, 8) : rnd(-24, 24), z = rnd(34, 54);
+      // (as far out as Pasture MP 10's, so pairs come over them and cross well out in front, not lobbed steeply down
+      // from close behind a hill: the user, Nov 14 2026)
+      const r = rnd(7.5, 10), x = hills.length === 0 ? rnd(-8, 8) : rnd(-24, 24), z = rnd(42, 58);
       if (!dry(x, z, r + 2) || (barn && houseNear(barn, x, z, r + 2)) || hills.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + r - 3)) continue;
-      hills.push({ x, z, r, h: rnd(5.5, 7.5), draw: drawHill });
+      hills.push({ x, z, r, h: rnd(4.5, 6.5), draw: drawHill });
     }
     const underHill = (b) => hills.some((h) => Math.hypot(h.x - b.x, h.z - b.z) < h.r + 1.5);
     base.bales = base.bales.filter((b) => !underHill(b)); base.standing = base.standing.filter((b) => !underHill(b) || !b.cols);
@@ -10704,14 +10725,15 @@ body.lab .stage > :not(canvas) { display: none; }
     // where they go up from: on the ground behind each hill (1.5 of its radius back from its middle, less where another
     // hill or the stream is there), and behind the barn
     const launchers = [];
-    hills.forEach((h, i) => { for (const k of [-0.3, 0.3]) { const x = h.x + h.r * k; let f = 1.5; while (f > 1.05 && (nY(x, h.z + h.r * f) > 0.3 || base.water(x, h.z + h.r * f))) f -= 0.05; launchers.push({ x, y: 0.6 + yAt(x, h.z + h.r * f), z: h.z + h.r * f, src: "hill" + i }); } });
-    // (the barn's 12 m back from its back wall: it's over 9 m tall, so from closer a pumpkin would have to go nearly
+    hills.forEach((h, i) => { for (const k of [-0.3, 0.3]) { const x = h.x + h.r * k; let f = 1.5; while (f > 1.05 && (nY(x, h.z + h.r * f) > 0.3 || base.water(x, h.z + h.r * f))) f -= 0.05; if (nY(x, h.z + h.r * f) > 0.3 || (barn && houseNear(barn, x, h.z + h.r * f, 6))) continue; launchers.push({ x, y: 0.6 + yAt(x, h.z + h.r * f), z: h.z + h.r * f, src: "hill" + i }); } });
+    // (the barn's 18 m back from its back wall: it's over 9 m tall, so from closer a pumpkin would have to go nearly
     // straight up to clear it; still well hidden behind it)
-    if (barn) for (const k of [-2.5, 2.5]) { let z = barn.z; while (houseNear(barn, barn.x + k, z, 0.8) && z < barn.z + 30) z += 0.25; launchers.push({ x: barn.x + k, y: 0.8, z: z + 12, src: "barn" }); }
+    if (barn) for (const k of [-2.5, 2.5]) { let z = barn.z; while (houseNear(barn, barn.x + k, z, 0.8) && z < barn.z + 30) z += 0.25; launchers.push({ x: barn.x + k, y: 0.8, z: z + 18, src: "barn" }); }
     const clearAt = (x, y, z) => y > yAt(x, z) + 0.4 && !inBarn(x, y, z, 0.4);
     const bonusProps = () => (S.props || []).filter((o) => o.kind === "tractor" || o.kind === "pumpkins");
     const pairs = altPairs(clearAt, {
-      near: 0.3, spd: 16,
+      near: 0.3, spd: 13,
+      // (as Pasture MP 10's: a far crossing 10-18 m short of the nearer spot, 14-30 m out)
       at: (a, b, near) => [(a.x + b.x) / 2 * (near ? 0.4 : 0.6) + rnd(-2, 2), near ? rnd(5, 7.5) : rnd(6, 9), near ? rnd(8, 14) : clamp(Math.min(a.z, b.z) - rnd(10, 18), 14, 30)],
       fallback: (a, b) => [[(a.x + b.x) * 0.3, 12, 20], 2.4],
     });
@@ -10757,6 +10779,142 @@ body.lab .stage > :not(canvas) { display: none; }
       front() {}, dyn: gunThings,
       update(dt) { if (dt) updateGun(dt); },
       reset: resetGun, free: () => true, collide: () => null, spots, roofTargets: () => [], wallTargets: () => [], map() {} };
+  }
+
+  // ---- a hubcap: a chrome wheel cover, spinning and tumbling. Its rim is chrome on a plain one, painted in its
+  // ring colour on a scoring one (UP mode's in its shade of magenta); slots round the face and a centre cap ----
+  function hubcapFace(c, r, rim, rimEdge) {
+    const g = c.createLinearGradient(-r, -r, r, r); g.addColorStop(0, "#f6f8fa"); g.addColorStop(0.5, "#b9bfc6"); g.addColorStop(1, "#7d848c");
+    c.beginPath(); c.arc(0, 0, r, 0, 7); c.fillStyle = rim || g; c.fill(); c.lineWidth = Math.max(1, r * 0.05); c.strokeStyle = rimEdge || "#4a4f55"; c.stroke();
+    const f = c.createLinearGradient(-r, -r, r, r); f.addColorStop(0, "#ffffff"); f.addColorStop(0.45, "#d3d8dd"); f.addColorStop(1, "#8f969e");
+    c.beginPath(); c.arc(0, 0, r * 0.78, 0, 7); c.fillStyle = f; c.fill(); c.lineWidth = Math.max(0.8, r * 0.03); c.strokeStyle = "#5d636a"; c.stroke();
+    // the slots
+    c.fillStyle = "#33383e";
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; c.beginPath(); c.ellipse(Math.cos(a) * r * 0.52, Math.sin(a) * r * 0.52, r * 0.15, r * 0.075, a, 0, 7); c.fill(); }
+    // the centre cap and a glint
+    c.beginPath(); c.arc(0, 0, r * 0.2, 0, 7); c.fillStyle = rim || "#e2e6ea"; c.fill(); c.strokeStyle = "#4a4f55"; c.lineWidth = Math.max(0.8, r * 0.03); c.stroke();
+    c.strokeStyle = "rgba(255,255,255,.8)"; c.lineWidth = Math.max(1, r * 0.06); c.beginPath(); c.arc(0, 0, r * 0.9, -2.6, -1.9); c.stroke();
+  }
+  const hubRim = (p) => (p.ring ? [RINGS[p.ring].color, RINGS[p.ring].edge] : p.gold && p.hue ? [p.hue[0], p.hue[1]] : [null, null]);
+  function drawHubcap(p) {
+    const q = P(p.x, p.y, p.z), sh = P(p.x, 0, p.z);
+    if (q.behind) return;
+    const r = tgtR() * q.s * 0.9, [rim, edge] = hubRim(p);
+    if (!sh.behind) { ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
+    // (tumbling: seen face on, then edge on, as it turns over)
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(Math.sin(p.spin * 0.3 + p.wob) * 0.5); ctx.scale(1, 0.2 + 0.8 * Math.abs(Math.cos(p.spin * 0.45 + p.wob)));
+    ctx.rotate(p.spin * 0.6);
+    hubcapFace(ctx, r, rim, edge);
+    ctx.restore();
+  }
+  const HUB_POPS = ["CLANG!", "KER-CHANG!", "BONG!", "TING!"];
+  function burstHubcap(p) {
+    p.done = true;
+    sfx.clang();
+    if (!p.gold) S.pops.push({ x: p.x, y: p.y - 0.4, z: p.z, text: pick(HUB_POPS), t: 0 });
+    S.gun.booms.push({ x: p.x, y: p.y, z: p.z, t: 0 });
+    // bent chrome and its painted rim, flying
+    const k = p.gold ? 0.4 : 1, rim = hubRim(p)[0];
+    const bit = (kind, c, s, sp) => S.bits.push({ kind, x: p.x, y: p.y, z: p.z, vx: rnd(-sp, sp), vy: rnd(0.5, sp), vz: rnd(-sp, sp), a: rnd(0, 6), s, c, t: 0, ph: rnd(0, 6) });
+    for (let i = 0; i < 14 * k; i++) bit("chunk", pick(["#eef1f4", "#c3c9cf", "#9aa1a8"]), rnd(0.08, 0.16), 6);
+    for (let i = 0; i < 8 * k; i++) bit("chunk", rim || "#d6dade", rnd(0.08, 0.14), 5);
+    for (let i = 0; i < 5 * k; i++) bit("disc", "#33383e", rnd(0.04, 0.07), 4);
+  }
+
+  // ---- Cul de sac with the MP 10 (Nov 14 2026, the user's choice by M/C): you stand in the street just short of the
+  // bulb. Hubcaps go up in pairs, unseen, from the backyards behind the five houses round the bulb, over their roofs,
+  // the pair always crossing at one point out over the bulb. The dog, the porch neighbours and the houses' windows
+  // cost points; the mailbox, the junker and the trampoline win them, and all three earn UP mode. No wind. (The
+  // mower and the neighbour up the street are left out: their yards are behind you from here) ----
+  const CG_EYE = [0, 1.7, 34];
+  function buildCulDeSacGun() {
+    const base = buildCulDeSac(), E = CG_EYE;
+    // (the yard trees right beside you would fill the view: gone)
+    const trees = base.trees.filter((t) => Math.hypot(t.x - E[0], t.z - E[2]) > 18);
+    const bulb = base.houses.filter((h) => h.bulb != null);
+    const inHouse = (x, y, z, m) => base.houses.some((h) => houseNear(h, x, z, m) && y < (h.y0 || 0) + h.hr + m);
+    // where they go up from: 12 m behind each bulb house's back wall, out from the bulb, two to a house (the houses
+    // are about 9.5 m to the ridge: from closer a hubcap would have to go nearly straight up to clear one)
+    const launchers = [];
+    bulb.forEach((h, i) => {
+      const ux = (h.x - CDS.cx) / CDS.rh, uz = (h.z - CDS.cz) / CDS.rh;
+      for (const k of [-1.8, 1.8]) {
+        const sx = h.x - uz * k, sz = h.z + ux * k;
+        let d = 0; while (houseNear(h, sx + ux * d, sz + uz * d, 0.6) && d < 20) d += 0.25;
+        launchers.push({ x: sx + ux * (d + 12), y: 0.8, z: sz + uz * (d + 12), src: "house" + i });
+      }
+    });
+    const clearAt = (x, y, z) => y > 0.4 && !inHouse(x, y, z, 0.4);
+    const bonusProps = () => (S.props || []).filter((o) => o.kind === "mailbox" || o.kind === "junker" || o.kind === "trampoline");
+    const pairs = altPairs(clearAt, {
+      near: 0.3, spd: 23,
+      // (out over the bulb in front of you, 22-32 m out, and not far to the side (the end houses are well out to the
+      // sides); about a third closer in, 11-16 m out: Nov 14 2026, to play like Pasture MP 10)
+      at: (a, b, near) => [(a.x + b.x) / 2 * (near ? 0.2 : 0.3) + rnd(-2, 2), near ? rnd(5, 7.5) : rnd(6, 9), near ? E[2] + rnd(11, 16) : E[2] + rnd(22, 32)],
+      fallback: (a, b) => [[(a.x + b.x) * 0.3, 12, E[2] + 22], 2.8],
+    });
+    const gp = {
+      wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 80 },
+      reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
+      ...pairs,
+      kind: () => "hubcap", upKind: () => "hubcap",
+      calls: { 1: { text: "Two Fer Hubcap!", name: "Two Fer Hubcap" }, 2: { text: "Double Hubcap!", name: "Double Hubcap" } },
+      upReady: () => { const b = bonusProps(); return b.length > 0 && b.every((o) => o.scored); },
+      upCross: () => [rnd(-3, 3), rnd(6, 8), E[2] + rnd(16, 24)],
+      upFlight: (l, C) => Math.max(rnd(1.6, 2), Math.hypot(C[0] - l.x, C[2] - l.z) / 23),
+      bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
+      cardPics: () => ["dog", "neighbour"].map((k) => ({ k, name: k, make: () => thumb(k) })),
+      drift() {},
+      floor: () => 0.03,
+      land() { sfx.clank(); },
+      pellet(pl, hits) {
+        const r = altPropHit(pl, hits);
+        if (r) return r;
+        // the houses: a window is −10 (once each), a wall or roof stops it; the yard trees' trunks stop it
+        const q = { x: pl.x - pl.vx * 0.012, y: pl.y - pl.vy * 0.012, z: pl.z - pl.vz * 0.012 };
+        for (const h of base.houses) {
+          const hit = houseHit(h, pl, q);
+          if (!hit) continue;
+          if (hit.kind === "window" && !S.gun.upm && (!hit.win.broken || S.gunReplay) && !pl.shot.workers.has(hit.win)) {
+            pl.shot.workers.add(hit.win);
+            hits.animal({ name: "window", the: "a window", say: "CRASH!", at: hit.at, react: () => { if (!hit.win.broken) breakWindow(hit); sfx.glass(); S.pops.push({ x: hit.at[0], y: hit.at[1], z: hit.at[2], text: "CRASH!", t: 0 }); } }, pl.shot);
+          }
+          return "stop";
+        }
+        for (const t of trees) if (fallTrunkHit(t, pl, q)) return "stop";
+        if (pl.y <= 0) return "stop";
+        if (Math.abs(pl.x) > 60 || pl.z > E[2] + 80 || pl.y > 40) return "stop";
+        return null;
+      },
+    };
+    // the props: the junker in a bulb driveway and the neighbours on the bulb porches (the place's own spots), the
+    // mailbox on the verge ahead, the trampoline on a front lawn round the bulb, the dog about the bulb
+    const spots = (kind) => {
+      if (kind === "junker" || kind === "neighbour") return base.spots(kind);
+      if (kind === "mailbox") return (base.spots("mailbox") || []).filter((s) => s.z > E[2] + 10);
+      const out = [];
+      for (let i = 0; i < 80 && out.length < 12; i++) {
+        const a = rnd(-1, 1) * (kind === "trampoline" ? 1.3 : 1.6), rr = kind === "trampoline" ? rnd(CDS.rb + 5.5, CDS.rh - 6) : rnd(CDS.isl + 2, CDS.rb - 1.5);
+        const x = CDS.cx + Math.sin(a) * rr, z = CDS.cz - Math.cos(a) * rr * (kind === "trampoline" ? -1 : 1);
+        if (z > E[2] + 8 && base.free(x, z, PROPS[kind].r, kind)) out.push({ x, z });
+      }
+      return out;
+    };
+    // (the hubcaps that got away, lying on the street or a lawn)
+    const flops = () => {
+      for (const f of (S.gun && S.gun.flops) || []) {
+        const r = tgtR(), [rim] = hubRim(f);
+        groundCircle(f.x, f.z, r, 16, 0.02); ctx.fillStyle = rim || "#a7adb4"; ctx.fill();
+        groundCircle(f.x, f.z, r * 0.76, 16, 0.025); ctx.fillStyle = "#d6dade"; ctx.fill();
+        groundCircle(f.x, f.z, r * 0.2, 10, 0.03); ctx.fillStyle = "#7d848c"; ctx.fill();
+      }
+    };
+    return { ...base, gun: true, gp, launchers, eye: E, trees, wanderBox: [-10, 10, E[2] + 14, 74],
+      standing: base.standing.filter((s) => !base.trees.includes(s) || trees.includes(s)),
+      back() { base.back(); flops(); },
+      front() {}, dyn: gunThings,
+      update(dt) { base.update(dt); if (dt) updateGun(dt); },
+      reset() { base.reset(); resetGun(); }, free: () => true, collide: () => null, spots, mowPlan: () => null, roofTargets: () => [], map() {} };
   }
   // ================= Milling (level 6, being built): the place =================
   // a winter sawmill yard deep in snow (images/milling/milling_base_image.jpg, turned to face you head-on, with more
