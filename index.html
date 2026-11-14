@@ -787,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.53</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.54</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -10806,9 +10806,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if (q.behind) return;
     const r = tgtR() * q.s * 0.9, [rim, edge] = hubRim(p);
     if (!sh.behind) { ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.25, 0, 0, 7); ctx.fill(); }
-    // (tumbling: seen face on, then edge on, as it turns over)
-    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(Math.sin(p.spin * 0.3 + p.wob) * 0.5); ctx.scale(1, 0.2 + 0.8 * Math.abs(Math.cos(p.spin * 0.45 + p.wob)));
-    ctx.rotate(p.spin * 0.6);
+    // (face on, no wobble or tumble, just turning slowly: the user, Nov 14 2026)
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(p.spin * 0.2 + p.wob);
     hubcapFace(ctx, r, rim, edge);
     ctx.restore();
   }
@@ -10862,6 +10861,8 @@ body.lab .stage > :not(canvas) { display: none; }
       fallback: (a, b) => [[(a.x + b.x) * 0.3, 12, E[2] + 22], 2.8],
     });
     const gp = {
+      // (25% bigger than a skeetza, to see and to hit: the user, Nov 14 2026)
+      tR: GUN.pizzaR * 1.25,
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 80 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
