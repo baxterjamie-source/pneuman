@@ -787,7 +787,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.55</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.56</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -8974,14 +8974,33 @@ body.lab .stage > :not(canvas) { display: none; }
     if (S.scene.gp && S.scene.gp.noFollow) { g.tilt = 0; g.pan = 0; return; }
     const e = gunEye(), hy = Math.atan(H / 2 / F), hx = Math.atan(W / 2 / F), top = -gunLook() + hy * 0.6, side = hx * 0.72;
     // (each piece in the air: the turns that keep it in, from a to b)
-    let up = 0;
+    let up = 0, dn = Infinity;
     const live = [];
     // (in UP mode it doesn't follow: the view's pulled back so the arcs fit, and it eases home)
+    // (a place can look ahead (gp.ahead): the turn that keeps each piece's whole flight from here on in, worked out
+    // from its path, so the view turns once and holds, rather than chasing it every frame; each frame it moves, every
+    // still picture (houses, trees) is drawn afresh. Cul de sac MP 10 on a computer was moving in 92% of frames: 27 fps)
+    const ahead = S.scene.gp && S.scene.gp.ahead;
     for (const p of g.pizzas) {
       if (p.done || g.upm) continue;
-      const dx = p.x - e[0], dz = p.z - e[2], d = Math.max(1, Math.hypot(dx, dz)), az = Math.atan2(dx, dz), r = tgtR() / d;
-      up = Math.max(up, Math.atan2(p.y + tgtR() - e[1], d) - top);
-      live.push({ p, a: az + r - side, b: az - r + side });
+      const fit = (x, y, z) => { const dx = x - e[0], dz = z - e[2], d = Math.max(1, Math.hypot(dx, dz)), az = Math.atan2(dx, dz), r = tgtR() / d; return [Math.atan2(y + tgtR() - e[1], d) - top, az + r - side, az - r + side]; };
+      let [u, a, b] = fit(p.x, p.y, p.z);
+      if (ahead) {
+        let A = a, B = b;
+        // (the arc exactly, not stepped: coarse steps fell short of it, so the turn crept up all the way)
+        for (let t = 0.1; t < 8; t += 0.1) {
+          const y = p.y + p.vy * t - GUN.pg * t * t / 2;
+          if (y <= 0) break;
+          const f = fit(p.x + p.vx * t, y, p.z + p.vz * t); u = Math.max(u, f[0]); A = Math.max(A, f[1]); B = Math.min(B, f[2]);
+        }
+        // (its whole path won't fit in any one turn: it keeps it in as it goes, as before)
+        if (A <= B) { a = A; b = B; }
+        // (the most it can be tilted up and still keep it above the bottom, where it is now)
+        const d = Math.max(1, Math.hypot(p.x - e[0], p.z - e[2]));
+        dn = Math.min(dn, Math.atan2(p.y - tgtR() - e[1], d) + gunLook() + hy * 0.55);
+      }
+      up = Math.max(up, u);
+      live.push({ p, a, b });
     }
     // (the turn that keeps them all in, nearest straight ahead. If no turn does, they've gone off both sides: it
     // follows one: the pair's coloured one (whatever its points: it's the one toward clearing), or, both plain, the
@@ -8998,11 +9017,18 @@ body.lab .stage > :not(canvas) { display: none; }
       const f = g.focus && live.find((l) => l.p === g.focus);
       let a = f ? f.a : all[0], b = f ? f.b : all[1];
       if (f) for (const l of live) if (l !== f && Math.max(a, l.a) <= Math.min(b, l.b)) { a = Math.max(a, l.a); b = Math.min(b, l.b); }
-      pan = clamp(0, a, b);
+      // (looking ahead, it stays turned as it is while that still keeps them in, rather than easing back as they
+      // come down; it eases home once they're all down)
+      pan = clamp(ahead ? g.pan : 0, a, b);
+      if (ahead) up = clamp(g.tilt, up, Math.max(up, dn));
     }
     const wantT = clamp(up, 0, 0.6), wantP = clamp(pan, -0.7, 0.7), t0 = g.tilt, p0 = g.pan;
-    g.tilt += (wantT - g.tilt) * Math.min(1, dt * (wantT > g.tilt ? 4 : 1.6));
+    // (looking ahead, it comes down as fast as it goes up while they're in the air: it only comes down when one is
+    // falling off the bottom)
+    g.tilt += (wantT - g.tilt) * Math.min(1, dt * (wantT > g.tilt || (ahead && live.length) ? 4 : 1.6));
     g.pan += (wantP - g.pan) * Math.min(1, dt * (Math.abs(wantP) > Math.abs(g.pan) ? 3 : 1.6));
+    // (and it settles: easing by ever smaller steps it never quite got there, so the view never held still)
+    if (ahead) { if (Math.abs(wantT - g.tilt) < 0.003) g.tilt = wantT; if (Math.abs(wantP - g.pan) < 0.003) g.pan = wantP; }
     if (!g.mouse) { g.pitch += g.tilt - t0; g.yaw += g.pan - p0; }
   }
   function aimDir() { const g = S.gun; return [Math.cos(g.pitch) * Math.sin(g.yaw), Math.sin(g.pitch), Math.cos(g.pitch) * Math.cos(g.yaw)]; }
@@ -10660,6 +10686,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // Tested over many pairs: held still, a vest is off the field only as it first comes in from the side, as it was
       // when following. A computer's short, wide field still follows (held still, vests went off its top)
       get noFollow() { return W < H; },
+      // (and on a computer it looks ahead: turns once for a pair's whole flight and holds, as Cul de sac's: gunFollow)
+      ahead: true,
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 85 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
@@ -10885,6 +10913,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // (25% bigger than a skeetza, to see and to hit: the user, Nov 14 2026; another 25% on, still hard to hit on a
       // phone: batch AD)
       tR: GUN.pizzaR * 1.25 * 1.25,
+      // (speed: the view turns once for a pair's whole flight and holds, rather than chasing it: see gunFollow)
+      ahead: true,
       wind: { x: 0, z: 0, kmh: 0 }, hall: { x: 30, z0: E[2] - 2, z1: E[2] + 80 },
       reset() { gp.wind = { x: 0, z: 0, kmh: 0 }; },
       ...pairs,
