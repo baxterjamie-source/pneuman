@@ -807,7 +807,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.58</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.59</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2671,7 +2671,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // (alternates, Nov 13 2026: on a level that has one, the launcher switch beside it, Cart | MP 10)
       (hasAlt ? `<div class="diffsw launchsw" role="group" aria-label="Launcher">${[["cart", "Cart"], ["mp", "MP 10"]].map(([k, t]) => `<button type="button" data-m="${k}" class="${k === md ? "on" : ""}" aria-pressed="${k === md}">${t}</button>`).join("")}</div>` : "") +
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
-      `<button id="ovGo" type="button">Play ${Ls.name}${hasAlt ? ` · ${md === "mp" ? "MP 10" : "Cart"}` : ""}</button><button id="ovHowto" type="button">How to play</button><button id="ovTops" type="button">Top scores</button><button id="ovModes" class="back" type="button">‹ Modes</button>`, () => startLevel(startPick));
+      `<button id="ovGo" type="button">Play ${Ls.name}${hasAlt ? ` · ${md === "mp" ? "MP 10" : "Cart"}` : ""}</button><button id="ovHowto" type="button">How to play</button><button id="ovTops" type="button">Top scores</button><button id="ovModes" class="back" type="button">‹ Main menu</button>`, () => startLevel(startPick));
     $("ovTops").onclick = () => { audio(); topAll(); };
     for (const b of document.querySelectorAll(".diffsw button[data-d]")) b.onclick = () => { audio(); setDiff(b.dataset.d); };
     for (const b of document.querySelectorAll(".launchsw button")) b.onclick = () => { audio(); setMode(LEVELS[sel].id, b.dataset.m); };
@@ -2817,7 +2817,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const cont = r ? `<button id="ovCont" type="button">${campNext(r) >= r.order.length ? "Finish" : "Continue"}</button>` : "";
     showCard("", "Story mode", body, "",
       cont + `<div class="diffsw" role="group" aria-label="Difficulty for a new story">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === campPick ? "on" : ""}" aria-pressed="${k === campPick}">${k}</button>`).join("")}</div>` +
-      `<button id="ovGo" type="button"${r ? ' class="back"' : ""}>New story</button><button id="ovBack" class="back" type="button">‹ Modes</button>`,
+      `<button id="ovGo" type="button"${r ? ' class="back"' : ""}>New story</button><button id="ovBack" class="back" type="button">‹ Main menu</button>`,
       () => {
         if (!r) { campNew(); return; }
         confirmAsk("New story?", `A new story on ${campPick} ends the one in progress (${r.diff}, ${campDone(r)} of ${r.order.length} cleared, ${campTotal(r)} so far).`, "New story", "Keep it", campNew);
