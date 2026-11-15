@@ -43,6 +43,7 @@ header { display: flex; align-items: center; justify-content: space-between; gap
   position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
   padding: 10px 14px; min-width: 190px; display: grid; gap: 8px; box-shadow: 0 6px 0 rgba(0,0,0,.2);
 }
+.settings .set-x { justify-self: end; position: sticky; bottom: 0; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: #d8342c; color: #fff; font-size: 1.1rem; font-weight: 900; line-height: 1; display: grid; place-items: center; }
 .settings h3 { margin: 0; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
 .settings { max-height: calc(100vh - 90px); overflow-y: auto; }
 .settings h3.set-sub { margin-top: 4px; padding-top: 8px; border-top: 2px solid rgba(35,48,58,.15); display: flex; align-items: center; justify-content: space-between; gap: 10px; opacity: 1; }
@@ -425,6 +426,18 @@ kbd { font-family: var(--body); font-weight: 800; background: rgba(255,255,255,.
 @keyframes hint-bob { 50% { transform: translateY(4px); } }
 /* "Start over?" when the level or difficulty is changed in Settings partway through a round */
 .confirmbox { position: fixed; z-index: 31; background: rgba(35,48,58,.6); }
+/* (TODO2 batch AE) the top scores card */
+.topbox { position: fixed; z-index: 30; background: rgba(35,48,58,.6); }
+.topbox .card { max-width: 26rem; width: 100%; }
+.topbox #tbBody { display: grid; gap: 8px; }
+.topbox .tbscore { text-align: center; font-family: var(--display); font-size: 3rem; line-height: 1; }
+.topbox .tbgo { margin: 0; text-align: center; font-weight: 800; opacity: .75; }
+.topbox #lvSave { margin: 0 auto; }
+.tblist { display: grid; gap: 5px; }
+.tbrow { display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 10px; }
+.tbrow .num { font-family: var(--display); opacity: .5; min-width: 1.2em; }
+.tbrow .nm { flex: 1; font-weight: 800; }
+.tbrow .tb1 { font-size: .85rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .confirmbox .card { max-width: 22rem; }
 .confirmbox p { margin: 0; }
 #cfYes { background: var(--yellow); }
@@ -569,6 +582,8 @@ body.lab .stage > :not(canvas) { display: none; }
       <button class="set-btn" id="introSetBtn" type="button">Watch intro ›</button>
       <button class="set-btn" id="ctlsBtn" type="button" aria-controls="ctlsPanel">Controls ›</button>
       <button class="set-btn" id="menuSetBtn" type="button">‹ Main menu</button>
+      <!-- (TODO2 batch AE: a red close X, bottom right) -->
+      <button class="set-x" id="setClose" type="button" aria-label="Close settings">✕</button>
     </div>
     <!-- the controls that aren't obvious, opened from settings so they don't take room under the field -->
     <div class="settings ctls" id="ctlsPanel" hidden>
@@ -676,6 +691,11 @@ body.lab .stage > :not(canvas) { display: none; }
     </div>
     <button class="scrollhint" id="scrollHint" type="button" aria-label="More below: scroll down" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5l5 5 5-5" fill="none" stroke="#23303a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div id="irisFx" hidden><p id="irisTxt"></p></div>
+    <!-- (TODO2 batch AE) the top scores, on a card of their own over the end card (or the menus) -->
+    <div class="overlay topbox" id="topBox" role="dialog" aria-modal="true" aria-labelledby="tbTitle" hidden>
+      <div class="card"><span class="eyebrow" id="tbEye"></span><h2 id="tbTitle"></h2><div id="tbBody"></div>
+        <div class="cardbtns" id="tbBtns"></div></div>
+    </div>
     <div class="overlay confirmbox" id="confirmBox" role="dialog" aria-modal="true" aria-labelledby="cfTitle" hidden>
       <div class="card"><h2 id="cfTitle">Start over?</h2><p id="cfBody"></p>
         <div class="cardbtns"><button id="cfYes" type="button">Start over</button><button id="cfNo" type="button">Keep playing</button></div></div>
@@ -787,7 +807,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.56</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.57</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2476,7 +2496,7 @@ body.lab .stage > :not(canvas) { display: none; }
       chSave(c, { score: tot });
       // (v2.44: the score goes on the Firestore attempt, and the challenge's leaderboard comes in under the tally)
       showCard(`Pneuman Challenge · ${L.name}`, verdict(tot, c.score, c.name), `You ${tot}, ${c.name || "your friend"} ${c.score}.`, counts + `<div id="chBoard" style="flex:1 1 100%"></div>`,
-        `<button id="ovGo" type="button">Challenge back</button><button id="ovPick" type="button">Play Pneuman</button>`,
+        `<button id="ovGo" type="button">Challenge back</button><button id="ovPick" type="button">Play Pneuman</button><button id="ovTops" type="button">Top scores</button>`,
         () => openShare({ score: tot, vs: { name: c.name, score: c.score, id: c.id } }));
       $("ovGo").onclick = () => openShare({ score: tot, vs: { name: c.name, score: c.score, id: c.id } }); // (the card stays up behind it)
       fbAttemptEnd(c, tot).then((g) => { if (g && g.ch && $("chBoard")) $("chBoard").innerHTML = boardHtml(g.ch, g.atts, g.me); });
@@ -2485,14 +2505,15 @@ body.lab .stage > :not(canvas) { display: none; }
       campEndCard(L, tot, allHit, counts);
     } else {
       // (Next is always offered here; "only once cleared" is for the single-player campaign, still to come)
-      const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">${S.rechallenge ? `Challenge ${esc(S.rechallenge)}` : "Challenge a friend"}</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button>`;
+      const btns = `<button id="ovGo" type="button">Next: ${LEVELS[next].name}</button><button id="ovChal" type="button">${S.rechallenge ? `Challenge ${esc(S.rechallenge)}` : "Challenge a friend"}</button><button id="ovRetry" type="button">Replay</button><button id="ovPick" type="button">Pick a level</button><button id="ovTops" type="button">Top scores</button>`;
       showCard(`${S.level + 1} · ${L.name} · targets hit`, title, body, counts, btns, () => startLevel(next));
       // this round, sent to a friend with the score to beat
       $("ovChal").onclick = () => openShare({ score: tot });
     }
     if (!S.camp) $("ovPick").onclick = () => { audio(); showStart(S.level); };
-    // (v2.45: free play and challenge rounds go for the level's world top 10)
-    if (!S.camp) levelTopOnCard(L, tot, !!S.challenge);
+    // (v2.45: free play and challenge rounds go for the level's world top 10; batch AE: on a card of its own after the
+    // tally, and the end card's Top scores opens the list of every level's)
+    if (!S.camp) { $("ovTops").onclick = () => { audio(); topAll(); }; levelTopOnCard(L, tot, !!S.challenge); }
     runTally(S.score, S.bonus, S.bonusItems || [], allHit ? spare : null, S.penalty || 0, S.penaltyItems || [], unlaunched, mult, clearB, lvl().gun ? 0 : S.osbScore || 0);
     if (allHit) cheer(tot);
     // Skeetza on a phone with 2 or fewer hit: the two-thumbs tip, over the end card (?aimhelp shows it anywhere)
@@ -2583,6 +2604,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // bonus slides in (naming the objects hit) and counts up; then the spare spuds at +1 each; then it all combines into
   // the level total, which pops. Lines worth nothing are left out
   // (osb: the One Shot Bonus's points, part of score, shown on a line of their own rather than under Rings)
+  // (TODO2 batch AE: told when the total's counted up: the top scores card waits for it)
+  let tallyEnd = null;
   function runTally(score, bonus, items, spare, penalty, hitAnimals, unlaunched = 0, mult = 1, clearB = 0, osb = 0) {
     const el = $("tally"); el.hidden = false;
     const extra = spare || 0, unl = unlaunched || 0, rings = Math.max(0, score + penalty - osb);
@@ -2619,7 +2642,7 @@ body.lab .stage > :not(canvas) { display: none; }
       tO && ((next) => { tO.parentNode.classList.add("in"); count(tO, osb, "+", 400 + osb * 6, next); }),
       tC && ((next) => { tC.parentNode.classList.add("in"); count(tC, clearB, "+", 600, next); }),
       tM && ((next) => { tM.parentNode.classList.add("in"); count(tM, Math.abs(dm), dm >= 0 ? "+" : "−", 350 + Math.abs(dm) * 15, next); }),
-      () => { tT.parentNode.classList.add("in"); count(tT, final, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); }); },
+      () => { tT.parentNode.classList.add("in"); count(tT, final, "", 500, () => { tT.parentNode.classList.add("pop"); sfx.ring(25); const f = tallyEnd; tallyEnd = null; if (f) f(); }); },
     ].filter(Boolean);
     const run = (i) => setTimeout(() => steps[i](() => run(i + 1)), 250);
     count(tS, rings, "", Math.min(900, 250 + rings * 12), () => run(0));
@@ -2648,7 +2671,8 @@ body.lab .stage > :not(canvas) { display: none; }
       // (alternates, Nov 13 2026: on a level that has one, the launcher switch beside it, Cart | MP 10)
       (hasAlt ? `<div class="diffsw launchsw" role="group" aria-label="Launcher">${[["cart", "Cart"], ["mp", "MP 10"]].map(([k, t]) => `<button type="button" data-m="${k}" class="${k === md ? "on" : ""}" aria-pressed="${k === md}">${t}</button>`).join("")}</div>` : "") +
       `<div class="diffsw" role="group" aria-label="Difficulty">${DIFF_KEYS.map((k) => `<button type="button" data-d="${k}" class="${k === S.diffPick ? "on" : ""}" aria-pressed="${k === S.diffPick}">${k}</button>`).join("")}</div>` +
-      `<button id="ovGo" type="button">Play ${Ls.name}${hasAlt ? ` · ${md === "mp" ? "MP 10" : "Cart"}` : ""}</button><button id="ovHowto" type="button">How to play</button><button id="ovModes" class="back" type="button">‹ Modes</button>`, () => startLevel(startPick));
+      `<button id="ovGo" type="button">Play ${Ls.name}${hasAlt ? ` · ${md === "mp" ? "MP 10" : "Cart"}` : ""}</button><button id="ovHowto" type="button">How to play</button><button id="ovTops" type="button">Top scores</button><button id="ovModes" class="back" type="button">‹ Modes</button>`, () => startLevel(startPick));
+    $("ovTops").onclick = () => { audio(); topAll(); };
     for (const b of document.querySelectorAll(".diffsw button[data-d]")) b.onclick = () => { audio(); setDiff(b.dataset.d); };
     for (const b of document.querySelectorAll(".launchsw button")) b.onclick = () => { audio(); setMode(LEVELS[sel].id, b.dataset.m); };
     $("ovHowto").onclick = () => openHowto();
@@ -2696,12 +2720,14 @@ body.lab .stage > :not(canvas) { display: none; }
       `<button id="ovGo" class="modebtn" type="button">Story mode<small>Help Riley unravel the mystery left by a favourite uncle.</small></button>` +
       `<button id="ovFree" class="modebtn" type="button">Free play<small>Any level, any difficulty, as often as you like.</small></button>` +
       `<button id="ovHowto" class="back" type="button">How to play</button>` +
+      `<button id="ovTops" class="back" type="button">Top scores</button>` +
       // (batch G, Nov 12 2026: sound on or off right here, on to start; the same setting as in Settings)
       // (TODO2 batch AB: a slider switch, as in Settings)
       `<label class="sndrow">Sound <input type="checkbox" id="ovSound" class="sw" role="switch"></label>`, () => showCampaign());
     document.querySelector(".card").classList.add("modes");
     $("ovFree").onclick = () => { audio(); showStart(startPick); };
     $("ovHowto").onclick = () => openHowto();
+    $("ovTops").onclick = () => { audio(); topAll(); };
     const snd = $("ovSound");
     snd.checked = !S.muted;
     snd.onchange = () => { setMuted(!snd.checked); if (!S.muted) { audio(); sfx.click(); } };
@@ -7791,15 +7817,36 @@ body.lab .stage > :not(canvas) { display: none; }
     try { localStorage.setItem(lvLocalKey(id), JSON.stringify(t)); } catch (e) {}
     return t;
   }
-  // the end of a free-play or challenge round: the level's world table under the tally, and if the round makes it,
-  // "You made #N!" with the three initials and Save
+  // the end of a free-play or challenge round (TODO2 batch AE, Nov 15 2026: the end card was too busy): the tally
+  // counts up on its own; a second after its total, the top scores come up on a card of their own over the end card:
+  // the score, the level's top 10 and, if it makes it, "You made #N!" with the three initials and Save. Close shows
+  // the end card again; All top scores lists every level's #1, to pick the next one to go after
+  let topTok = 0;
   async function levelTopOnCard(L, tot, ch) {
-    const box = document.createElement("div"); box.id = "lvTop"; box.style.flex = "1 1 100%";
-    $("legend").appendChild(box);
-    const w = await fbLevelTop(L.id, true); if (!box.isConnected) return;
+    const tok = ++topTok, here = () => tok === topTok && S.phase === "levelEnd" && !$("overlay").hidden;
+    const tallied = new Promise((res) => { tallyEnd = res; });
+    const w = await fbLevelTop(L.id, true);
+    await tallied; await new Promise((res) => setTimeout(res, 1000));
+    if (!here()) return;
     const local = !w, t = w || lvLocal(L.id);
+    topResult(L, tot, ch, t, local, here);
+  }
+  const topBox = $("topBox");
+  function topOpen(eyebrow, title, body, btns) {
+    $("tbEye").textContent = eyebrow; $("tbTitle").textContent = title; $("tbBody").innerHTML = body; $("tbBtns").innerHTML = btns;
+    topBox.hidden = false;
+    $("tbClose").onclick = () => { audio(); topClose(); };
+    if ($("tbAll")) $("tbAll").onclick = () => { audio(); topAll(); };
+  }
+  function topClose() { topBox.hidden = true; }
+  // the round's score with its level's table
+  function topResult(L, tot, ch, t, local, here) {
     const makes = tot > 0 && (t.length < 10 || tot > t[t.length - 1].total), k = t.filter((e) => e.total >= tot).length;
-    box.innerHTML = (makes ? `<div class="lvmade">You made #${k + 1} on ${esc(L.name)}!</div>${initialsHtml(initialsGuess())}<button id="lvSave" type="button">${local ? "Save to the top 10" : "Save to the world top 10"}</button>` : "") + lvTable(L, t, null, local);
+    const toGo = !makes && t.length >= 10 ? `<p class="tbgo">${t[9].total - tot + 1} more for #10</p>` : "";
+    const saveBtn = makes ? `${initialsHtml(initialsGuess())}<button id="lvSave" type="button">${local ? "Save to the top 10" : "Save to the world top 10"}</button>` : "";
+    topOpen(`${levelLabel(L)} · top scores`, makes ? `You made #${k + 1}!` : "Your score",
+      `<div class="tbscore">${tot}</div>${toGo}${saveBtn}<div id="lvTop">${lvTable(L, t, null, local)}</div>`,
+      `<button id="tbAll" type="button">All top scores</button><button id="tbClose" class="back" type="button">Close</button>`);
     if (!makes) return;
     const read = initialsWire(), diff = S.diff;
     $("lvSave").onclick = async () => {
@@ -7809,8 +7856,35 @@ body.lab .stage > :not(canvas) { display: none; }
       // (kept on this device as well, so the device's table is there to fall back on)
       const tl = lvLocalAdd(L.id, entry);
       const t2 = local ? null : await fbLevelAdd(L.id, entry);
-      if (!box.isConnected) return;
-      box.innerHTML = t2 ? lvTable(L, t2, entry.at) : lvTable(L, tl, entry.at, true);
+      if (topBox.hidden || !$("lvSave")) return;
+      $("lvSave").remove(); const ini = document.querySelector("#tbBody .initials"); if (ini) ini.remove();
+      $("lvTop").innerHTML = t2 ? lvTable(L, t2, entry.at) : lvTable(L, tl, entry.at, true);
+      $("tbTitle").textContent = `Saved: #${(t2 || tl).findIndex((e) => e.at === entry.at) + 1}`;
+    };
+  }
+  // every level (and its other launcher, where it has one): its #1, a row to tap for its top 10
+  const topLevels = () => LEVELS.flatMap((B, i) => [B, ALTS[B.id]].filter(Boolean).map((L) => ({ L, i })));
+  const topOf = async (L) => { const w = await fbLevelTop(L.id); return { t: w || lvLocal(L.id), local: !w }; };
+  function topAll() {
+    const rows = topLevels();
+    topOpen("Free play", "Top scores", `<div class="tblist">${rows.map(({ L, i }, n) => `<button type="button" class="tbrow" data-n="${n}"><span class="num">${i + 1}</span><span class="nm">${esc(levelLabel(L))}</span><span class="tb1" id="tb1-${n}">…</span></button>`).join("")}</div>`,
+      `<button id="tbClose" class="back" type="button">Close</button>`);
+    rows.forEach(({ L }, n) => {
+      $("tbBody").querySelector(`[data-n="${n}"]`).onclick = () => { audio(); topLevel(n); };
+      topOf(L).then(({ t }) => { const s = $(`tb1-${n}`); if (s) s.textContent = t.length ? `#1 ${t[0].total} ${t[0].name || ""}` : "no scores yet"; });
+    });
+  }
+  // one level's top 10, with Play to go after it
+  function topLevel(n) {
+    const { L, i } = topLevels()[n];
+    topOpen("Top scores", levelLabel(L), `<div id="lvTop">Loading…</div>`,
+      `<button id="tbPlay" type="button">Play ${esc(levelLabel(L))}</button><button id="tbAll" class="back" type="button">‹ All top scores</button><button id="tbClose" class="back" type="button">Close</button>`);
+    topOf(L).then(({ t, local }) => { if ($("lvTop")) $("lvTop").innerHTML = lvTable(L, t, null, local); });
+    $("tbPlay").onclick = () => {
+      audio(); topClose();
+      // (in that launcher: kept on the device, as the start card's switch does)
+      if (ALTS[LEVELS[i].id]) { S.altPick[LEVELS[i].id] = !!L.alt; try { localStorage.setItem("pneuman-alt", JSON.stringify(S.altPick)); } catch (e) {} }
+      leaveChallenge(); campOff(); startPick = i; startLevel(i); syncLaunchSel();
     };
   }
   // the start card's level buttons: each shows the world #1, a link to that level's top 10
@@ -7825,10 +7899,10 @@ body.lab .stage > :not(canvas) { display: none; }
       });
     }
   }
+  // (batch AE: on the top-scores card now, over the start card)
   function showLevelTop(i) {
-    const L = levelAt(i);
-    showCard("Free play", levelLabel(L), "", `<div id="lvTop" style="flex:1 1 100%">Loading…</div>`, `<button id="ovGo" type="button">‹ Back</button>`, () => showStart(i));
-    fbLevelTop(L.id, true).then((t) => { if ($("lvTop")) $("lvTop").innerHTML = t ? lvTable(L, t) : "Couldn't load the table just now."; });
+    const L = levelAt(i), n = topLevels().findIndex((r) => r.L === L);
+    if (n >= 0) topLevel(n);
   }
   async function fbTopAdd(d, entry) {
     const f = await fb(); if (!f) return null;
@@ -7866,6 +7940,7 @@ body.lab .stage > :not(canvas) { display: none; }
   fpsTgl.addEventListener("change", () => { S.fps = fpsTgl.checked; });
   const showSettings = (open) => { settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); };
   gear.addEventListener("click", (e) => { e.stopPropagation(); showCtls(false); showSettings(settings.hidden); });
+  $("setClose").addEventListener("click", (e) => { e.stopPropagation(); audio(); showSettings(false); });
   document.addEventListener("click", (e) => {
     if (!settings.hidden && !settings.contains(e.target)) showSettings(false);
     if (!ctls.hidden && !ctls.contains(e.target)) showCtls(false);
@@ -8068,6 +8143,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (HOWTO.on) { if (e.key === "Escape") closeHowto(); return; }
     // ("Start over?" up: Escape is Keep playing; nothing else gets through to the game)
     if (!$("confirmBox").hidden) { if (e.key === "Escape") $("cfNo").click(); return; }
+    if (!$("topBox").hidden) { if (e.key === "Escape") $("tbClose").click(); return; }
     if (e.key === "Escape" && !settings.hidden) { showSettings(false); gear.focus(); return; }
     if (e.key === "Escape" && !ctls.hidden) { showCtls(false); gear.focus(); return; }
     if (e.key === "Escape" && S.replay) { stopRelive(); return; }
@@ -9051,7 +9127,16 @@ body.lab .stage > :not(canvas) { display: none; }
     g.flash = 1; g.kick = 1; sfx.fire(); gunPuff(g);
     // out of the barrels low on the right (where the gun's held), toward the crosshair, in a tight spread
     const d = aimDir(), e = gunEye(), rt = [Math.cos(g.yaw), 0, -Math.sin(g.yaw)];
-    const o = [e[0] + rt[0] * 0.22 + d[0] * 0.6, e[1] - 0.25 + d[1] * 0.6, e[2] + rt[2] * 0.22 + d[2] * 0.6], T = [e[0] + d[0] * 35, e[1] + d[1] * 35, e[2] + d[2] * 35];
+    let o = [e[0] + rt[0] * 0.22 + d[0] * 0.6, e[1] - 0.25 + d[1] * 0.6, e[2] + rt[2] * 0.22 + d[2] * 0.6];
+    const T = [e[0] + d[0] * 35, e[1] + d[1] * 35, e[2] + d[2] * 35];
+    // (TODO2 batch AE: in UP the view pulls back (F smaller), so that spot no longer sat on the gun drawn on the
+    // screen and the spuds came out off to its right. In UP they start on the line back through the barrel that
+    // fired, 1.2 m out, so they leave its black pipe)
+    const mz = g.upm && g.muzzles && g.muzzles[g.barrel || 0];
+    if (mz) {
+      const X = (mz[0] - W / 2) / F, Y = (CY - mz[1]) / F, dy = Y * cp - sp, z1 = Y * sp + cp, dx = X * cyw + z1 * syw, dz = -X * syw + z1 * cyw, n = Math.hypot(dx, dy, dz) || 1;
+      o = [e[0] + (dx / n) * 1.2, e[1] + (dy / n) * 1.2, e[2] + (dz / n) * 1.2];
+    }
     const len = Math.hypot(T[0] - o[0], T[1] - o[1], T[2] - o[2]), f = [(T[0] - o[0]) / len, (T[1] - o[1]) / len, (T[2] - o[2]) / len];
     const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl], up = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
     // (in UP mode it's more of a shotgun: more spuds in a wider spread, so a shot into a bunch takes several)
