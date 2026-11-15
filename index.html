@@ -807,7 +807,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.57</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.58</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -7835,22 +7835,41 @@ body.lab .stage > :not(canvas) { display: none; }
   function topOpen(eyebrow, title, body, btns) {
     $("tbEye").textContent = eyebrow; $("tbTitle").textContent = title; $("tbBody").innerHTML = body; $("tbBtns").innerHTML = btns;
     topBox.hidden = false;
-    $("tbClose").onclick = () => { audio(); topClose(); };
+    // (Close goes back to the score entry when All top scores was opened from it, unsaved: see topRet)
+    $("tbClose").onclick = () => { audio(); if (topRet) { const f = topRet; topRet = null; f(); } else topClose(); };
     if ($("tbAll")) $("tbAll").onclick = () => { audio(); topAll(); };
   }
-  function topClose() { topBox.hidden = true; }
+  // (TODO2 batch AE follow-up, the user: from the score entry card, All top scores then Close came out to the end card
+  // and the chance to save was gone. While a score is waiting to be saved, Close from the list (or a level's top 10)
+  // goes back to its entry card, initials as typed. Anywhere else, Close just closes; Play leaves it behind)
+  let topRet = null;
+  function topClose() { topBox.hidden = true; topRet = null; }
   // the round's score with its level's table
-  function topResult(L, tot, ch, t, local, here) {
+  function topResult(L, tot, ch, t, local, here, ini) {
+    topRet = null;
     const makes = tot > 0 && (t.length < 10 || tot > t[t.length - 1].total), k = t.filter((e) => e.total >= tot).length;
     const toGo = !makes && t.length >= 10 ? `<p class="tbgo">${t[9].total - tot + 1} more for #10</p>` : "";
-    const saveBtn = makes ? `${initialsHtml(initialsGuess())}<button id="lvSave" type="button">${local ? "Save to the top 10" : "Save to the world top 10"}</button>` : "";
+    const saveBtn = makes ? `${initialsHtml(ini || initialsGuess())}<button id="lvSave" type="button">${local ? "Save to the top 10" : "Save to the world top 10"}</button>` : "";
     topOpen(`${levelLabel(L)} · top scores`, makes ? `You made #${k + 1}!` : "Your score",
       `<div class="tbscore">${tot}</div>${toGo}${saveBtn}<div id="lvTop">${lvTable(L, t, null, local)}</div>`,
       `<button id="tbAll" type="button">All top scores</button><button id="tbClose" class="back" type="button">Close</button>`);
     if (!makes) return;
     const read = initialsWire(), diff = S.diff;
+    // (once Save's been pressed there's nothing to come back for: the list's Close just closes)
+    let saved = false;
+    $("tbAll").onclick = () => { audio(); const typed = read(); topAll(); if (!saved) topRet = () => topResult(L, tot, ch, t, local, here, typed); };
+    // (closed without saving: a button on the end card brings the entry back, initials as typed. It goes with the
+    // end card (Next, Replay, Pick a level, Play… all build a new card), and once the score's saved)
+    $("tbClose").onclick = () => {
+      audio(); const typed = read(); topClose();
+      if (saved || !here()) return;
+      let b = $("ovEnter");
+      if (!b) { b = document.createElement("button"); b.id = "ovEnter"; b.type = "button"; $("ovBtns").prepend(b); }
+      b.textContent = `Enter your top score (#${k + 1})`;
+      b.onclick = () => { audio(); b.remove(); if (here()) topResult(L, tot, ch, t, local, here, typed); };
+    };
     $("lvSave").onclick = async () => {
-      audio(); const b = $("lvSave"); b.disabled = true; b.textContent = "Saving…";
+      audio(); saved = true; const b = $("lvSave"); b.disabled = true; b.textContent = "Saving…";
       const name = read(); try { localStorage.setItem("pneuman-initials", name); } catch (e) {}
       const entry = { name, total: tot, diff, ch: !!ch, at: Date.now() };
       // (kept on this device as well, so the device's table is there to fall back on)
