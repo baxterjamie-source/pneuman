@@ -140,6 +140,10 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .viewbtns button { font-size: .8rem; padding: 4px 10px; border-width: 2px; border-radius: 8px; box-shadow: 0 3px 0 var(--ink); }
 .viewbtns button:active { box-shadow: 0 1px 0 var(--ink); }
 #arcBtn { background: var(--yellow); }
+.arcptr { position: absolute; left: 34px; bottom: calc(100% + 2px); width: 64px; height: 48px; pointer-events: none; filter: drop-shadow(0 2px 0 rgba(0,0,0,.25)); animation: arcptr-nudge .6s ease-in-out infinite; }
+.arcptr[hidden] { display: none; }
+.arcptr svg { display: block; width: 100%; height: 100%; }
+@keyframes arcptr-nudge { 0%, 100% { transform: translate(8px, -8px); } 50% { transform: translate(0, 0); } }
 /* Re-live it: in the top right corner after a shot (above the end-of-level card too), pointed out by the green
    arrow (v2.08: no longer big in the middle first) */
 .relive {
@@ -211,7 +215,10 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .lvl.soon small { font-style: italic; opacity: .9; }
 /* (v2.18) the "Which mode?" screen and the campaign: two big buttons, each with a line of small print; the campaign's
    levels as a row of chips (ticked when cleared) and its top-10 table */
-.card.modes { max-width: 24rem; }
+/* (Nov 17 2026: 26rem, was 24: with Top scores beside How to play, Sound wrapped onto a row of its own and the card
+   outgrew a laptop's short stage, so it scrolled) */
+.card.modes { max-width: 26rem; }
+.card.modes #legend:empty { display: none; }
 .card.modes #ovBody { font-family: var(--display); font-size: 1.3rem; }
 .modebtn { flex: 1 1 100%; display: grid; gap: 2px; text-align: left; padding-block: 10px; }
 .modebtn small { font-size: .78rem; font-weight: 700; opacity: .8; }
@@ -615,6 +622,8 @@ body.lab .stage > :not(canvas) { display: none; }
     <div class="viewbtns">
       <button id="arcBtn" type="button" hidden>View arc</button>
       <button id="resetView" type="button" hidden>Reset view</button>
+      <!-- (Nov 17 2026) the golden arch's hint: a green curved arrow down onto View arc, till it's pressed or the golden spud's launched -->
+      <div class="arcptr" id="arcPtr" hidden aria-hidden="true"><svg viewBox="0 0 64 48"><path d="M58 6Q30 4 15.6 33.4" fill="none" stroke="#23303a" stroke-width="9" stroke-linecap="round"/><path d="M58 6Q30 4 15.6 33.4" fill="none" stroke="#3ccf4e" stroke-width="5" stroke-linecap="round"/><path d="M10 44L8.6 29.6L22.6 37.2Z" fill="#3ccf4e" stroke="#23303a" stroke-width="2.5" stroke-linejoin="round"/></svg></div>
     </div>
     <button class="relive" id="relive" type="button" hidden>⟲ Re-live it!</button>
     <button class="sharebtn" id="shareBtn" type="button" hidden>📮 Share</button>
@@ -668,7 +677,7 @@ body.lab .stage > :not(canvas) { display: none; }
             <li><b>The map</b> (bottom right) shows the field from above. Drag its red dotted line to turn the cart, or tap the map where you want to aim. Rings show in their colours, bonus objects as green squares, animals and people as orange, your landings as dots.</li>
             <li><b>Objects</b> in the field (the junker, the mailbox, the tractor…) are a <b>+10 bonus</b>, once each. <b>Animals and people cost 10</b> every time.</li>
             <li>Two or more scores with one spud is a <b>combo</b> bonus.</li>
-            <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. The cart is set on a golden arch of six stars: just find the pressure. +20 a star, 120 for all six. Calm air for that one, and nothing else counts.</li>
+            <li><b>One Shot Bonus:</b> hit all of a level's bonus objects (they're crossed off at the top as you go) to earn a glowing <b>golden spud</b>, an extra. The cart is set on a golden arch of six gold rings: just find the pressure. +20 a ring, 120 for all six. Calm air for that one, and nothing else counts.</li>
             <li><b>Wind</b> pushes the spud: the arrow on the map shows it.</li>
             <li><b>Ten spuds</b> a level. Clear every ring and each spare spud is +1.</li>
           </ul>
@@ -807,7 +816,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.59</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.60</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2044,7 +2053,8 @@ body.lab .stage > :not(canvas) { display: none; }
   // (r: a ring's radius, m. At 1.0 the exact setting gets all six, half a degree or two off four or five, 2° off one;
   // a peg hole off, none. At 1.6, 2° off still got all six)
   // (v2.13: easier: the cart is set on the arc for you (only the pressure to find) and the rings are bigger, 1.4)
-  const OSB = { n: 6, pts: 20, r: 1.4 };
+  // (Nov 17 2026: gold rings now, not stars, drawn at just this size, and 25% more area to go through: 1.57, was 1.4)
+  const OSB = { n: 6, pts: 20, r: 1.57 };
   // every bonus object of this round hit (the props that win a bonus, and the lake's boathouses); none, no OSB
   function osbEarned() {
     if (lvl().gun) return false;
@@ -2092,13 +2102,14 @@ body.lab .stage > :not(canvas) { display: none; }
   function startOsb() {
     const arc = withSeed(seedFor(S.seed, SEED.osb), buildOsbArc);
     if (!arc) { S.osb = { state: "done", rings: [], score: 0 }; S.phase = "aim"; rollWind(); hud(); return; }
-    S.osb = { state: "ready", rings: arc.rings, score: 0, show: true, set: arc };
+    // (hint: the green arrow onto View arc, to look at the arch from all sides, till it's pressed or the spud's away)
+    S.osb = { state: "ready", rings: arc.rings, score: 0, show: true, set: arc, hint: true };
     // (v2.13: the cart's set on the arc, its turn and peg hole held there (greyed out): only the pressure to find)
     S.yaw = arc.yaw; S.hole = arc.hole; S.phase = "aim"; hud();
     sfx.zaTriple();
     const c = arc.rings[2];
     S.pops.push({ x: c.x, y: c.y + 2.5, z: c.z, text: "ONE SHOT BONUS!", col: "#ffb000", fancy: true, size: clamp(W * 0.05, 24, 46), t: 0 });
-    shotNote("One Shot Bonus! A golden spud, extra. The cart's set on the golden arch: just find the pressure. +20 a star. View arc shows it from the side.");
+    shotNote("One Shot Bonus! A golden spud, extra. The cart's set on the golden arch: just find the pressure. +20 a ring. View arc shows it from every side.");
   }
   // the golden spud, from prev to p: through a ring's middle (within its radius as it crosses the ring's face), +20
   function osbPass(prev, p) {
@@ -2129,7 +2140,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const o = S.osb, n = o.rings.filter((r) => r.hit).length;
     o.state = "done"; o.justDone = true; if (o.wind) S.wind = o.wind;
     if (n === OSB.n) { sfx.zaTriple(); const c = o.rings[2]; S.pops.push({ x: c.x, y: c.y + 3, z: c.z, text: `PERFECT ARCH! +${o.score}`, col: "#ffb000", fancy: true, size: clamp(W * 0.055, 24, 50), t: 0 }); }
-    shotNote(n ? `One Shot Bonus: ${n} of ${OSB.n} stars! +${o.score}` : "One Shot Bonus: missed the arch. Next time!");
+    shotNote(n ? `One Shot Bonus: ${n} of ${OSB.n} rings! +${o.score}` : "One Shot Bonus: missed the arch. Next time!");
   }
   // (v2.14) the One Shot Bonus drawn golden, as UP is: a glowing golden arch along the whole flight (through the
   // middle of every star, so it's plain it's only the pressure to find), a shimmer running along it, and on it six
@@ -2150,8 +2161,8 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.setLineDash([10, 46]); ctx.lineDashOffset = -now * 90; line(); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 4; ctx.stroke(); ctx.setLineDash([]);
       ctx.restore();
     }
-    // the stars, far to near
-    o.rings.slice().sort((a, b) => Math.hypot(b.x - CAM.x, b.z - CAM.z) - Math.hypot(a.x - CAM.x, a.z - CAM.z)).forEach((r, i) => drawOsbStar(r, now, i));
+    // the rings, far to near
+    o.rings.slice().sort((a, b) => Math.hypot(b.x - CAM.x, b.z - CAM.z) - Math.hypot(a.x - CAM.x, a.z - CAM.z)).forEach((r, i) => drawOsbRing(r, now, i));
     if (o.state === "ready") {
       ctx.save();
       ctx.fillStyle = `rgba(255,196,40,${(0.07 + 0.03 * Math.sin(now * 3)).toFixed(3)})`; ctx.fillRect(0, 0, W, H);
@@ -2167,28 +2178,39 @@ body.lab .stage > :not(canvas) { display: none; }
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y - s * 2); ctx.lineTo(x + s * 0.55, y - s * 0.55); ctx.lineTo(x + s * 2, y); ctx.lineTo(x + s * 0.55, y + s * 0.55);
     ctx.lineTo(x, y + s * 2); ctx.lineTo(x - s * 0.55, y + s * 0.55); ctx.lineTo(x - s * 2, y); ctx.lineTo(x - s * 0.55, y - s * 0.55); ctx.closePath(); ctx.fill();
   }
-  // a star of the arc, facing you, about a metre across its points (the spud scores within OSB.r of its middle),
-  // gently turning and pulsing, sparkles circling it; green with a tick once gone through
-  function drawOsbStar(r, now, k) {
-    const q = P(r.x, r.y, r.z);
-    if (q.behind) return;
-    const R = Math.min(70, Math.max(7, 0.95 * q.s)), pulse = r.hit ? 1 : 1 + 0.06 * Math.sin(now * 4 + k), spin = r.hit ? 0 : Math.sin(now * 0.8 + k) * 0.25;
-    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(spin);
-    const star = (rad) => { ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? rad * 0.45 : rad; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); };
-    if (!r.hit) { ctx.shadowColor = "rgba(255,200,40,.95)"; ctx.shadowBlur = Math.max(8, R * 0.5); }
-    star(R * pulse);
-    const g = ctx.createRadialGradient(-R * 0.2, -R * 0.25, R * 0.1, 0, 0, R);
-    if (r.hit) { g.addColorStop(0, "#b8f5c4"); g.addColorStop(1, "#2fb84a"); } else { g.addColorStop(0, "#fff6c2"); g.addColorStop(0.55, "#ffd23a"); g.addColorStop(1, "#e0a000"); }
-    ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
-    ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1.5, R * 0.07); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.stroke();
-    ctx.rotate(-spin);
+  // (Nov 17 2026) a ring of the arc: gold, as the place's coloured rings are rings, square to the flight there and
+  // just the size the spud scores in (OSB.r), so from View arc's sides it's seen edge on, as it really is; a soft
+  // glow and sparkles circling it; green with a tick once gone through
+  function drawOsbRing(r, now, k) {
+    const c = P(r.x, r.y, r.z);
+    if (c.behind) return;
+    // (two directions across the ring's face, square to its n)
+    const n = r.n, a0 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    let u = [n[1] * a0[2] - n[2] * a0[1], n[2] * a0[0] - n[0] * a0[2], n[0] * a0[1] - n[1] * a0[0]];
+    const ul = Math.hypot(...u); u = u.map((x) => x / ul);
+    const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+    const pts = [];
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * Math.PI * 2, ca = Math.cos(a) * OSB.r, sa = Math.sin(a) * OSB.r, q = P(r.x + u[0] * ca + v[0] * sa, r.y + u[1] * ca + v[1] * sa, r.z + u[2] * ca + v[2] * sa);
+      if (q.behind) return;
+      pts.push(q);
+    }
+    const line = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); };
+    const w = clamp(0.2 * c.s, 2.5, 16), pulse = r.hit ? 0 : 0.5 + 0.5 * Math.sin(now * 4 + k);
+    ctx.save(); ctx.lineJoin = "round";
+    if (!r.hit) { ctx.shadowColor = "rgba(255,200,40,.95)"; ctx.shadowBlur = Math.max(8, w * (1.5 + pulse)); }
+    line(); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.lineWidth = w + 3; ctx.stroke();
+    ctx.shadowBlur = 0;
+    line(); ctx.strokeStyle = r.hit ? "#2fb84a" : "#ffd23a"; ctx.lineWidth = w; ctx.stroke();
+    line(); ctx.strokeStyle = r.hit ? "#b8f5c4" : "#fff4bf"; ctx.lineWidth = Math.max(1, w * 0.3); ctx.stroke();
+    const R = Math.max(7, OSB.r * c.s);
     if (r.hit) {
-      const fs = Math.max(10, R * 0.9);
-      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
-      ctx.lineWidth = Math.max(2, fs * 0.18); ctx.strokeStyle = "#16702c"; ctx.strokeText("✓", 0, fs * 0.05); ctx.fillStyle = "#fff"; ctx.fillText("✓", 0, fs * 0.05);
+      const fs = clamp(R * 0.9, 10, 60);
+      ctx.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineWidth = Math.max(2, fs * 0.18); ctx.strokeStyle = "#16702c"; ctx.strokeText("✓", c.x, c.y + fs * 0.05); ctx.fillStyle = "#fff"; ctx.fillText("✓", c.x, c.y + fs * 0.05);
     } else {
-      // (sparkles circling it, twinkling)
-      for (let i = 0; i < 5; i++) { const a = now * 1.6 + k + (i * Math.PI * 2) / 5, d = R * (1.25 + 0.15 * Math.sin(now * 5 + i)); sparkle(Math.cos(a) * d, Math.sin(a) * d * 0.8, Math.max(1.5, R * 0.07) * (0.6 + 0.6 * Math.abs(Math.sin(now * 6 + i * 1.7))), "rgba(255,248,210,.95)"); }
+      // (sparkles twinkling round it)
+      for (let i = 0; i < 5; i++) { const q = pts[(Math.floor(now * 6) + i * 6 + k * 3) % 32]; sparkle(q.x, q.y, Math.max(1.5, w * 0.35) * (0.6 + 0.6 * Math.abs(Math.sin(now * 6 + i * 1.7))), "rgba(255,248,210,.95)"); }
     }
     ctx.restore();
   }
@@ -2274,6 +2296,31 @@ body.lab .stage > :not(canvas) { display: none; }
     if (lost) (S.penaltyItems = S.penaltyItems || []).push(name);
     shotNote(`${msg} ${lost ? `−${lost}` : "(no points to lose yet)"}`);
   }
+  // (Nov 17 2026) a bonus item won: "Bonus +N!" big in the middle of the view, bouncing in as the MP levels' calls
+  // (DOUBLE!, Two Fer Za!) do, with their jingle
+  function bonusFanfare(pts) {
+    (S.pops = S.pops || []).push({ x: 0, y: 0, z: 0, text: `Bonus +${pts}!`, col: "#2fb84a", fancy: true, size: clamp(W * 0.05, 24, 46), t: 0 });
+    sfx.zaDouble();
+  }
+  // the bonus items that open the place's bonus round (the cart's golden arch, the MP's unlimited pneuman): [hit, of],
+  // or null once the round's been had or there isn't one
+  function bonusGate() {
+    if (lvl().gun) {
+      const g = S.gun, gp = S.scene.gp;
+      if (!g || g.upDone || g.upm) return null;
+      if (gp) return gp.upCount ? gp.upCount() : null;
+      return g.drones.length ? [g.drones.filter((d) => d.state !== "fly").length, g.drones.length] : null;
+    }
+    if (S.osb) return null;
+    if (S.scene.bonusObjs) { const b = S.scene.bonusObjs(); return [b.filter((o) => o.hit).length, b.length]; }
+    const objs = (S.props || []).filter((o) => { const D = PROPS[o.kind]; return !D.alive && !D.neutral && !(lvl().noBonus || []).includes(o.kind); });
+    return [objs.filter((o) => o.scored).length, objs.length];
+  }
+  // (the first of the two: the note says what the second will open)
+  function gateLine() {
+    const g = bonusGate();
+    return g && g[1] === 2 && g[0] === 1 ? ` Second bonus item opens the ${lvl().gun ? "unlimited pneuman" : "golden arch"} bonus!` : "";
+  }
   // a +5 bonus, once per object per level
   // (msg and say can stand in for the prop's own, e.g. the junker's bodywork)
   function award(prop, msg = PROPS[prop.kind].msg, say = PROPS[prop.kind].say) {
@@ -2281,7 +2328,8 @@ body.lab .stage > :not(canvas) { display: none; }
     if ((lvl().noBonus || []).includes(prop.kind)) { shotNote(`${msg} ${say} (no bonus for that here)`); return; }
     if (prop.scored) { shotNote(`${msg} ${say} (bonus already won)`); return; }
     prop.scored = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push(D.label || prop.kind);
-    shotNote(`${msg} ${say} +${PTS.obj} bonus!`);
+    bonusFanfare(PTS.obj);
+    shotNote(`${msg} ${say} +${PTS.obj} bonus!${gateLine()}`);
   }
   function scoreTarget(t) {
     t.hit = true; t.flash = 1; S.score += t.pts; S.shotScores++; sfx.ring(t.pts);
@@ -2324,7 +2372,7 @@ body.lab .stage > :not(canvas) { display: none; }
       prop.t = 0; prop.say = PROPS.seadoo.say; sfx.clank();
       if (dunk) { r.out = { t: 0 }; sfx.splosh(); sfx.hey(); (S.ripples = S.ripples || []).push({ x: prop.x, z: prop.z - 1, t: 0 }); }
       if (prop.scored) shotNote(`Bonk! The Sea-Doo again${dunk ? ", and in goes the rider" : ""} (bonus already won)`);
-      else { prop.scored = true; S.shotScores++; S.bonus += PROPS.seadoo.big; (S.bonusItems = S.bonusItems || []).push("Sea-Doo"); shotNote(`${PROPS.seadoo.msg} WHOA! Rider overboard! +${PROPS.seadoo.big} bonus!`); }
+      else { prop.scored = true; S.shotScores++; S.bonus += PROPS.seadoo.big; (S.bonusItems = S.bonusItems || []).push("Sea-Doo"); bonusFanfare(PROPS.seadoo.big); shotNote(`${PROPS.seadoo.msg} WHOA! Rider overboard! +${PROPS.seadoo.big} bonus!${gateLine()}`); }
     } else if (prop && prop.kind === "trampoline" && prop.zone === "net") {
       prop.t = 0; prop.say = "FWUMP"; sfx.thunk();
       shotNote("Caught in the trampoline's net. The bonus is for dropping in onto the mat.");
@@ -2620,7 +2668,7 @@ body.lab .stage > :not(canvas) { display: none; }
     const unlRow = unl ? `<div class="trow bonus"><span>Pulls not used <small>(${unl} × 1)</small></span><b id="tU">+0</b></div>` : "";
     // (the difficulty's multiplier, when it isn't ×1: what it adds or takes off the sum)
     const sum = score + bonus + extra + unl + clearB, final = Math.round(sum * mult), dm = final - sum;
-    const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} stars)</small></span><b id="tO">+0</b></div>` : "") +
+    const clearRow = (osb ? `<div class="trow bonus"><span>One Shot Bonus <small>(${osb / OSB.pts} of ${OSB.n} rings)</small></span><b id="tO">+0</b></div>` : "") +
       (clearB ? `<div class="trow bonus"><span>Level cleared</span><b id="tC">+0</b></div>` : "");
     const multRow = mult !== 1 ? `<div class="trow ${dm >= 0 ? "bonus" : "minus"}"><span>${cap(dif().name)} <small>(×${mult})</small></span><b id="tM">${dm >= 0 ? "+" : "−"}0</b></div>` : "";
     el.innerHTML = `<div class="trow in"><span>${lvl().boss ? "Hits and squash" : lvl().gun ? lvl().noun || "Skeetzas" : "Rings"}</span><b id="tS">0</b></div>${penaltyRow}${bonusRow}${spareRow}${unlRow}${clearRow}${multRow}<div class="trow total"><span>Level total</span><b id="tT">0</b></div>`;
@@ -2988,6 +3036,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const ab = $("arcBtn");
     ab.hidden = !(arcPts() && !S.potato && canAdjust());
     ab.textContent = S.arcView == null ? "View arc" : `${ARC_VIEWS[S.arcView].name} ▸`;
+    // (the golden arch's hint, on View arc: see startOsb)
+    $("arcPtr").hidden = !(S.osb && S.osb.state === "ready" && S.osb.hint && !ab.hidden && S.arcView == null);
     const adj = canAdjust();
     ["pump", "bleed", "angUp", "angDown", "rotL", "rotR"].forEach((id) => ($(id).disabled = !adj));
     // the Pump button looks greyed until LOAD is pressed (it still works: the needle twitches and it says "Load first")
@@ -5144,7 +5194,7 @@ body.lab .stage > :not(canvas) { display: none; }
     o.t = 0; o.say = null; sfx.boing();
     // straight up mostly: it comes down again a few metres on
     p.y = TRAMP.y + 0.06; p.vy = Math.abs(p.vy) * 0.6; p.vx *= 0.3; p.vz *= 0.3;
-    if (!o.scored) { o.scored = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push(D.label); addPre(`${D.msg} ${D.say} +${PTS.obj} bonus!`); }
+    if (!o.scored) { o.scored = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push(D.label); bonusFanfare(PTS.obj); addPre(`${D.msg} ${D.say} +${PTS.obj} bonus!${gateLine()}`); }
     else addPre(`${D.say} (bonus already won)`);
     hud();
   }
@@ -8151,6 +8201,7 @@ body.lab .stage > :not(canvas) { display: none; }
   // each press shows the last arc from the next angle; after the last one it goes back to the normal view
   $("arcBtn").addEventListener("click", () => {
     if (!arcPts() || S.potato) return;
+    if (S.osb) S.osb.hint = false; // (seen it: the golden arch's arrow goes)
     S.view = null; $("resetView").hidden = true;
     S.arcView = S.arcView == null ? 0 : S.arcView + 1;
     if (S.arcView >= ARC_VIEWS.length) S.arcView = null;
@@ -8543,13 +8594,13 @@ body.lab .stage > :not(canvas) { display: none; }
           penalize("worker", `You splatted a worker! ${hit.w.say}`);
         } else if (hit.kind === "drone") {
           const d = hit.d;
-          if (!d.scored) { d.scored = true; S.shotScores++; S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push("drone"); shotNote(`The drone! BZZT! +${GUN.drone} bonus!`); }
+          if (!d.scored) { d.scored = true; S.shotScores++; S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push("drone"); bonusFanfare(GUN.drone); shotNote(`The drone! BZZT! +${GUN.drone} bonus!${gateLine()}`); }
           else shotNote("The drone again (bonus already won)");
           downDrone(d);
         } else if (hit.kind === "machine" && hit.m.bonus) {
           const m = hit.m; sfx.thunk(); pop("THWUMP!");
           for (let i = 0; i < 16; i++) S.bits.push({ kind: "chunk", x: m.x + rnd(-0.5, 0.5), y: topOf(m), z: m.z + rnd(-0.5, 0.5), vx: rnd(-2.5, 2.5), vy: rnd(1, 4), vz: rnd(-2.5, 2.5), a: rnd(0, 6), s: rnd(0.14, 0.24), c: pick(["#f4efe4", "#f1ece0", "#c9572b"]), t: 0, ph: rnd(0, 6) });
-          if (!m.scored) { m.scored = true; m.hit = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push("pizza boxes"); shotNote(`Right into the stack of pizza boxes! THWUMP! +${PTS.obj} bonus!`); }
+          if (!m.scored) { m.scored = true; m.hit = true; S.shotScores++; S.bonus += PTS.obj; (S.bonusItems = S.bonusItems || []).push("pizza boxes"); bonusFanfare(PTS.obj); shotNote(`Right into the stack of pizza boxes! THWUMP! +${PTS.obj} bonus!${gateLine()}`); }
           else shotNote(`The pizza boxes again (bonus already won)${then}`);
         } else if (hit.kind === "machine") {
           sfx.thunk(); pop(hit.m.kind === "conveyor" ? "CLUNK!" : "THUNK!");
@@ -9216,8 +9267,9 @@ body.lab .stage > :not(canvas) { display: none; }
   function hitDrone(dr, shot) {
     S.bonus += GUN.drone; (S.bonusItems = S.bonusItems || []).push("drone");
     shot.scores++; if (shot.pull) shot.pull.drone = true;
-    shot.items.push(`The drone! +${GUN.drone} bonus!`); shot.at = [dr.x, dr.y, dr.z];
-    downDrone(dr);
+    shot.at = [dr.x, dr.y, dr.z];
+    downDrone(dr); bonusFanfare(GUN.drone);
+    shot.items.push(`The drone! +${GUN.drone} bonus!${gateLine()}`);
     hud();
   }
   function downDrone(dr) {
@@ -9469,8 +9521,9 @@ body.lab .stage > :not(canvas) { display: none; }
     const pts = b.pts || GUN.drone;
     S.bonus += pts; (S.bonusItems = S.bonusItems || []).push(b.name);
     shot.scores++; if (shot.pull) shot.pull.drone = true;
-    shot.items.push(`The ${b.label}! +${pts} bonus!`); shot.at = b.at;
-    b.react(); hud();
+    shot.at = b.at;
+    b.react(); bonusFanfare(pts);
+    shot.items.push(`The ${b.label}! +${pts} bonus!${gateLine()}`); hud();
   }
   const LIVE_HITS = { pizza: hitPizza, drone: hitDrone, worker: hitWorker, window: hitWindow, animal: hitAnimal, bonus: hitBonus, done: shotDone };
   const REPLAY_HITS = { pizza: (p) => burstPizza(p), drone: (dr) => downDrone(dr), worker: (w, shot) => { if (!shot.workers.has(w)) { shot.workers.add(w); duckWorker(w); } },
@@ -10505,6 +10558,7 @@ body.lab .stage > :not(canvas) { display: none; }
       kind: () => "pie", upKind: () => "pie",
       calls: { 1: { text: "Two Fer Pie!", name: "Two Fer Pie" }, 2: { text: "Double Pie!", name: "Double Pie" } },
       upReady: () => { const b = bonusProps(); return b.length > 0 && b.every((o) => o.scored); },
+      upCount: () => { const b = bonusProps(); return [b.filter((o) => o.scored).length, b.length]; },
       upCross: () => [rnd(-3, 3), rnd(6, 8), rnd(18, 26)],
       upFlight: (l, C) => Math.max(rnd(1.5, 1.9), Math.hypot(C[0] - l.x, C[2] - l.z) / 13),
       bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
@@ -10797,8 +10851,10 @@ body.lab .stage > :not(canvas) { display: none; }
       ...pairs,
       kind: () => "vest", upKind: () => "vest",
       calls: { 1: { text: "Two Fer Vest!", name: "Two Fer Vest" }, 2: { text: "Double Vest!", name: "Double Vest" } },
-      // (UP mode once the fishing boat's been hit: the Sea-Doo is seldom about)
-      upReady: () => (S.props || []).some((o) => o.kind === "fisher" && o.scored),
+      // (UP mode once the fishing boat and the Sea-Doo have both been hit, as every other place: Nov 17 2026, the user;
+      // it was the boat alone, the Sea-Doo being seldom about)
+      upReady: () => { const b = bonusProps(); return b.length > 0 && b.every((o) => o.scored); },
+      upCount: () => { const b = bonusProps(); return [b.filter((o) => o.scored).length, b.length]; },
       upCross: () => [rnd(-3, 3), rnd(7, 9), E[2] + rnd(30, 40)],
       upFlight: (l, C) => Math.max(rnd(1.6, 2), Math.hypot(C[0] - l.x, C[2] - l.z) / 18),
       bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
@@ -10900,6 +10956,7 @@ body.lab .stage > :not(canvas) { display: none; }
       kind: () => "pumpkin", upKind: () => "pumpkin",
       calls: { 1: { text: "Two Fer Pumpkin!", name: "Two Fer Pumpkin" }, 2: { text: "Double Pumpkin!", name: "Double Pumpkin" } },
       upReady: () => { const b = bonusProps(); return b.length > 0 && b.every((o) => o.scored); },
+      upCount: () => { const b = bonusProps(); return [b.filter((o) => o.scored).length, b.length]; },
       upCross: () => [rnd(-3, 3), rnd(6, 8), rnd(18, 26)],
       upFlight: (l, C) => Math.max(rnd(1.5, 1.9), Math.hypot(C[0] - l.x, C[2] - l.z) / 13),
       bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
@@ -11025,6 +11082,7 @@ body.lab .stage > :not(canvas) { display: none; }
       kind: () => "hubcap", upKind: () => "hubcap",
       calls: { 1: { text: "Two Fer Hubcap!", name: "Two Fer Hubcap" }, 2: { text: "Double Hubcap!", name: "Double Hubcap" } },
       upReady: () => { const b = bonusProps(); return b.length > 0 && b.every((o) => o.scored); },
+      upCount: () => { const b = bonusProps(); return [b.filter((o) => o.scored).length, b.length]; },
       upCross: () => [rnd(-3, 3), rnd(6, 8), E[2] + rnd(16, 24)],
       upFlight: (l, C) => Math.max(rnd(1.6, 2), Math.hypot(C[0] - l.x, C[2] - l.z) / 23),
       bonusList: () => bonusProps().map((o) => ({ k: o.kind, label: PROPS[o.kind].label, hit: !!o.scored })),
@@ -12514,6 +12572,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // UP mode (v2.06): earned once both bonuses are hit, the weather vane and the sign. The waves cross out in the
       // yard, near the middle, a little lower than a pair, so the whole arc fits the still, pulled-back view
       upReady: () => bonusState.vaneHit != null && bonusState.signHit != null,
+      upCount: () => [(bonusState.vaneHit != null) + (bonusState.signHit != null), 2],
       // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
       bonusList: () => [{ k: "vane", label: "weather vane", hit: bonusState.vaneHit != null }, { k: "sign", label: "Live Edge Charcuterie sign", hit: bonusState.signHit != null }],
       // (the start card's pictures of what costs points here, each by this place's own drawing (batch G))
@@ -13436,6 +13495,7 @@ body.lab .stage > :not(canvas) { display: none; }
       // UP mode: earned once the drone's down and the nav buoy's been hit; the gold cushions go up from the same four
       // spots and cross all over the water in front, a little higher
       upReady: () => S.gun.drones.some((d) => d.state !== "fly") && NAV.hitAt != null,
+      upCount: () => [S.gun.drones.some((d) => d.state !== "fly") + (NAV.hitAt != null), 2],
       // (its bonuses for the strip over the field, each with whether it's been hit (v2.16))
       bonusList: () => [{ k: "drone", gun: true, label: "the drone", hit: S.gun.drones.some((d) => d.state !== "fly") }, { k: "buoy", label: "the green nav buoy", hit: NAV.hitAt != null }],
       // (the start card's pictures of what costs points here, each by this place's own drawing, where it is now (batch G))
