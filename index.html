@@ -816,7 +816,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.61</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.62</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2201,16 +2201,32 @@ body.lab .stage > :not(canvas) { display: none; }
       if (q.behind) return;
       pts.push(q); far.push(Math.hypot(X - CAM.x, Y - CAM.y, Z - CAM.z) > d0);
     }
-    // (this part's runs of the ring: each step whose two ends are on this side, an end on the line counting for both)
-    const mine = (i) => (part === "back" ? far[i] || far[i + 1] : !far[i] || !far[i + 1]);
-    const line = () => { ctx.beginPath(); for (let i = 0; i < 32; i++) if (mine(i)) { if (i === 0 || !mine(i - 1)) ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[i + 1].x, pts[i + 1].y); } };
+    // (this part's steps round the ring: the far ones for the back, the rest for the front, so each step is drawn
+    // once. ext: the gold runs one step further at each end, gold over gold where the halves meet, so the join
+    // doesn't show; the dark edges end square there, so no bar across it (Nov 17 2026, the user))
+    const isFar = (i) => far[i] && far[i + 1], m32 = (i) => ((i % 32) + 32) % 32;
+    const mine = (i, ext) => { const f = (j) => (part === "back" ? isFar(m32(j)) : !isFar(m32(j))); return f(i) || (ext && (f(i - 1) || f(i + 1))); };
+    const line = (ext) => {
+      ctx.beginPath();
+      // (from the start of a run, round the whole ring once, so a run across the ring's first point is one piece)
+      let s = 0; while (s < 32 && !(mine(s, ext) && !mine(s - 1, ext))) s++;
+      if (s === 32) { if (!mine(0, ext)) return; s = 0; }
+      let all = true;
+      for (let n = 0; n < 32; n++) {
+        const i = m32(s + n);
+        if (!mine(i, ext)) { all = false; continue; }
+        if (n === 0 || !mine(i - 1, ext)) ctx.moveTo(pts[i].x, pts[i].y);
+        ctx.lineTo(pts[i + 1].x, pts[i + 1].y);
+      }
+      if (all) ctx.closePath(); // (the whole ring on this side: closed, no join)
+    };
     const w = clamp(0.2 * c.s, 2.5, 16), pulse = r.hit ? 0 : 0.5 + 0.5 * Math.sin(now * 4 + k);
-    ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "butt";
     if (!r.hit) { ctx.shadowColor = "rgba(255,200,40,.95)"; ctx.shadowBlur = Math.max(8, w * (1.5 + pulse)); }
-    line(); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.lineWidth = w + 3; ctx.stroke();
+    line(false); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.lineWidth = w + 3; ctx.stroke();
     ctx.shadowBlur = 0;
-    line(); ctx.strokeStyle = r.hit ? "#2fb84a" : "#ffd23a"; ctx.lineWidth = w; ctx.stroke();
-    line(); ctx.strokeStyle = r.hit ? "#b8f5c4" : "#fff4bf"; ctx.lineWidth = Math.max(1, w * 0.3); ctx.stroke();
+    line(true); ctx.strokeStyle = r.hit ? "#2fb84a" : "#ffd23a"; ctx.lineWidth = w; ctx.stroke();
+    line(true); ctx.strokeStyle = r.hit ? "#b8f5c4" : "#fff4bf"; ctx.lineWidth = Math.max(1, w * 0.3); ctx.stroke();
     if (part === "back") { ctx.restore(); return; }
     const R = Math.max(7, OSB.r * c.s);
     if (r.hit) {
