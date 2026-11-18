@@ -816,7 +816,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.60</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.61</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -2148,6 +2148,10 @@ body.lab .stage > :not(canvas) { display: none; }
   // spud waits, a soft gold wash over the field and sparkles round its edges
   function drawOsb() {
     const o = S.osb, now = performance.now() / 1000, path = (o.set && o.set.path) || [];
+    // (the rings' far halves first, behind the arch, and their near halves after it, so the arch is plainly seen
+    // through the middle of each: drawn whole over it, it looked to touch their edges (Nov 17 2026, the user))
+    const rings = o.rings.slice().sort((a, b) => Math.hypot(b.x - CAM.x, b.z - CAM.z) - Math.hypot(a.x - CAM.x, a.z - CAM.z));
+    rings.forEach((r, i) => drawOsbRing(r, now, i, "back"));
     // the arch: the points in front of the camera, joined
     const pts = path.map((p) => P(p[0], p[1], p[2])).filter((q) => !q.behind);
     if (pts.length > 1) {
@@ -2161,8 +2165,8 @@ body.lab .stage > :not(canvas) { display: none; }
       ctx.setLineDash([10, 46]); ctx.lineDashOffset = -now * 90; line(); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 4; ctx.stroke(); ctx.setLineDash([]);
       ctx.restore();
     }
-    // the rings, far to near
-    o.rings.slice().sort((a, b) => Math.hypot(b.x - CAM.x, b.z - CAM.z) - Math.hypot(a.x - CAM.x, a.z - CAM.z)).forEach((r, i) => drawOsbRing(r, now, i));
+    // the rings' near halves, far to near
+    rings.forEach((r, i) => drawOsbRing(r, now, i, "front"));
     if (o.state === "ready") {
       ctx.save();
       ctx.fillStyle = `rgba(255,196,40,${(0.07 + 0.03 * Math.sin(now * 3)).toFixed(3)})`; ctx.fillRect(0, 0, W, H);
@@ -2181,7 +2185,9 @@ body.lab .stage > :not(canvas) { display: none; }
   // (Nov 17 2026) a ring of the arc: gold, as the place's coloured rings are rings, square to the flight there and
   // just the size the spud scores in (OSB.r), so from View arc's sides it's seen edge on, as it really is; a soft
   // glow and sparkles circling it; green with a tick once gone through
-  function drawOsbRing(r, now, k) {
+  // (part: "back", the half of it further from the camera than its middle, drawn before the arch; "front", the
+  // nearer half with the tick and sparkles, after it)
+  function drawOsbRing(r, now, k, part) {
     const c = P(r.x, r.y, r.z);
     if (c.behind) return;
     // (two directions across the ring's face, square to its n)
@@ -2189,20 +2195,23 @@ body.lab .stage > :not(canvas) { display: none; }
     let u = [n[1] * a0[2] - n[2] * a0[1], n[2] * a0[0] - n[0] * a0[2], n[0] * a0[1] - n[1] * a0[0]];
     const ul = Math.hypot(...u); u = u.map((x) => x / ul);
     const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
-    const pts = [];
+    const pts = [], far = [], d0 = Math.hypot(r.x - CAM.x, r.y - CAM.y, r.z - CAM.z);
     for (let i = 0; i <= 32; i++) {
-      const a = (i / 32) * Math.PI * 2, ca = Math.cos(a) * OSB.r, sa = Math.sin(a) * OSB.r, q = P(r.x + u[0] * ca + v[0] * sa, r.y + u[1] * ca + v[1] * sa, r.z + u[2] * ca + v[2] * sa);
+      const a = (i / 32) * Math.PI * 2, ca = Math.cos(a) * OSB.r, sa = Math.sin(a) * OSB.r, X = r.x + u[0] * ca + v[0] * sa, Y = r.y + u[1] * ca + v[1] * sa, Z = r.z + u[2] * ca + v[2] * sa, q = P(X, Y, Z);
       if (q.behind) return;
-      pts.push(q);
+      pts.push(q); far.push(Math.hypot(X - CAM.x, Y - CAM.y, Z - CAM.z) > d0);
     }
-    const line = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); };
+    // (this part's runs of the ring: each step whose two ends are on this side, an end on the line counting for both)
+    const mine = (i) => (part === "back" ? far[i] || far[i + 1] : !far[i] || !far[i + 1]);
+    const line = () => { ctx.beginPath(); for (let i = 0; i < 32; i++) if (mine(i)) { if (i === 0 || !mine(i - 1)) ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[i + 1].x, pts[i + 1].y); } };
     const w = clamp(0.2 * c.s, 2.5, 16), pulse = r.hit ? 0 : 0.5 + 0.5 * Math.sin(now * 4 + k);
-    ctx.save(); ctx.lineJoin = "round";
+    ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
     if (!r.hit) { ctx.shadowColor = "rgba(255,200,40,.95)"; ctx.shadowBlur = Math.max(8, w * (1.5 + pulse)); }
     line(); ctx.strokeStyle = r.hit ? "#16702c" : "#a86f00"; ctx.lineWidth = w + 3; ctx.stroke();
     ctx.shadowBlur = 0;
     line(); ctx.strokeStyle = r.hit ? "#2fb84a" : "#ffd23a"; ctx.lineWidth = w; ctx.stroke();
     line(); ctx.strokeStyle = r.hit ? "#b8f5c4" : "#fff4bf"; ctx.lineWidth = Math.max(1, w * 0.3); ctx.stroke();
+    if (part === "back") { ctx.restore(); return; }
     const R = Math.max(7, OSB.r * c.s);
     if (r.hit) {
       const fs = clamp(R * 0.9, 10, 60);
