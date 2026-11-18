@@ -832,7 +832,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.65</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.66</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -1275,10 +1275,31 @@ body.lab .stage > :not(canvas) { display: none; }
   }
   const stopEngines = () => { for (const h of [...ENGINES]) h.cut(0.15); };
   document.addEventListener("visibilitychange", () => { if (document.hidden) stopEngines(); });
+  // (Nov 17 2026) every sound goes out through one gain, AUDIO.out, then AUDIO.spk to the speakers, so a Re-live it
+  // video can listen in on AUDIO.out. The game's sounds all connect to the context's destination themselves (a dozen
+  // places), so connecting to it is turned into connecting to AUDIO.out. While a video's recording, sounds play even
+  // with sound off, for the video only: the speakers' gain is 0 then
+  const AUDIO = { out: null, spk: null };
+  // (the Re-live it video being made, if any: see vidStart. Here, before any sound can play, as audio() reads it)
+  const VID = { on: false, rec: null, chunks: [], c: null, x: null, type: "", label: "", blob: null, url: null, dest: null };
+  function audioBus(a) {
+    AUDIO.out = a.createGain(); AUDIO.spk = a.createGain();
+    const connect = AudioNode.prototype.connect;
+    connect.call(AUDIO.out, AUDIO.spk); connect.call(AUDIO.spk, a.destination);
+    AudioNode.prototype.connect = function (dest, ...rest) { return connect.call(this, dest === a.destination && this !== AUDIO.spk ? AUDIO.out : dest, ...rest); };
+  }
+  // (the sound system made ready without playing anything, so its recordings are decoded before they're wanted: a
+  // video can be made with sound off all along. The speakers stay at 0 while sound's off)
+  function audioWarm() {
+    if (actx) return;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); audioBus(actx); loadSounds(actx); AUDIO.spk.gain.value = S.muted ? 0 : 1; } catch (e) {}
+  }
   function audio() {
-    if (S.muted) return null;
-    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); loadSounds(actx); } catch (e) { return null; } }
+    const rec = VID.on;
+    if (S.muted && !rec) return null;
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); audioBus(actx); loadSounds(actx); } catch (e) { return null; } }
     if (actx.state === "suspended") actx.resume();
+    if (AUDIO.spk) AUDIO.spk.gain.value = S.muted ? 0 : 1;
     return actx;
   }
   function noise(dur, freq, gain, sweep) {
@@ -7589,6 +7610,7 @@ body.lab .stage > :not(canvas) { display: none; }
     $("shareCopyImg").hidden = !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
     // (Nov 17 2026: an epic spud can go as a video of its Re-live it, where the browser can record one)
     $("shareVid").hidden = !!challenge || !vidCan();
+    if (!$("shareVid").hidden) audioWarm(); // (its sounds decoded now, ready for the video)
     shareNote(challenge && !playerName() ? "Add your name, so your friends know who's challenging them." : ""); shareCard.hidden = false;
     setTimeout(() => (challenge && !playerName() ? $("shareName") : $("shareGo").hidden ? $("shareCopy") : $("shareGo")).focus({ preventScroll: true }), 30);
   }
@@ -7672,10 +7694,10 @@ body.lab .stage > :not(canvas) { display: none; }
   // else WebM), copied each frame onto a canvas of its own with "Pneuman · 5 · Harvest" in the corner. No sound. Then
   // a card with the video: Share video… (the share sheet wants a fresh tap, so it can't open by itself once the
   // recording's done) and Save video. All on the device, no server. Stopping Re-live it partway drops the recording
-  const VID = { rec: null, chunks: [], c: null, x: null, type: "", label: "", blob: null, url: null };
+  // (v2.66: with the game's sound, from AUDIO.out, even with sound off: the video's for others. VID: up by audio())
   const vidType = () => {
     if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
-    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || null;
+    return ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4;codecs=avc1,opus", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || null;
   };
   // (there's a Re-live it to record: the cart's last shot with its arc, or the MP's last shot)
   const vidCan = () => !!vidType() && (lvl().gun ? !!S.gunRec : !!(S.rec && S.rec.arc));
@@ -7687,11 +7709,21 @@ body.lab .stage > :not(canvas) { display: none; }
     const k = Math.min(1, 1280 / Math.max(cv.width, cv.height)), w = Math.round((cv.width * k) / 2) * 2, h = Math.round((cv.height * k) / 2) * 2;
     VID.c = document.createElement("canvas"); VID.c.width = w; VID.c.height = h; VID.x = VID.c.getContext("2d");
     VID.type = vidType(); VID.chunks = []; VID.label = `Pneuman · ${S.level + 1} · ${levelLabel(lvl())}`;
+    // (the game's sound on for it, even with sound off (then only the video hears it), listened to from AUDIO.out)
+    VID.on = true;
+    const stream = VID.c.captureStream(30), a = audio();
+    if (a && AUDIO.out && a.createMediaStreamDestination) {
+      VID.dest = a.createMediaStreamDestination(); AUDIO.out.connect(VID.dest);
+      // (a silent source kept running into it: with nothing sounding, the browser stopped giving the recording any
+      // sound at all, and the video's sound ended at the first quiet moment, a few seconds in)
+      if (a.createConstantSource) { VID.keep = a.createConstantSource(); VID.keep.offset.value = 0; VID.keep.connect(VID.dest); VID.keep.start(); }
+      const tr = VID.dest.stream.getAudioTracks()[0]; if (tr) stream.addTrack(tr);
+    }
     gun ? startGunRelive() : startRelive();
-    if (!(gun ? S.gunReplay : S.replay)) return;
+    if (!(gun ? S.gunReplay : S.replay)) { vidOff(); return; }
     let rec;
-    try { rec = new MediaRecorder(VID.c.captureStream(30), { mimeType: VID.type, videoBitsPerSecond: 3000000 }); }
-    catch (e) { note("This browser can't record a video, sorry.", 3500); return; }
+    try { rec = new MediaRecorder(stream, { mimeType: VID.type, videoBitsPerSecond: 3000000, audioBitsPerSecond: 128000 }); }
+    catch (e) { vidOff(); note("This browser can't record a video, sorry.", 3500); return; }
     rec.ondataavailable = (e) => { if (e.data && e.data.size) VID.chunks.push(e.data); };
     VID.rec = rec; vidFrame(); rec.start(250);
     note("● Recording Re-live it as a video…", 2500);
@@ -7712,9 +7744,18 @@ body.lab .stage > :not(canvas) { display: none; }
     x.fillStyle = "rgba(255,250,240,.7)"; x.fillText(`v${GAME_V}`, w - vs * 0.6, h - vs * 0.5);
   }
   // Re-live it's over (done: it played through) or was stopped (dropped)
+  // (the recording's sound off again: the speakers back to the player's setting)
+  function vidOff() {
+    VID.on = false;
+    if (VID.keep) { try { VID.keep.stop(); } catch (e) {} VID.keep = null; }
+    if (VID.dest) { try { AUDIO.out.disconnect(VID.dest); } catch (e) {} VID.dest = null; }
+    if (AUDIO.spk) AUDIO.spk.gain.value = S.muted ? 0 : 1;
+  }
   function vidEnd(done) {
     const rec = VID.rec; if (!rec) return;
     VID.rec = null;
+    // (a moment's grace, so the last sound's tail is in, then the sound's let go)
+    setTimeout(() => { if (!VID.rec) vidOff(); }, 300);
     rec.onstop = () => {
       if (!done) { note("Video stopped. Share as video again to record the whole Re-live it.", 3500); return; }
       vidShow(new Blob(VID.chunks, { type: VID.type.split(";")[0] }));
@@ -8145,6 +8186,7 @@ body.lab .stage > :not(canvas) { display: none; }
   const gear = $("gear"), settings = $("settings"), soundTgl = $("soundTgl");
   function setMuted(m) {
     S.muted = m; soundTgl.checked = !m; if (m) stopEngines();
+    if (AUDIO.spk) AUDIO.spk.gain.value = m ? 0 : 1; // (anything still sounding goes quiet too)
     try { localStorage.setItem("pneuman-muted", m ? "1" : "0"); } catch (e) {}
   }
   soundTgl.checked = !S.muted;
