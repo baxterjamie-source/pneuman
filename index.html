@@ -157,6 +157,7 @@ body.osblock .ctl-ang, body.osblock .ctl-rot { opacity: .38; pointer-events: non
 .sharecard { z-index: 6; }
 .card.share { max-width: 38rem; }
 .card.share img { display: block; width: 100%; border: 3px solid var(--ink); border-radius: 10px; }
+.card.share video { display: block; width: 100%; max-height: 60vh; border: 3px solid var(--ink); border-radius: 10px; background: #000; }
 .card.share .cardbtns button { padding: 5px 10px; }
 #shareGo { background: var(--yellow); }
 .sharemsg { font-size: .82rem; opacity: .75; overflow-wrap: anywhere; }
@@ -770,9 +771,24 @@ body.lab .stage > :not(canvas) { display: none; }
           <button id="shareGo" type="button">Share…</button>
           <button id="shareCopyImg" type="button">Copy picture</button>
           <button id="shareCopy" type="button">Copy message</button>
+          <!-- (Nov 17 2026) Re-live it, recorded as a video -->
+          <button id="shareVid" type="button" hidden>🎬 Share as video</button>
           <button id="shareClose" type="button">Close</button>
         </div>
         <p class="sharehint" id="shareHint" role="status" hidden></p>
+      </div>
+    </div>
+    <!-- (Nov 17 2026) the Re-live it video, once it's recorded: share it or save it -->
+    <div class="overlay sharecard" id="vidCard" hidden>
+      <div class="card share" role="dialog" aria-label="Your Re-live it video">
+        <span class="eyebrow">Re-live it video</span>
+        <video id="vidEl" playsinline muted loop autoplay controls></video>
+        <div class="cardbtns">
+          <button id="vidShare" type="button">Share video…</button>
+          <button id="vidSave" type="button">Save video</button>
+          <button id="vidClose" type="button">Close</button>
+        </div>
+        <p class="sharehint" id="vidHint" role="status" hidden></p>
       </div>
     </div>
   </div>
@@ -816,7 +832,7 @@ body.lab .stage > :not(canvas) { display: none; }
     <button class="fire" id="fire" type="button">OPEN<small>the valve</small></button>
   </section>
 
-  <p class="ver">Pneuman v2.62</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
+  <p class="ver">Pneuman v2.63</p><!-- v2.12: the One Shot Bonus, the bonus strip, a fixed Sea-Doo lane, How to play's ‹ › / Replay / Close -->
 </div>
 
 <script>
@@ -7315,6 +7331,8 @@ body.lab .stage > :not(canvas) { display: none; }
     const R = S.replay; if (!R) return;
     const s = R.saved;
     S.replay = null;
+    // (a video being made of it: kept if it played through, dropped if stopped partway)
+    vidEnd(R.pass >= RELIVE_PASSES.length);
     applyState(R.now);
     // (the golden spud's stars back as they ended up, if it was stopped partway)
     if (R.rec.osbHits && S.osb) for (const h of R.rec.osbHits) { const r = S.osb.rings[h.i]; if (r) r.hit = true; }
@@ -7537,6 +7555,8 @@ body.lab .stage > :not(canvas) { display: none; }
     // and Share… is the way to send both there)
     $("shareGo").textContent = onPhone() ? "Share picture + message…" : challenge ? "Share…" : "Share picture…";
     $("shareCopyImg").hidden = !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
+    // (Nov 17 2026: an epic spud can go as a video of its Re-live it, where the browser can record one)
+    $("shareVid").hidden = !!challenge || !vidCan();
     shareNote(challenge && !playerName() ? "Add your name, so your friends know who's challenging them." : ""); shareCard.hidden = false;
     setTimeout(() => (challenge && !playerName() ? $("shareName") : $("shareGo").hidden ? $("shareCopy") : $("shareGo")).focus({ preventScroll: true }), 30);
   }
@@ -7613,6 +7633,85 @@ body.lab .stage > :not(canvas) { display: none; }
     }
   });
   $("shareClose").addEventListener("click", closeShare);
+
+  // ================= (Nov 17 2026) Re-live it as a video to share =================
+  // Share as video, on the Share card (an epic spud, not a challenge; every level): Re-live it plays through, all its
+  // views, and the field is recorded as it plays (the canvas, by MediaRecorder: an MP4 where the browser can make one,
+  // else WebM), copied each frame onto a canvas of its own with "Pneuman · 5 · Harvest" in the corner. No sound. Then
+  // a card with the video: Share video… (the share sheet wants a fresh tap, so it can't open by itself once the
+  // recording's done) and Save video. All on the device, no server. Stopping Re-live it partway drops the recording
+  const VID = { rec: null, chunks: [], c: null, x: null, type: "", label: "", blob: null, url: null };
+  const vidType = () => {
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
+    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || null;
+  };
+  // (there's a Re-live it to record: the cart's last shot with its arc, or the MP's last shot)
+  const vidCan = () => !!vidType() && (lvl().gun ? !!S.gunRec : !!(S.rec && S.rec.arc));
+  function vidStart() {
+    if (!vidCan() || VID.rec) return;
+    const gun = !!lvl().gun;
+    closeShare();
+    // (at most 1280 across, even sizes for the encoder)
+    const k = Math.min(1, 1280 / Math.max(cv.width, cv.height)), w = Math.round((cv.width * k) / 2) * 2, h = Math.round((cv.height * k) / 2) * 2;
+    VID.c = document.createElement("canvas"); VID.c.width = w; VID.c.height = h; VID.x = VID.c.getContext("2d");
+    VID.type = vidType(); VID.chunks = []; VID.label = `Pneuman · ${S.level + 1} · ${levelLabel(lvl())}`;
+    gun ? startGunRelive() : startRelive();
+    if (!(gun ? S.gunReplay : S.replay)) return;
+    let rec;
+    try { rec = new MediaRecorder(VID.c.captureStream(30), { mimeType: VID.type, videoBitsPerSecond: 3000000 }); }
+    catch (e) { note("This browser can't record a video, sorry.", 3500); return; }
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) VID.chunks.push(e.data); };
+    VID.rec = rec; vidFrame(); rec.start(250);
+    note("● Recording Re-live it as a video…", 2500);
+  }
+  // each frame while recording: the field as drawn, and the tag in the top left
+  function vidFrame() {
+    const x = VID.x, w = VID.c.width, h = VID.c.height;
+    x.drawImage(cv, 0, 0, w, h);
+    const fs = Math.max(14, Math.round(h * 0.045)), pad = Math.round(fs * 0.5);
+    x.font = `400 ${fs}px "Lilita One", Nunito, sans-serif`; x.textBaseline = "middle"; x.textAlign = "left";
+    const tw = x.measureText(VID.label).width, bx = pad, by = pad, bw = tw + pad * 2, bh = fs * 1.6;
+    x.fillStyle = "rgba(35,48,58,.82)"; x.beginPath(); x.roundRect ? x.roundRect(bx, by, bw, bh, bh * 0.3) : x.rect(bx, by, bw, bh); x.fill();
+    x.fillStyle = "#ffcf33"; x.fillText(VID.label, bx + pad, by + bh / 2 + 1);
+  }
+  // Re-live it's over (done: it played through) or was stopped (dropped)
+  function vidEnd(done) {
+    const rec = VID.rec; if (!rec) return;
+    VID.rec = null;
+    rec.onstop = () => {
+      if (!done) { note("Video stopped. Share as video again to record the whole Re-live it.", 3500); return; }
+      vidShow(new Blob(VID.chunks, { type: VID.type.split(";")[0] }));
+    };
+    try { rec.stop(); } catch (e) {}
+  }
+  const vidName = () => `pneuman-${lvl().id}.${VID.type.startsWith("video/mp4") ? "mp4" : "webm"}`;
+  const vidNote = (msg) => { $("vidHint").textContent = msg; $("vidHint").hidden = !msg; };
+  function vidShow(blob) {
+    if (VID.url) URL.revokeObjectURL(VID.url);
+    VID.blob = blob; VID.url = URL.createObjectURL(blob);
+    $("vidEl").src = VID.url;
+    const file = new File([blob], vidName(), { type: blob.type });
+    $("vidShare").hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
+    vidNote(""); $("vidCard").hidden = false;
+    setTimeout(() => ($("vidShare").hidden ? $("vidSave") : $("vidShare")).focus({ preventScroll: true }), 30);
+  }
+  function vidClose() { $("vidCard").hidden = true; $("vidEl").removeAttribute("src"); $("vidEl").load(); }
+  $("shareVid").addEventListener("click", () => { audio(); vidStart(); });
+  $("vidShare").addEventListener("click", async () => {
+    if (!VID.blob) return;
+    const file = new File([VID.blob], vidName(), { type: VID.blob.type });
+    try {
+      // (on a phone, with the game's address, as the picture goes; elsewhere just the video)
+      await navigator.share(onPhone() ? { files: [file], text: `🥔 Play Pneuman: ${SHORT_URL}` } : { files: [file] });
+      vidClose();
+    } catch (err) { if (err && err.name !== "AbortError") vidNote("Sharing didn't open here. Save the video instead, then send it."); }
+  });
+  $("vidSave").addEventListener("click", () => {
+    if (!VID.url) return;
+    const a = document.createElement("a"); a.href = VID.url; a.download = vidName(); document.body.appendChild(a); a.click(); a.remove();
+    vidNote(VID.type.startsWith("video/mp4") ? "Saved to your downloads." : "Saved to your downloads (a .webm video: most phones and computers play it).");
+  });
+  $("vidClose").addEventListener("click", vidClose);
 
   // ================= challenges (the light version: everything travels in the link) =================
   // at the end of a round, Challenge a friend sends this round: the link carries the level, the round's seed, the
@@ -8244,6 +8343,7 @@ body.lab .stage > :not(canvas) { display: none; }
     if (e.key === "Escape" && S.replay) { stopRelive(); return; }
     if (e.key === "Escape" && S.gunReplay) { stopGunRelive(); return; }
     if (!shareCard.hidden) { if (e.key === "Escape") closeShare(); return; }
+    if (!$("vidCard").hidden) { if (e.key === "Escape") vidClose(); return; }
     if (settings.contains(e.target) || ctls.contains(e.target)) return;
     if (!$("overlay").hidden) {
       if (e.key === "Enter" && document.activeElement?.tagName !== "BUTTON") { e.preventDefault(); $("ovGo").click(); }
@@ -9442,6 +9542,7 @@ body.lab .stage > :not(canvas) { display: none; }
   function stopGunRelive() {
     const R = S.gunReplay; if (!R) return;
     const s = R.saved;
+    vidEnd(R.pass >= GUN_RELIVE.passes.length); // (a video of it: kept if it played through)
     S.gunReplay = null; S.gun = s.gun; S.phase = s.phase; S.bits = s.bits; S.pops = s.pops;
     $("overlay").hidden = s.overlay;
     reliveBtn.textContent = RELIVE_LABEL; hud();
@@ -10430,7 +10531,7 @@ body.lab .stage > :not(canvas) { display: none; }
   cv.addEventListener("pointerup", gunPointerUp, true); cv.addEventListener("pointercancel", gunPointerUp, true);
   cv.addEventListener("pointerleave", () => { if (lvl().gun) cv.style.cursor = ""; });
   window.addEventListener("keydown", (e) => {
-    if (!gunOn() || e.target.tagName === "INPUT" || !settings.hidden || !ctls.hidden || !shareCard.hidden || !$("confirmBox").hidden || HOWTO.on) return;
+    if (!gunOn() || e.target.tagName === "INPUT" || !settings.hidden || !ctls.hidden || !shareCard.hidden || !$("vidCard").hidden || !$("confirmBox").hidden || HOWTO.on) return;
     const k = e.key, g = S.gun, step = e.shiftKey ? 0.06 : 0.02;
     if (k === " " || k === "Enter") {
       if (k === "Enter" && e.target.tagName === "BUTTON") return;
@@ -19590,7 +19691,7 @@ body.lab .stage > :not(canvas) { display: none; }
     // on a blank field; what went wrong shows once, so it can be reported)
     requestAnimationFrame(frame);
     // (the intro steps its own scripted rounds, at a fixed rate, so its shots go the same way every time)
-    try { const t0 = performance.now(); if (INTRO.on) introFrame(dt); else if (CUT.on) cutFrame(dt); else { update(dt); cameoTick(dt); strayTick(dt); draw(); lowerDraw(dt); irisDraw(dt); } drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
+    try { const t0 = performance.now(); if (INTRO.on) introFrame(dt); else if (CUT.on) cutFrame(dt); else { update(dt); cameoTick(dt); strayTick(dt); draw(); lowerDraw(dt); irisDraw(dt); if (VID.rec) vidFrame(); } drawnOnce = true; snapBest(); if (S.fps) drawFps(now, performance.now() - t0); } catch (err) {
       console.error(err);
       if (!oops) { oops = true; note(`Glitch: ${err && err.message ? err.message : err}`, 8000); }
     }
